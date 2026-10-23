@@ -34,14 +34,21 @@ def banner(subtitle=None, facts=None, hints=None):
     console.print(wordmark())
     console.print(f"  [dim italic]{subtitle or TAGLINE}[/]")
     if facts:
-        strip = Text("  ")
-        for i, (k, v) in enumerate(facts.items()):
-            if i:
-                strip.append("  ·  ", style="dim")
-            strip.append(f"{k} ".replace(" ", "\u00a0"), style="dim")           # no break inside a fact
-            strip.append(str(v).replace(" ", "\u00a0"), style="bold cyan")
         console.print()
-        console.print(strip)
+        row, width = Text("  "), 2
+        for k, v in facts.items():
+            fact = Text()
+            fact.append(f"{k} ", style="dim")
+            fact.append(str(v), style="bold cyan")
+            sep = 5 if width > 2 else 0
+            if width + sep + len(fact) > console.width - 2 and width > 2:   # next row, never inside a fact
+                console.print(row)
+                row, width, sep = Text("  "), 2, 0
+            if sep:
+                row.append("  ·  ", style="dim")
+            row.append_text(fact)
+            width += sep + len(fact)
+        console.print(row)
     if hints:
         console.print(f"  [dim]{hints}[/]")
     console.print()
