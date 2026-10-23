@@ -46,7 +46,7 @@ cd ~/code/myproject && claudio
 | `barge_in` | `true` | talking over it cuts it (set false on speakers without the echo canceller) |
 | `deepgram_api_key` | | or export `DEEPGRAM_API_KEY` |
 
-`CLAUDIO_<KEY>=value` overrides one run. `CLAUDIO_TEXT="..."` runs one typed turn without the mic, to check the pipeline.
+`CLAUDIO_<KEY>=value` overrides one run. The brain's own errors go to `~/.config/claudio/brain.log`. `CLAUDIO_TEXT="..."` runs one typed turn without the mic, to check the pipeline.
 
 ## Hands-free picking
 

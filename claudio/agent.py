@@ -60,7 +60,7 @@ class Brain:
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             env=env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL)
+            stderr=open(os.path.join(config.DIR, "brain.log"), "ab"))
 
     async def send(self, obj):
         self.proc.stdin.write((json.dumps(obj) + "\n").encode())
@@ -314,6 +314,8 @@ async def main():
                 async with brain.lock:
                     brain.proc.terminate()
                     await brain.start()
+                start(f"[event] You were just restarted with model {cfg['model']} at effort {cfg['effort']}. "
+                      "Say in a few words that you are back.", committed=True, event=True)
 
     async def send_mic():
         while True:
