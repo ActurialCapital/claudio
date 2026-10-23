@@ -10,6 +10,7 @@ from . import config
 console = Console(highlight=False)
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s")
+BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
 cfg, surfaces = {}, {}
@@ -100,7 +101,7 @@ class Brain:
                             spoke = True
                             q.put_nowait(e["delta"]["text"])
                         elif e.get("type") == "content_block_stop" and spoke:
-                            q.put_nowait(" ")     # a text block ended: let its last sentence out now, not after the tool
+                            q.put_nowait(BLOCK_END)   # a text block ended: speak its tail now, new line
                         elif e.get("type") == "content_block_start" and e["content_block"].get("type") == "tool_use" and not spoke:
                             spoke = True          # it skipped its lead-in: a word by tool kind, so the tool run is not silence
                             q.put_nowait("Looking. " if e["content_block"].get("name") in ("Read", "Grep", "Glob") else "Checking. ")
@@ -170,9 +171,19 @@ async def reply(text, commit):
                     await tts.send(json.dumps({"type": "Flush"}))
                     sent += 1
 
-                buf = ""
-                console.print("[bold green]claudio[/] ", end="")
+                buf, fresh = "", True
                 async for d in brain.turn(text):
+                    if d is BLOCK_END:
+                        if buf.strip():
+                            await say(buf)
+                        buf = ""
+                        if not fresh:
+                            console.print()
+                        fresh = True
+                        continue
+                    if fresh:
+                        console.print("[bold green]claudio[/] ", end="")
+                        fresh = False
                     console.print(d, end="", markup=False)
                     buf += d
                     while m := SENTENCE.search(buf):
@@ -180,7 +191,8 @@ async def reply(text, commit):
                         buf = buf[m.end():]
                 if buf.strip():
                     await say(buf)
-                console.print()
+                if not fresh:
+                    console.print()
                 while got < sent:
                     await asyncio.sleep(0.02)
                 await commit.wait()
