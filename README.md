@@ -1,4 +1,8 @@
-# claudio
+<p align="center">
+  <img src="assets/claudio.png" alt="claudio" width="420">
+</p>
+
+<h1 align="center">claudio</h1>
 
 A voice in front of your Claude Code sessions. You talk in a terminal; it answers, in a sentence or two, and when you ask for work it hands the task to one of your Claude Code sessions and tells you when that session is done, asks something, or wants a permission.
 

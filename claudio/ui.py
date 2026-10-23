@@ -5,13 +5,14 @@ from rich.text import Text
 console = Console(highlight=False)
 
 MARK = r"""
-       _                 _ _
-   ___| | __ _ _   _  __| (_) ___
-  / __| |/ _` | | | |/ _` | |/ _ \
- | (__| | (_| | |_| | (_| | | (_) |
-  \___|_|\__,_|\__,_|\__,_|_|\___/
+ ██████╗██╗      █████╗ ██╗   ██╗██████╗ ██╗ ██████╗
+██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██║██╔═══██╗
+██║     ██║     ███████║██║   ██║██║  ██║██║██║   ██║
+██║     ██║     ██╔══██║██║   ██║██║  ██║██║██║   ██║
+╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝██║╚██████╔╝
+ ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
 """.strip("\n").splitlines()
-SHADES = ["#99f6e4", "#5eead4", "#2dd4bf", "#14b8a6", "#0d9488"]   # teal, light to deep, one per line
+SHADES = ["#ccfbf1", "#99f6e4", "#5eead4", "#2dd4bf", "#14b8a6", "#0d9488"]   # teal, light to deep, one per line
 TAGLINE = "a voice in front of your Claude Code sessions"
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
