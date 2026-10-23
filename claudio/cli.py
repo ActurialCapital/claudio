@@ -13,9 +13,12 @@ VOICES = [("aura-2-orion-en", "male, calm, approachable"), ("aura-2-arcas-en", "
           ("aura-2-asteria-en", "female, knowledgeable, energetic"), ("aura-2-athena-en", "female, calm, professional")]
 USAGE = """claudio             talk (runs setup the first time)
 claudio setup       the wizard again
+claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
 claudio uninstall   remove them
-claudio set <key> <value>   change one setting (orchestrator, model, effort, voice, ears, eager_eot, eot, barge_in)
+claudio forget      drop the brain's memory of past conversations
+claudio set <key> <value>   change one setting (orchestrator, model, effort, voice, ears, eager_eot, eot,
+                            eot_timeout_ms, barge_in, memory)
 claudio hook <event>        what the hooks call"""
 
 
@@ -114,6 +117,51 @@ def uninstall():
     console.print(f"  [green]hooks removed[/] from {SETTINGS}")
 
 
+def doctor():
+    """Every way it can be broken, checked in order, then one typed turn through the whole pipeline."""
+    cfg = config.load()
+    ok_all = True
+
+    def row(ok, name, hint=""):
+        nonlocal ok_all
+        ok_all &= bool(ok)
+        console.print(f"  {'[green]✓[/]' if ok else '[red]✗[/]'} {name}" + (f"  [dim]{hint}[/]" if hint and not ok else ""))
+
+    console.print(Panel.fit("[bold]claudio doctor[/]", border_style="green"))
+    claude = shutil.which("claude")
+    row(claude, "claude on PATH", "install Claude Code")
+    if claude:
+        v = subprocess.run([claude, "--version"], capture_output=True, text=True).stdout.strip()
+        row(v, f"claude version {v}")
+    ws = workspaces()
+    row(ws, "cmux reachable", "is cmux running?")
+    row(cfg["orchestrator"] in ws, f"orchestrator '{cfg['orchestrator']}' is a live workspace", "claudio set orchestrator <title>")
+    row(cfg["deepgram_api_key"], "Deepgram key set", "claudio setup")
+    row(cfg["deepgram_api_key"] and key_ok(cfg["deepgram_api_key"]), "Deepgram key accepted", "console.deepgram.com")
+    hooks = json.dumps(_settings().get("hooks", {}))
+    row(hooks.count("claudio hook") >= 3, "the three Claude Code hooks installed", "claudio install")
+    from . import agent
+    exe = os.path.join(config.DIR, "bin", "claudio-audio")
+    row(os.path.exists(exe) or shutil.which("swiftc"), "echo canceller built or buildable", "Xcode command line tools; headphones otherwise")
+    try:
+        import sounddevice as sd
+        row(sd.query_devices(kind="input")["name"], f"microphone: {sd.query_devices(kind='input')['name']}")
+    except Exception as e:
+        row(False, "microphone", str(e)[:80])
+    row(os.path.exists(config.PROMPT), "persona prompt present", "it is copied on first run")
+    console.print("  [dim]one typed turn through brain and mouth…[/]")
+    os.environ["CLAUDIO_TEXT"] = "Say only: the doctor is in."
+    agent.run()
+    console.print("\n  " + ("[green]all good[/]" if ok_all else "[yellow]fix the ✗ lines above[/]"))
+
+
+def forget():
+    path = os.path.join(config.DIR, "session")
+    if os.path.exists(path):
+        os.unlink(path)
+    console.print("  forgotten; the next start is a fresh conversation")
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -127,6 +175,10 @@ def main():
         install()
     elif args[0] == "uninstall":
         uninstall()
+    elif args[0] == "doctor":
+        doctor()
+    elif args[0] == "forget":
+        forget()
     elif args[0] == "set" and len(args) == 3:
         config.set_key(args[1], args[2])
     elif args[0] == "hook" and len(args) == 2:

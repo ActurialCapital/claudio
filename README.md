@@ -29,7 +29,18 @@ cd ~/code/myproject && claudio
 - "Open a session called Core" opens a new cmux workspace running `claude`. "Open a terminal next to it" splits a pane.
 - When a session you handed work to finishes a turn, claudio tells you what it did. When a session asks a permission or a multiple-choice question, claudio reads it out; you answer on that session's keyboard.
 - "Use Sonnet", "the orchestrator is Core now", "stop interrupting me": settings changed by voice, kept for next time.
-- Talking over it cuts it, on speakers too: on a Mac with the Xcode command line tools, claudio builds a small helper on first run that runs Apple's voice-processing audio unit (the FaceTime echo canceller) for mic and speaker. Without it, barge-in needs headphones. Enter also cuts. Ctrl-C quits.
+- Talking over it pauses it at once. If what you said was a real turn, that becomes the new question. If it was an "mm-hm", a cough, or nothing, it carries on from a sentence back. On speakers too: on a Mac with the Xcode command line tools, claudio builds a small helper on first run that runs Apple's voice-processing audio unit (the FaceTime echo canceller) for mic and speaker. Without it, barge-in needs headphones. Enter also cuts. Ctrl-C quits.
+
+## Commands
+
+| | |
+|---|---|
+| `claudio` | talk (runs setup the first time) |
+| `claudio setup` | the wizard again |
+| `claudio doctor` | checks claude, cmux, the key, the hooks, the echo canceller, the mic, then runs one typed turn |
+| `claudio install` / `uninstall` | the three Claude Code hooks in `~/.claude/settings.json` |
+| `claudio forget` | drop the brain's memory of past conversations |
+| `claudio set <key> <value>` | change one setting; what the brain runs when you ask by voice |
 
 ## Settings
 
@@ -43,7 +54,9 @@ cd ~/code/myproject && claudio
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
 | `ears` | `flux-general-en` | Deepgram Flux model; `flux-general-multi` for other languages |
 | `eager_eot` / `eot` | `0.3` / `0.7` | Flux end-of-turn thresholds |
-| `barge_in` | `true` | talking over it cuts it (set false on speakers without the echo canceller) |
+| `eot_timeout_ms` | `1500` | how long Flux waits when unsure you've finished (its default 5000 feels slow) |
+| `barge_in` | `true` | talking over it pauses it (set false on speakers without the echo canceller) |
+| `memory` | `true` | resume the brain's last session at start, up to a week old, so it remembers |
 | `deepgram_api_key` | | or export `DEEPGRAM_API_KEY` |
 
 `CLAUDIO_<KEY>=value` overrides one run. The brain's own errors go to `~/.config/claudio/brain.log`. `CLAUDIO_TEXT="..."` runs one typed turn without the mic, to check the pipeline.
@@ -58,6 +71,7 @@ By default claudio reads multiple-choice questions and permission prompts aloud 
 - Brain: one long-lived `claude -p` in stream-json mode, started in your project directory with your hooks switched off, read-only tools plus a few cmux commands. An interruption sends Claude Code's own interrupt.
 - Mouth: Deepgram Aura over a websocket per reply, flushed at each sentence end, so the first sentence plays while the rest is written.
 - Audio: `audio.swift`, compiled once into `~/.config/claudio/bin/`, is Apple's voice-processing I/O unit as a pipe: speech in on stdin, echo-cancelled mic out on stdout, both 24 kHz. Measured on a MacBook Pro: the speaker's own voice drops about 17 dB in the mic. Falls back to PortAudio without it.
+- Resilience: the ears reconnect with backoff, the brain restarts if it dies and says so, the mouth retries once. The brain's errors go to `~/.config/claudio/brain.log`.
 - Sessions report back through three Claude Code hooks (Stop, Notification, PreToolUse on AskUserQuestion) that post to a Unix socket when claudio is running and exit at once otherwise.
 
 ## License
