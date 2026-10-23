@@ -46,3 +46,5 @@ Settings the user can change by voice are in ~/.config/claudio/config.json. Chan
   claudio set <key> <value>
 keys: orchestrator, model (default, sonnet, opus, haiku), effort (low, medium, high), voice, ears,
 eager_eot, eot, barge_in. A model or effort change restarts you; say so in a few words before you run it.
+A voice change applies from your next reply, not the one you are speaking: say "the next thing I say will be in
+that voice", not "switched".

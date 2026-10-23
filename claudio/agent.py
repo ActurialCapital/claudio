@@ -45,6 +45,7 @@ class Brain:
         self.proc, self.session_id, self.busy = None, None, False
         self.lock = asyncio.Lock()
         self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it
+        self.changed = asyncio.Event() # set when it ran `claudio set`, so the watcher reloads at once
 
     async def start(self):
         me = os.path.dirname(os.path.abspath(sys.argv[0]))      # so the brain can run `claudio set`
@@ -78,8 +79,11 @@ class Brain:
         if ev.get("type") == "assistant":
             for c in ev["message"].get("content", []):
                 if c.get("type") == "tool_use" and c.get("name") == "Bash":
-                    if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', c["input"].get("command", "")):
+                    cmd = c["input"].get("command", "")
+                    if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
                         self.handoffs[m.group(1) or m.group(2)] = time.time()
+                    if "claudio set" in cmd:
+                        self.changed.set()
 
     async def turn(self, text):
         async with self.lock:
@@ -301,15 +305,21 @@ async def main():
         global cfg
         stamp = os.path.getmtime(config.CONF)
         while True:
-            await asyncio.sleep(2)
+            try:
+                await asyncio.wait_for(brain.changed.wait(), 1.0)
+            except asyncio.TimeoutError:
+                pass
+            brain.changed.clear()
+            await asyncio.sleep(0.2)          # let `claudio set` finish writing
             now = os.path.getmtime(config.CONF)
             if now == stamp:
                 continue
             stamp = now
             new = config.load()
             restart = (new["model"], new["effort"]) != (cfg["model"], cfg["effort"])
+            diff = ", ".join(f"{k} → {new[k]}" for k in config.DEFAULTS if k != "deepgram_api_key" and new[k] != cfg[k])
             cfg = new
-            console.print(f"\n[dim](settings reloaded{', brain restarting' if restart else ''})[/]")
+            console.print(f"\n[dim](settings: {diff or 'reloaded'}{'; brain restarting' if restart else ''})[/]")
             if restart:
                 async with brain.lock:
                     brain.proc.terminate()
