@@ -1,11 +1,8 @@
 """claudio: the command. No arguments runs the voice; `setup` is the first-launch wizard."""
 import json, os, shutil, subprocess, sys, urllib.request
-from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Confirm, IntPrompt, Prompt
-from . import config
-
-console = Console(highlight=False)
+from . import config, ui
+from .ui import console
 SETTINGS = os.path.expanduser("~/.claude/settings.json")
 HOOKS = [("Stop", None), ("Notification", None), ("PreToolUse", "AskUserQuestion")]
 VOICES = [("aura-2-orion-en", "male, calm, approachable"), ("aura-2-arcas-en", "male, smooth, clear"),
@@ -42,9 +39,9 @@ def key_ok(key):
 
 def setup():
     cfg = config.load()
-    console.print(Panel.fit("[bold]claudio setup[/]\n[dim]a voice in front of your Claude Code sessions[/]", border_style="green"))
+    ui.banner(subtitle="setup · a few questions, then it listens")
     for name, ok in [("claude", shutil.which("claude")), ("cmux", workspaces() or os.path.exists("/Applications/cmux.app"))]:
-        console.print(f"  {'[green]✓[/]' if ok else '[red]✗[/]'} {name}" + ("" if ok else "  [dim]needed; install it and run setup again[/]"))
+        ui.check(ok, name, "needed; install it and run setup again")
     for _ in range(3):
         key = Prompt.ask("  Deepgram API key [dim](console.deepgram.com)[/]", password=True,
                          default=cfg["deepgram_api_key"] or None)
@@ -125,9 +122,9 @@ def doctor():
     def row(ok, name, hint=""):
         nonlocal ok_all
         ok_all &= bool(ok)
-        console.print(f"  {'[green]✓[/]' if ok else '[red]✗[/]'} {name}" + (f"  [dim]{hint}[/]" if hint and not ok else ""))
+        ui.check(ok, name, hint)
 
-    console.print(Panel.fit("[bold]claudio doctor[/]", border_style="green"))
+    ui.banner(subtitle="doctor · every way it can be broken, in order")
     claude = shutil.which("claude")
     row(claude, "claude on PATH", "install Claude Code")
     if claude:

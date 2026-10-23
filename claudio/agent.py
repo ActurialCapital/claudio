@@ -7,11 +7,8 @@ session, so it remembers), the mouth retries once. An interruption first pauses 
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
 import asyncio, contextlib, json, os, re, shutil, signal, subprocess, sys, time
 import sounddevice as sd, websockets
-from rich.console import Console
-from rich.panel import Panel
-from . import config
-
-console = Console(highlight=False)
+from . import config, ui
+from .ui import console
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s")
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
@@ -178,7 +175,7 @@ def helper():
     with console.status("[dim]building the echo canceller, once…[/]"):
         r = subprocess.run(["swiftc", "-O", src, "-o", exe], capture_output=True, text=True)
     if r.returncode:
-        console.print(f"[yellow]echo canceller did not build; using the plain mic (headphones for barge-in)[/]\n[dim]{r.stderr[-300:]}[/]")
+        ui.warn(f"echo canceller did not build; using the plain mic (headphones for barge-in)\n[dim]{r.stderr[-300:]}[/]")
         return None
     return exe
 
@@ -208,7 +205,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
         except (OSError, websockets.exceptions.WebSocketException):
             await asyncio.sleep(1)
     if tts is None:
-        console.print("[yellow](mouth lost: Deepgram speak unreachable; text only)[/]")
+        ui.warn("mouth lost: Deepgram speak unreachable; text only")
         await gen_done.wait()
         return len(sentences), True
     got = sent = 0
@@ -282,7 +279,7 @@ async def reply(text, commit, ctl):
                         fresh = True
                         continue
                     if fresh:
-                        console.print("[bold green]claudio[/] ", end="")
+                        ui.me_prefix()
                         fresh = False
                     console.print(d, end="", markup=False)
                     buf += d
@@ -346,12 +343,10 @@ async def main():
     typed = os.environ.get("CLAUDIO_TEXT")
     aec = None if typed else helper()
     in_rate = OUT_RATE if aec else IN_RATE
-    console.print(Panel.fit(
-        f"[bold]claudio[/]  orchestrator [cyan]{cfg['orchestrator'] or '-'}[/]  brain [cyan]{cfg['model']}/{cfg['effort']}[/]  "
-        f"voice [cyan]{cfg['voice']}[/]  echo cancel [cyan]{'on' if aec else 'off'}[/]  "
-        f"memory [cyan]{'on' if remembered_session() else 'fresh'}[/]\n"
-        f"[dim]talk to it · Enter cuts a reply · Ctrl-C quits · `claudio setup` to change things[/]",
-        border_style="green"))
+    ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
+                     "voice": ui.short_voice(cfg["voice"]), "echo cancel": "on" if aec else "off",
+                     "memory": "on" if remembered_session() else "fresh"},
+              hints="talk · Enter cuts a reply · Ctrl-C quits · claudio setup to change things")
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
         async for _ in brain.turn("Say only: ready."):
@@ -359,7 +354,7 @@ async def main():
 
     if typed:
         with sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
-            console.print(f"[bold cyan]you[/] {typed}")
+            ui.you(typed)
             ev = asyncio.Event(); ev.set()
             await reply(typed, ev, new_ctl())
         return brain.proc.terminate()
@@ -392,7 +387,8 @@ async def main():
         if live():
             current["task"].cancel()
             drop_audio()
-            console.print(f"\n[dim]({why})[/]")
+            console.print()
+            ui.note(why)
 
     def pause():
         if live() and not paused():
@@ -444,7 +440,7 @@ async def main():
             text = f"[event] {ws} (surface {sid}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
             return
-        console.print(f"\n[magenta]event[/] [dim]{ws}: {ev['event']}[/]")
+        ui.event(ws, ev["event"])
         start(text, committed=True, event=True)
 
     def flux_url():
@@ -468,7 +464,7 @@ async def main():
             re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms"))
             diff = ", ".join(f"{k} → {new[k]}" for k in config.DEFAULTS if k != "deepgram_api_key" and new[k] != cfg[k])
             cfg = new
-            console.print(f"\n[dim](settings: {diff or 'reloaded'}{'; brain restarting' if restart else ''})[/]")
+            ui.note(f"settings: {diff or 'reloaded'}{'; brain restarting' if restart else ''}")
             if re_ear and ears["ws"]:
                 asyncio.create_task(ears["ws"].close())   # the listener reconnects with the new ears
             if restart:
@@ -483,7 +479,7 @@ async def main():
             await asyncio.sleep(0.1)
             if brain.expected_exit or brain.proc is not proc:
                 continue
-            console.print("\n[yellow]the brain died; restarting it[/]")
+            ui.warn("the brain died; restarting it")
             async with brain.lock:
                 await brain.start()
             start("[event] You just crashed and were restarted. Say in a few words that you are back, "
@@ -507,7 +503,7 @@ async def main():
                 if cfg["barge_in"] and live() and current["commit"].is_set():
                     pause()
             case "EagerEndOfTurn" if said and not paused():
-                console.print(f"\n[bold cyan]you[/] [dim]{said}[/]")
+                ui.you(said, tentative=True)
                 start(said, committed=False)
             case "TurnResumed":
                 if live() and not current["commit"].is_set():
@@ -515,7 +511,7 @@ async def main():
             case "EndOfTurn":
                 if paused():
                     if said and not backchannel(said):     # a real interruption: this is the new turn
-                        console.print(f"\n[bold cyan]you[/] {said}")
+                        ui.you(said)
                         cut()
                         start(said, committed=True)
                     else:
@@ -524,7 +520,7 @@ async def main():
                     if live() and not current["commit"].is_set() and norm(current["text"]) == norm(said):
                         current["commit"].set()
                     else:
-                        console.print(f"\n[bold cyan]you[/] {said}")
+                        ui.you(said)
                         start(said, committed=True)
 
     async def listen_forever():
@@ -555,7 +551,6 @@ async def main():
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
-    console.print("[green]🎤 listening[/]")
     status["live"] = console.status("[dim]listening[/]")
     status["live"].start()
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch()]
@@ -604,4 +599,5 @@ def run():
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        console.print("\n[dim]bye[/]")
+        console.print()
+        ui.note("bye")
