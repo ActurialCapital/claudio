@@ -99,6 +99,8 @@ class Brain:
                         if e.get("type") == "content_block_delta" and e["delta"].get("type") == "text_delta":
                             spoke = True
                             q.put_nowait(e["delta"]["text"])
+                        elif e.get("type") == "content_block_stop" and spoke:
+                            q.put_nowait(" ")     # a text block ended: let its last sentence out now, not after the tool
                         elif e.get("type") == "content_block_start" and e["content_block"].get("type") == "tool_use" and not spoke:
                             spoke = True          # it skipped its lead-in: a word by tool kind, so the tool run is not silence
                             q.put_nowait("Looking. " if e["content_block"].get("name") in ("Read", "Grep", "Glob") else "Checking. ")
