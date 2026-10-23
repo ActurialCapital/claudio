@@ -263,33 +263,27 @@ async def reply(text, commit, ctl):
         sentences, new, gen_done = [], asyncio.Event(), asyncio.Event()
 
         async def generate():
-            buf, fresh = "", True
+            buf, first = "", True
 
-            def emit(s):
-                sentences.append(s)
+            def emit(sentence):
+                nonlocal first
+                sentences.append(sentence)
                 new.set()
+                ui.me_line(sentence.strip(), first)   # whole lines only: the live state line swallows partial ones
+                first = False
             try:
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
                         if buf.strip():
                             emit(buf)
-                        buf = ""
-                        if not fresh:
-                            console.print()
-                        fresh = True
+                        buf, first = "", True
                         continue
-                    if fresh:
-                        ui.me_prefix()
-                        fresh = False
-                    console.print(d, end="", markup=False)
                     buf += d
                     while m := SENTENCE.search(buf):
                         emit(buf[:m.end()])
                         buf = buf[m.end():]
                 if buf.strip():
                     emit(buf)
-                if not fresh:
-                    console.print()
             finally:
                 gen_done.set()
                 new.set()

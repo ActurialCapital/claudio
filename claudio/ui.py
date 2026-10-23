@@ -59,8 +59,11 @@ def you(text, tentative=False):
     console.print(f"\n{YOU} [dim]{text}[/]" if tentative else f"\n{YOU} {text}")
 
 
-def me_prefix():
-    console.print(f"{ME} ", end="")
+def me_line(sentence, first):
+    """One sentence of claudio's, as a whole line: the glyph on the first of an utterance, indented after."""
+    line = Text.assemble(("◆ ", "bold #2dd4bf")) if first else Text("  ")
+    line.append(sentence)
+    console.print(line)
 
 
 def event(workspace, kind):
