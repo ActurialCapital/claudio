@@ -29,7 +29,7 @@ cd ~/code/myproject && claudio
 - "Open a session called Core" opens a new cmux workspace running `claude`. "Open a terminal next to it" splits a pane.
 - When a session you handed work to finishes a turn, claudio tells you what it did. When a session asks a permission or a multiple-choice question, claudio reads it out; you answer on that session's keyboard.
 - "Use Sonnet", "the orchestrator is Core now", "stop interrupting me": settings changed by voice, kept for next time.
-- Talking over it cuts it (headphones; the mic hears the speaker otherwise). Enter also cuts. Ctrl-C quits.
+- Talking over it cuts it, on speakers too: on a Mac with the Xcode command line tools, claudio builds a small helper on first run that runs Apple's voice-processing audio unit (the FaceTime echo canceller) for mic and speaker. Without it, barge-in needs headphones. Enter also cuts. Ctrl-C quits.
 
 ## Settings
 
@@ -43,7 +43,7 @@ cd ~/code/myproject && claudio
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
 | `ears` | `flux-general-en` | Deepgram Flux model; `flux-general-multi` for other languages |
 | `eager_eot` / `eot` | `0.3` / `0.7` | Flux end-of-turn thresholds |
-| `barge_in` | `true` | talking over it cuts it |
+| `barge_in` | `true` | talking over it cuts it (set false on speakers without the echo canceller) |
 | `deepgram_api_key` | | or export `DEEPGRAM_API_KEY` |
 
 `CLAUDIO_<KEY>=value` overrides one run. `CLAUDIO_TEXT="..."` runs one typed turn without the mic, to check the pipeline.
@@ -57,6 +57,7 @@ By default claudio reads multiple-choice questions and permission prompts aloud 
 - Ears: Deepgram Flux over one websocket. It decides the end of your turn itself, and fires an eager signal first; the brain starts on the eager text and the audio is held until the final transcript confirms it.
 - Brain: one long-lived `claude -p` in stream-json mode, started in your project directory with your hooks switched off, read-only tools plus a few cmux commands. An interruption sends Claude Code's own interrupt.
 - Mouth: Deepgram Aura over a websocket per reply, flushed at each sentence end, so the first sentence plays while the rest is written.
+- Audio: `audio.swift`, compiled once into `~/.config/claudio/bin/`, is Apple's voice-processing I/O unit as a pipe: speech in on stdin, echo-cancelled mic out on stdout, both 24 kHz. Measured on a MacBook Pro: the speaker's own voice drops about 17 dB in the mic. Falls back to PortAudio without it.
 - Sessions report back through three Claude Code hooks (Stop, Notification, PreToolUse on AskUserQuestion) that post to a Unix socket when claudio is running and exit at once otherwise.
 
 ## License

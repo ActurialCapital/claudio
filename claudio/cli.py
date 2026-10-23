@@ -68,7 +68,7 @@ def setup():
     cfg["voice"] = names[IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(1, len(VOICES) + 1)]) - 1]
     cfg["model"] = Prompt.ask("  Brain model", choices=["default", "sonnet", "opus", "haiku"], default=cfg["model"])
     cfg["effort"] = Prompt.ask("  Brain effort", choices=["low", "medium", "high"], default=cfg["effort"])
-    cfg["barge_in"] = Confirm.ask("  Interrupt it by talking over it? [dim](yes needs headphones; the mic hears the speaker)[/]",
+    cfg["barge_in"] = Confirm.ask("  Interrupt it by talking over it? [dim](echo cancellation is built in with the Xcode tools; otherwise use headphones)[/]",
                                   default=cfg["barge_in"])
     config.save(cfg)
     console.print(f"  [green]saved[/] {config.CONF}   persona: {config.PROMPT}")

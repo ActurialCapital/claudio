@@ -8,7 +8,7 @@ from rich.panel import Panel
 from . import config
 
 console = Console(highlight=False)
-IN_RATE, OUT_RATE = 16000, 24000
+IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s")
 CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
@@ -119,6 +119,23 @@ class Brain:
 brain = Brain()
 
 
+def helper():
+    """The echo-cancelling audio helper (audio.swift), built once with swiftc. None when it cannot be."""
+    src = os.path.join(os.path.dirname(__file__), "audio.swift")
+    exe = os.path.join(config.DIR, "bin", "claudio-audio")
+    if os.path.exists(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
+        return exe
+    if sys.platform != "darwin" or not shutil.which("swiftc"):
+        return None
+    os.makedirs(os.path.dirname(exe), exist_ok=True)
+    with console.status("[dim]building the echo canceller, once…[/]"):
+        r = subprocess.run(["swiftc", "-O", src, "-o", exe], capture_output=True, text=True)
+    if r.returncode:
+        console.print(f"[yellow]echo canceller did not build; using the plain mic (headphones for barge-in)[/]\n[dim]{r.stderr[-300:]}[/]")
+        return None
+    return exe
+
+
 async def reply(text, commit):
     """One spoken reply; audio held until `commit` (the turn's final transcript matched the eager one)."""
     async with speaking:
@@ -191,9 +208,12 @@ async def main():
     if not cfg["deepgram_api_key"]:
         raise SystemExit("No Deepgram key. Run `claudio setup`, or export DEEPGRAM_API_KEY.")
     surfaces = sessions()
+    aec = None if os.environ.get("CLAUDIO_TEXT") else helper()
+    in_rate = OUT_RATE if aec else IN_RATE
     console.print(Panel.fit(
         f"[bold]claudio[/]  orchestrator [cyan]{cfg['orchestrator'] or '-'}[/]  brain [cyan]{cfg['model']}/{cfg['effort']}[/]  "
-        f"voice [cyan]{cfg['voice']}[/]\n[dim]talk to it · Enter cuts a reply · Ctrl-C quits · `claudio setup` to change things[/]",
+        f"voice [cyan]{cfg['voice']}[/]  echo cancel [cyan]{'on' if aec else 'off'}[/]\n"
+        f"[dim]talk to it · Enter cuts a reply · Ctrl-C quits · `claudio setup` to change things[/]",
         border_style="green"))
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
@@ -316,16 +336,36 @@ async def main():
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
-    flux_url = (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={IN_RATE}"
+    flux_url = (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={in_rate}"
                 f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}")
+    audio = None
     try:
         async with websockets.connect(flux_url, additional_headers={"Authorization": f"Token {cfg['deepgram_api_key']}"}) as flux:
-            with sd.RawInputStream(samplerate=IN_RATE, channels=1, dtype="int16", blocksize=IN_RATE // 50, callback=on_mic), \
-                 sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
-                await asyncio.gather(send_mic(), listen(), keys(), watch_config())
+            if aec:
+                audio = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                                                             stderr=asyncio.subprocess.DEVNULL)
+
+                async def mic_pump():
+                    while chunk := await audio.stdout.read(OUT_RATE // 50 * 2):
+                        mic.put_nowait(chunk)
+
+                async def speaker_pump():      # 20 ms every 20 ms, so a cut leaves at most a blink of audio queued
+                    while True:
+                        await asyncio.sleep(0.02)
+                        if out:
+                            chunk = bytes(out[:OUT_RATE // 50 * 2]); del out[:OUT_RATE // 50 * 2]
+                            audio.stdin.write(chunk)
+                            await audio.stdin.drain()
+                await asyncio.gather(mic_pump(), speaker_pump(), send_mic(), listen(), keys(), watch_config())
+            else:
+                with sd.RawInputStream(samplerate=IN_RATE, channels=1, dtype="int16", blocksize=IN_RATE // 50, callback=on_mic), \
+                     sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
+                    await asyncio.gather(send_mic(), listen(), keys(), watch_config())
     finally:
         server.close()
         brain.proc.terminate()
+        if audio:
+            audio.terminate()
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
 
