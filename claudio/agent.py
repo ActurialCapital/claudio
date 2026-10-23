@@ -1,7 +1,7 @@
 """The voice loop: Deepgram Flux ears (eager end of turn, preemptive generation, barge-in),
 one long-lived `claude -p` brain, Deepgram Aura mouth sentence by sentence, and a socket where
 the Claude Code hooks (`claudio hook ...`) report what sessions did."""
-import asyncio, json, os, re, shutil, subprocess, sys, time
+import asyncio, json, os, re, shutil, signal, subprocess, sys, time
 import sounddevice as sd, websockets
 from rich.console import Console
 from rich.panel import Panel
@@ -230,6 +230,7 @@ async def main():
     loop = asyncio.get_running_loop()
     mic = asyncio.Queue()
     current = {"task": None, "text": "", "commit": None}
+    audio = {"proc": None}         # the echo-cancelling helper, when it runs
 
     def on_mic(indata, frames, t, status):
         loop.call_soon_threadsafe(mic.put_nowait, bytes(indata))
@@ -242,6 +243,8 @@ async def main():
         if live():
             current["task"].cancel()
             out.clear()
+            if audio["proc"]:
+                audio["proc"].send_signal(signal.SIGUSR1)     # drop what the helper has queued
             console.print(f"\n[dim]({why})[/]")
 
     def start(text, committed, event=False):
@@ -338,24 +341,32 @@ async def main():
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     flux_url = (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={in_rate}"
                 f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}")
-    audio = None
     try:
         async with websockets.connect(flux_url, additional_headers={"Authorization": f"Token {cfg['deepgram_api_key']}"}) as flux:
             if aec:
-                audio = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                                                             stderr=asyncio.subprocess.DEVNULL)
+                helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                                                                   stderr=asyncio.subprocess.DEVNULL)
+                audio["proc"] = helper_proc
 
                 async def mic_pump():
-                    while chunk := await audio.stdout.read(OUT_RATE // 50 * 2):
+                    while chunk := await helper_proc.stdout.read(OUT_RATE // 50 * 2):
                         mic.put_nowait(chunk)
 
-                async def speaker_pump():      # 20 ms every 20 ms, so a cut leaves at most a blink of audio queued
+                async def speaker_pump():
+                    """Keep ~150 ms queued in the helper: enough that a busy event loop never starves it,
+                    little enough that a cut (which also clears the helper's queue) feels instant."""
+                    bps, lead, chunk_size = OUT_RATE * 2, OUT_RATE * 2 * 0.15, OUT_RATE // 50 * 2
+                    t0, sent = time.monotonic(), 0
                     while True:
-                        await asyncio.sleep(0.02)
-                        if out:
-                            chunk = bytes(out[:OUT_RATE // 50 * 2]); del out[:OUT_RATE // 50 * 2]
-                            audio.stdin.write(chunk)
-                            await audio.stdin.drain()
+                        await asyncio.sleep(0.01)
+                        played = (time.monotonic() - t0) * bps
+                        if sent < played:          # it ran dry (silence between replies): start the lead over
+                            sent = played
+                        while out and sent - played < lead:
+                            chunk = bytes(out[:chunk_size]); del out[:chunk_size]
+                            helper_proc.stdin.write(chunk)
+                            sent += len(chunk)
+                        await helper_proc.stdin.drain()
                 await asyncio.gather(mic_pump(), speaker_pump(), send_mic(), listen(), keys(), watch_config())
             else:
                 with sd.RawInputStream(samplerate=IN_RATE, channels=1, dtype="int16", blocksize=IN_RATE // 50, callback=on_mic), \
@@ -364,8 +375,8 @@ async def main():
     finally:
         server.close()
         brain.proc.terminate()
-        if audio:
-            audio.terminate()
+        if audio["proc"]:
+            audio["proc"].terminate()
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
 

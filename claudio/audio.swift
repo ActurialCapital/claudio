@@ -19,6 +19,9 @@ final class Ring {
         lock.lock(); defer { lock.unlock() }
         data.withUnsafeBytes { raw in buf.append(contentsOf: raw.bindMemory(to: Int16.self)) }
     }
+    func clear() {
+        lock.lock(); buf.removeAll(); lock.unlock()
+    }
     func take(into p: UnsafeMutablePointer<Int16>, count: Int) {
         lock.lock(); defer { lock.unlock() }
         let n = min(count, buf.count)
@@ -74,6 +77,12 @@ var icb = AURenderCallbackStruct(inputProc: capture, inputProcRefCon: nil)
 check(AudioUnitSetProperty(unit, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global, 0, &icb, UInt32(MemoryLayout.size(ofValue: icb))), "input callback")
 check(AudioUnitInitialize(unit), "initialize")
 check(AudioOutputUnitStart(unit), "start")
+
+// SIGUSR1: drop what is queued (a barge-in).
+signal(SIGUSR1, SIG_IGN)
+let cutSignal = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+cutSignal.setEventHandler { ring.clear() }
+cutSignal.resume()
 
 // stdin → ring. EOF ends the helper.
 DispatchQueue.global(qos: .userInteractive).async {
