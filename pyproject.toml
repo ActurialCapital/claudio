@@ -4,8 +4,23 @@ version = "0.1.0"
 description = "A voice in front of your Claude Code sessions: talk, it answers, it hands work to your sessions."
 readme = "README.md"
 license = "MIT"
+authors = [{ name = "Jericaume" }]
+keywords = ["claude-code", "voice", "deepgram", "cmux", "speech", "agent"]
+classifiers = [
+  "Environment :: Console",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 requires-python = ">=3.11"
 dependencies = ["websockets>=13", "sounddevice>=0.5", "rich>=13"]
+
+[project.urls]
+Homepage = "https://github.com/ActurialCapital/claudio"
+Issues = "https://github.com/ActurialCapital/claudio/issues"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [project.scripts]
 claudio = "claudio.cli:main"

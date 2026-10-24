@@ -5,7 +5,7 @@ the Claude Code hooks (`claudio hook ...`) report what sessions did.
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import asyncio, contextlib, json, os, re, shutil, signal, subprocess, sys, time
+import array, asyncio, contextlib, json, os, re, shutil, signal, subprocess, sys, threading, time
 import sounddevice as sd, websockets
 from . import config, ui
 from .ui import console
@@ -19,7 +19,8 @@ SESSION = os.path.join(config.DIR, "session")
 cfg, surfaces = {}, {}
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
-status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True}
+status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True, "level": 0}
+BARS = " ▁▂▃▄▅▆▇"
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "status says the settings. mute and unmute. stop cuts a reply.")
 
@@ -43,22 +44,26 @@ def state_text():
 
 def refresh():
     if status["live"]:
-        status["live"].update(f"[dim]{state_text()}[/]")
+        bar = BARS[min(7, int(status["level"] / 1200))]       # ~0 to 8400 peak over the eight bars
+        status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]")
 
 
-def sessions():
-    """cmux's surfaces, keyed by 8-char surface id: (workspace title, surface title, cwd)."""
+def parse_surfaces(text):
+    """`cmux surface list` → {8-char surface id: (workspace title, surface title, cwd)}."""
     found, ws = {}, None
-    try:
-        text = subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return found
     for line in text.splitlines():
         if m := re.match(r"^\s{4}(\S.*?)\s+workspace:\d+", line):
             ws = m.group(1)
         elif m := re.match(r"^\s{6}\S\s+([0-9A-F]{8})\s+(.*?)\s{2,}(\S+)", line):
             found[m.group(1)] = (ws, m.group(2), m.group(3))
     return found
+
+
+def sessions():
+    try:
+        return parse_surfaces(subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout)
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
 
 
 def system_prompt():
@@ -215,8 +220,9 @@ def new_ctl():
     return {"paused": asyncio.Event(), "resume": asyncio.Event()}
 
 
-async def speak_from(sentences, i, new, gen_done, ctl, commit):
-    """Speak sentences[i:] over one Speak socket until done or paused. Returns (next index, finished)."""
+async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
+    """Speak sentences[i:] over one Speak socket until done or paused. Returns (next index, finished).
+    A sentence is printed when its audio starts playing, so the transcript keeps time with the voice."""
     auth = {"Authorization": f"Token {cfg['deepgram_api_key']}"}
     url = f"wss://api.deepgram.com/v1/speak?model={cfg['voice']}&encoding=linear16&sample_rate={OUT_RATE}"
     tts = None
@@ -229,8 +235,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
     if tts is None:
         ui.warn("mouth lost: Deepgram speak unreachable; text only")
         await gen_done.wait()
+        for k in range(i, len(sentences)):
+            show(sentences, k, shown)
         return len(sentences), True
     got = sent = 0
+    first = i                     # the sentence whose audio is arriving: first + got
     held = bytearray()
 
     async def play():
@@ -242,6 +251,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
                         if held:
                             out.extend(held); held.clear()
                         out.extend(m)
+                        show(sentences, first + got, shown)
                         status["last_audio"] = time.monotonic()
                         r = status["reply"]
                         if r and r.get("committed_at") and not r.get("first_word"):
@@ -262,7 +272,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
                 return i, False
             if i >= len(sentences):
                 break
-            await tts.send(json.dumps({"type": "Speak", "text": sentences[i]}))
+            await tts.send(json.dumps({"type": "Speak", "text": sentences[i][0]}))
             await tts.send(json.dumps({"type": "Flush"}))
             sent += 1
             i += 1
@@ -273,6 +283,8 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
         await commit.wait()
         if held:
             out.extend(held); held.clear()
+            for k in range(first, i):
+                show(sentences, k, shown)
         return i, True
     finally:
         player.cancel()
@@ -280,21 +292,27 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
             await tts.close()
 
 
+def show(sentences, k, shown):
+    if k < len(sentences) and k not in shown:
+        shown.add(k)
+        text, first_of_block = sentences[k]
+        ui.me_line(text.strip(), first_of_block)
+
+
 async def reply(text, commit, ctl, fixed=False):
     """One spoken reply. Text streams from the brain into sentences; the mouth follows, and can be
     paused (a possible interruption) and resumed a sentence or two back."""
     async with speaking:
         refresh()
-        sentences, new, gen_done = [], asyncio.Event(), asyncio.Event()
+        sentences, new, gen_done, shown = [], asyncio.Event(), asyncio.Event(), set()
 
         async def generate():
             buf, first = "", True
 
             def emit(sentence):
                 nonlocal first
-                sentences.append(sentence)
+                sentences.append((sentence, first))
                 new.set()
-                ui.me_line(sentence.strip(), first)   # whole lines only: the live state line swallows partial ones
                 first = False
             try:
                 if fixed:
@@ -326,7 +344,7 @@ async def reply(text, commit, ctl, fixed=False):
                     ctl["resume"].clear()
                     ctl["paused"].clear()
                     i = max(0, i - 2)      # ponytail: no playback position; say the last sentence or two again
-                i, finished = await speak_from(sentences, i, new, gen_done, ctl, commit)
+                i, finished = await speak_from(sentences, i, new, gen_done, ctl, commit, shown)
                 if finished:
                     break
             while out and not ctl["paused"].is_set():
@@ -510,7 +528,8 @@ async def main():
         if ev["event"] == "Stop" and ev.get("text") and when > time.time() - 1800:
             text = f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}"
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
-            text = f"[event] {ws} asks for permission: {ev.get('message')}"
+            screen = await loop.run_in_executor(None, pane, sid, 18)
+            text = f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}"
         elif ev["event"] == "AskUserQuestion" and ev.get("questions"):
             text = f"[event] {ws} (surface {sid}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
@@ -570,12 +589,20 @@ async def main():
                 continue
             if (speaking.locked() and not cfg["barge_in"]) or not status["gate_open"]:
                 b = b"\x00" * len(b)
+            else:
+                peak = max(abs(x) for x in array.array("h", b)[::8]) if len(b) >= 16 else 0
+                status["level"] = max(peak, status["level"] * 0.8)     # a quick rise, a slow fall
             with contextlib.suppress(websockets.ConnectionClosed):
                 await ws.send(b)
 
     def heard(ev):
         said = ev.get("transcript", "").strip()
         words = " ".join(norm(said))
+        if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
+            if not words.startswith("claudio"):
+                return                          # not for me
+            said = re.sub(r"^\W*claudio\W*", "", said, flags=re.I).strip() or said
+            words = " ".join(norm(said))
         if status["muted"]:                # only "slash unmute" gets through; nothing else is printed or kept
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
@@ -634,11 +661,18 @@ async def main():
             else:
                 ears["ws"] = None        # closed on purpose (new ear settings): straight back
 
+    lines = asyncio.Queue()
+    threading.Thread(target=lambda: [loop.call_soon_threadsafe(lines.put_nowait, l) for l in sys.stdin],
+                     daemon=True).start()              # a daemon, so exit never waits on a blocked read
+
     async def keys():
-        while line := await loop.run_in_executor(None, sys.stdin.readline):
-            typed = line.strip().lower()
-            if typed.startswith("/") and slash("slash " + typed[1:]):
+        while line := await lines.get():
+            typed = line.strip()
+            if typed.startswith("/") and slash("slash " + typed[1:].lower()):
                 pass
+            elif typed:                         # a typed question is a turn, for when you cannot talk
+                ui.you(typed)
+                start(typed, committed=True)
             elif cfg["push_to_talk"] and not status["gate_open"]:
                 status["gate_open"] = True
                 ui.note("mic open")
@@ -650,15 +684,21 @@ async def main():
             await asyncio.sleep(0.25)
             refresh()
 
+    def pane(sid, lines):
+        """The last lines of a surface's screen, or ''."""
+        try:
+            return subprocess.run([CMUX, "read-screen", "--surface", sid, "--lines", str(lines)],
+                                  capture_output=True, text=True, timeout=4).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+
     def orchestrator_state():
         """What the orchestrator's pane shows: working, waiting on you, or idle."""
         sid = next((sid for sid, (w, _, _) in surfaces.items() if w == cfg["orchestrator"]), None)
         if not sid:
             return ""
-        try:
-            screen = subprocess.run([CMUX, "read-screen", "--surface", sid, "--lines", "14"],
-                                    capture_output=True, text=True, timeout=4).stdout
-        except (OSError, subprocess.TimeoutExpired):
+        screen = pane(sid, 14)
+        if not screen:
             return ""
         if "esc to interrupt" in screen:
             return "working"
@@ -677,6 +717,8 @@ async def main():
     status["live"] = console.status("[dim]listening[/]")
     status["live"].start()
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
+    work = {"task": None}
+    loop.add_signal_handler(signal.SIGINT, lambda: work["task"] and work["task"].cancel())
     try:
         if aec:
             helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -702,25 +744,30 @@ async def main():
                         helper_proc.stdin.write(chunk)
                         sent += len(chunk)
                     await helper_proc.stdin.drain()
-            await asyncio.gather(mic_pump(), speaker_pump(), *tasks)
+            work["task"] = asyncio.gather(mic_pump(), speaker_pump(), *tasks)
+            await work["task"]
         else:
             with sd.RawInputStream(samplerate=IN_RATE, channels=1, dtype="int16", blocksize=IN_RATE // 50, callback=on_mic), \
                  sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
-                await asyncio.gather(*tasks)
+                work["task"] = asyncio.gather(*tasks)
+                await work["task"]
+    except asyncio.CancelledError:
+        pass                                   # Ctrl-C
     finally:
         status["live"].stop()
         server.close()
         brain.expected_exit = True
-        brain.proc.terminate()
-        if audio["proc"]:
-            audio["proc"].terminate()
+        for proc in (brain.proc, audio["proc"]):
+            if proc and proc.returncode is None:
+                proc.terminate()
+                with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError):
+                    await asyncio.wait_for(proc.wait(), 2)   # before the loop closes, or asyncio complains
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
+        console.print()
+        ui.note("bye")
 
 
 def run():
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())
-    except KeyboardInterrupt:
-        console.print()
-        ui.note("bye")

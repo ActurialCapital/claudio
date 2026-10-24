@@ -8,6 +8,7 @@
   <b>A voice in front of your Claude Code sessions.</b>
 </p>
 <p align="center">
+  <a href="https://github.com/ActurialCapital/claudio/actions/workflows/test.yml"><img alt="tests" src="https://github.com/ActurialCapital/claudio/actions/workflows/test.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-0d9488"></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-0d9488">
   <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-0d9488">
@@ -58,13 +59,16 @@ flowchart LR
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
+| type a line | a turn, for when you can't talk |
 
 <kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits
 
 ## 🖥️ On screen
 
-- The state line at the bottom follows what is happening: listening, thinking, speaking, paused, muted, and what the orchestrator is up to (idle, working, waiting on you), glanced from its pane every few seconds.
+- The state line at the bottom follows what is happening: a mic level, then listening, thinking, speaking, paused, muted, and what the orchestrator is up to (idle, working, waiting on you), glanced from its pane every few seconds.
+- Each sentence appears as it is spoken, not before, so the transcript keeps time with the voice.
 - Under each lead-in, dim lines of what the brain is reading or running. After each reply, how long it took to the first word.
+- A permission prompt is read with the actual command from the session's pane, not just "needs permission".
 - When a session reports back, the request it was for is shown above the narration.
 - Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 
@@ -98,6 +102,7 @@ flowchart LR
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
 | `barge_in` | `true` | talking over it pauses it |
 | `push_to_talk` | `false` | the mic stays closed until you press Enter, for one turn |
+| `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>`
