@@ -105,12 +105,12 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona; edit it freely. It carries the rules that keep the voice human: plain words, no forced triads, no inflated significance, no chatbot wrapper, stop on the last fact.
+`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it is the persona; edit it freely. It carries the rules that keep the voice human: plain words, no forced triads, no inflated significance, no chatbot wrapper, stop on the last fact.
 
 | key | default | |
 |---|---|---|
 | `orchestrator` | | cmux workspace that gets tasks by default |
-| `model` · `effort` | `default` · `low` | the brain, through your Claude Code login |
+| `model` · `effort` | `default` · `low` | `default`, `sonnet`, `opus`, `haiku` · `low`, `medium`, `high`, through your Claude Code login |
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
 | `style` | `plain` | `plain`, `brief` (one sentence), `caveman` |
 | `ears` | `flux-general-en` | `flux-general-multi` for other languages |

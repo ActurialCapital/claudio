@@ -9,7 +9,8 @@ sys.modules["websockets.exceptions"].WebSocketException = Exception
 sys.modules["websockets"].ConnectionClosed = Exception
 
 from claudio import config
-from claudio.agent import SENTENCE, backchannel, norm, parse_surfaces
+from claudio.agent import SENTENCE, backchannel, norm
+from claudio.config import parse_surfaces
 
 
 def split(text):
@@ -65,10 +66,16 @@ def test_parse_surfaces_maps_surface_ids_to_workspace_title_surface_title_and_cw
     assert len(got) == 3
 
 
-def test_config_env_overrides_one_run(tmp_path, monkeypatch):
+def _scratch(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DIR", str(tmp_path))
     monkeypatch.setattr(config, "CONF", str(tmp_path / "config.json"))
+    monkeypatch.setattr(config, "SECRETS_FILE", str(tmp_path / "secrets.json"))
     monkeypatch.setattr(config, "PROMPT", str(tmp_path / "prompt.md"))
+    monkeypatch.setattr(config, "PROJECT_FILE", str(tmp_path / ".claudio.json"))
+
+
+def test_config_env_overrides_one_run(tmp_path, monkeypatch):
+    _scratch(tmp_path, monkeypatch)
     monkeypatch.setenv("CLAUDIO_EFFORT", "high")
     monkeypatch.setenv("CLAUDIO_BARGE_IN", "false")
     monkeypatch.setenv("CLAUDIO_EOT", "0.5")
@@ -83,3 +90,46 @@ def test_config_set_key_rejects_unknown_and_the_secret():
         config.set_key("nope", "1")
     with pytest.raises(SystemExit):
         config.set_key("deepgram_api_key", "x")
+
+
+def test_set_key_writes_global_values_only_and_keeps_secrets_apart(tmp_path, monkeypatch):
+    _scratch(tmp_path, monkeypatch)
+    (tmp_path / ".claudio.json").write_text('{"orchestrator": "FromRepo", "narrate": "none"}')
+    monkeypatch.setenv("CLAUDIO_STYLE", "caveman")
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "env-key")
+    config.set_key("effort", "high")
+    import json
+    on_disk = json.load(open(config.CONF))
+    assert on_disk["effort"] == "high"
+    assert on_disk["orchestrator"] == "" and on_disk["narrate"] == "handed-off" and on_disk["style"] == "plain"
+    assert "deepgram_api_key" not in on_disk
+    assert json.load(open(config.SECRETS_FILE))["deepgram_api_key"] == ""
+    assert oct(os.stat(config.SECRETS_FILE).st_mode)[-3:] == "600"
+    assert config.load()["orchestrator"] == "FromRepo"       # the project override still applies at run time
+
+
+def test_set_key_rejects_unknown_model_and_effort(tmp_path, monkeypatch):
+    import pytest
+    _scratch(tmp_path, monkeypatch)
+    with pytest.raises(SystemExit):
+        config.set_key("model", "opus-four")
+    with pytest.raises(SystemExit):
+        config.set_key("effort", "max")
+    config.set_key("model", "sonnet")
+
+
+def test_project_file_that_is_not_an_object_is_ignored(tmp_path, monkeypatch):
+    _scratch(tmp_path, monkeypatch)
+    for bad in ("[]", '"x"', "null", "42", "{"):
+        (tmp_path / ".claudio.json").write_text(bad)
+        assert config.load()["orchestrator"] == ""
+
+
+def test_legacy_key_in_config_json_moves_to_secrets(tmp_path, monkeypatch):
+    _scratch(tmp_path, monkeypatch)
+    import json
+    (tmp_path / "config.json").write_text(json.dumps({"effort": "low", "deepgram_api_key": "old-key"}))
+    c = config.stored()
+    assert c["deepgram_api_key"] == "old-key"
+    assert "deepgram_api_key" not in json.load(open(config.CONF))
+    assert json.load(open(config.SECRETS_FILE))["deepgram_api_key"] == "old-key"

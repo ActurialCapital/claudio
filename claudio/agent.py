@@ -13,10 +13,9 @@ IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper
 SENTENCE = re.compile(r"[.!?]['\")]?\s")
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
-CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
-        or "/Applications/cmux.app/Contents/Resources/bin/cmux")
-SESSION = os.path.join(config.DIR, "session")
+CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
+current = {"task": None, "text": "", "commit": None, "ctl": None}   # the reply that holds the mouth, set by reply()
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
@@ -64,22 +63,7 @@ def refresh():
         status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]")
 
 
-def parse_surfaces(text):
-    """`cmux surface list` → {8-char surface id: (workspace title, surface title, cwd)}."""
-    found, ws = {}, None
-    for line in text.splitlines():
-        if m := re.match(r"^\s{4}(\S.*?)\s+workspace:\d+", line):
-            ws = m.group(1)
-        elif m := re.match(r"^\s{6}\S\s+([0-9A-F]{8})\s+(.*?)\s{2,}(\S+)", line):
-            found[m.group(1)] = (ws, m.group(2), m.group(3))
-    return found
-
-
-def sessions():
-    try:
-        return parse_surfaces(subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout)
-    except (OSError, subprocess.TimeoutExpired):
-        return {}
+parse_surfaces, sessions = config.parse_surfaces, config.surfaces
 
 
 def system_prompt():
@@ -112,10 +96,12 @@ class Brain:
         me = os.path.dirname(os.path.abspath(sys.argv[0]))      # so the brain can run `claudio set`
         env = dict(os.environ, PATH=f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}")
         resume = remembered_session()
+        self.resumed, self.started_at = bool(resume), time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose", "--setting-sources", "",
             "--append-system-prompt", system_prompt(),
+            "--disallowedTools", f"Read(//{config.SECRETS_FILE.lstrip('/')})",
             "--allowedTools", "Read", "Grep", "Glob",
             "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
             "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
@@ -125,7 +111,8 @@ class Brain:
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             *(["--resume", resume] if resume else []),
             env=env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=open(os.path.join(config.DIR, "brain.log"), "ab"))
+            stderr=open(os.path.join(config.DIR, "brain.log"), "ab"),
+            limit=16 * 1024 * 1024)            # a Read of a big file is one stream-json line; the default 64 KiB hangs the turn
         if resume:
             await asyncio.sleep(1.5)
             if self.proc.returncode is not None:      # that session is gone: forget it and start fresh
@@ -152,8 +139,9 @@ class Brain:
         """Side channel: the brain's own session id, and which sessions it handed work to."""
         if ev.get("type") == "system" and ev.get("subtype") == "init":
             self.session_id = ev.get("session_id")
-            with contextlib.suppress(OSError):
-                open(SESSION, "w").write(f"{self.session_id} {time.time()}")
+            if cfg.get("memory", True):
+                with contextlib.suppress(OSError):
+                    open(SESSION, "w").write(f"{self.session_id} {time.time()}")
         if ev.get("type") == "assistant":
             for c in ev["message"].get("content", []):
                 if c.get("type") == "tool_use":
@@ -174,25 +162,32 @@ class Brain:
             q = asyncio.Queue()
 
             async def pump():
-                spoke = False
-                while True:
-                    line = await self.proc.stdout.readline()
-                    if not line:
-                        return q.put_nowait(None)      # it died; the watchdog restarts it
-                    ev = json.loads(line)
-                    self.saw(ev)
-                    if ev.get("type") == "stream_event":
-                        e = ev["event"]
-                        if e.get("type") == "content_block_delta" and e["delta"].get("type") == "text_delta":
-                            spoke = True
-                            q.put_nowait(e["delta"]["text"])
-                        elif e.get("type") == "content_block_stop" and spoke:
-                            q.put_nowait(BLOCK_END)   # a text block ended: speak its tail now, new line
-                        elif e.get("type") == "content_block_start" and e["content_block"].get("type") == "tool_use" and not spoke:
-                            spoke = True          # it skipped its lead-in: a word by tool kind, so the tool run is not silence
-                            q.put_nowait("Looking. " if e["content_block"].get("name") in ("Read", "Grep", "Glob") else "Checking. ")
-                    elif ev.get("type") == "result":
-                        return q.put_nowait(None)
+                spoke, last_text = False, ""
+                try:
+                    while True:
+                        line = await self.proc.stdout.readline()
+                        if not line:
+                            return                     # it died; the watchdog restarts it
+                        ev = json.loads(line)
+                        self.saw(ev)
+                        if ev.get("type") == "stream_event":
+                            e = ev["event"]
+                            if e.get("type") == "content_block_delta" and e["delta"].get("type") == "text_delta":
+                                spoke = True
+                                q.put_nowait(e["delta"]["text"])
+                            elif e.get("type") == "content_block_stop" and spoke:
+                                q.put_nowait(BLOCK_END)   # a text block ended: speak its tail now, new line
+                            elif e.get("type") == "content_block_start" and e["content_block"].get("type") == "tool_use" and not spoke:
+                                spoke = True          # it skipped its lead-in: a word by tool kind, so the tool run is not silence
+                                q.put_nowait("Looking. " if e["content_block"].get("name") in ("Read", "Grep", "Glob") else "Checking. ")
+                        elif ev.get("type") == "assistant":
+                            last_text = " ".join(c.get("text", "") for c in ev["message"].get("content", []) if c.get("type") == "text")
+                        elif ev.get("type") == "result":
+                            if ev.get("is_error") and not spoke and last_text:
+                                q.put_nowait(last_text)   # an error with no streamed text (a bad model name): say it
+                            return
+                finally:
+                    q.put_nowait(None)                 # whatever happened, the turn ends
 
             task = asyncio.create_task(pump())
             try:
@@ -211,7 +206,7 @@ brain = Brain()
 def helper():
     """The echo-cancelling audio helper (audio.swift), built once with swiftc. None when it cannot be."""
     src = os.path.join(os.path.dirname(__file__), "audio.swift")
-    exe = os.path.join(config.DIR, "bin", "claudio-audio")
+    exe = config.HELPER
     if os.path.exists(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
         return exe
     if sys.platform != "darwin" or not shutil.which("swiftc"):
@@ -351,6 +346,17 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         else:
             held.extend(m)
     player = asyncio.create_task(mouth.receive(on_audio))
+
+    async def on_commit():                     # an eager start: release what was synthesized before the final transcript
+        await commit.wait()
+        if held:
+            out.extend(held); held.clear()
+            status["last_audio"] = time.monotonic()
+            r = status["reply"]
+            if r and r.get("committed_at") and not r.get("first_word"):
+                r["first_word"] = time.monotonic() - r["committed_at"]
+            show(sentences, first, shown)
+    committer = asyncio.create_task(on_commit())
     try:
         while True:
             while i >= len(sentences) and not gen_done.is_set() and not ctl["paused"].is_set():
@@ -375,6 +381,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         return i, True
     finally:
         player.cancel()
+        committer.cancel()
         await mouth.close()
 
 
@@ -385,10 +392,13 @@ def show(sentences, k, shown):
         ui.me_line(text.strip(), first_of_block)
 
 
-async def reply(text, commit, ctl, fixed=False):
+async def reply(text, commit, ctl, fixed=False, handle=None):
     """One spoken reply. Text streams from the brain into sentences; the mouth follows, and can be
     paused (a possible interruption) and resumed a sentence or two back."""
     async with speaking:
+        if handle:                             # now it is the one speaking: cut, pause and the state line follow it
+            current.update(handle)
+            status["reply"] = handle
         refresh()
         sentences, new, gen_done, shown = [], asyncio.Event(), asyncio.Event(), set()
 
@@ -493,7 +503,6 @@ async def main():
 
     loop = asyncio.get_running_loop()
     mic = asyncio.Queue()
-    current = {"task": None, "text": "", "commit": None, "ctl": None}
     audio = {"proc": None}         # the echo-cancelling helper, when it runs
     ears = {"ws": None}            # the Flux socket, when connected
     later = {"resume": None}       # the timer that resumes a paused reply nobody interrupted after all
@@ -546,9 +555,12 @@ async def main():
         if committed:
             ev.set()
         ctl = new_ctl()
-        current.update(task=asyncio.create_task(reply(text, ev, ctl, fixed=fixed)), text=text, commit=ev, ctl=ctl)
-        status["reply"] = {"task": current["task"], "paused": ctl["paused"], "commit": ev,
-                           "committed_at": time.monotonic() if committed else None}
+        handle = {"text": text, "commit": ev, "ctl": ctl, "paused": ctl["paused"],
+                  "committed_at": time.monotonic() if committed else None}
+        handle["task"] = asyncio.create_task(reply(text, ev, ctl, fixed=fixed, handle=handle))
+        if not live():                         # otherwise it queues behind the speaking reply and claims `current` on its turn
+            current.update(handle)
+            status["reply"] = handle
         refresh()
 
     def set_mute(on):
@@ -588,10 +600,15 @@ async def main():
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):
                 value = f"aura-2-{value}-en"
+            if (cmd == "model" and value not in config.MODELS) or (cmd == "effort" and value not in config.EFFORTS):
+                choices = config.MODELS if cmd == "model" else config.EFFORTS
+                start(f"I don't know {cmd} {arg}. Choose {', '.join(choices)}.", committed=True, fixed=True)
+                return True
             cut(None)
             config.set_key(cmd, value)
             brain.changed.set()
             if cmd == "voice":
+                cfg["voice"] = value               # so the confirmation already speaks in it
                 start(f"{arg.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd == "status":
             start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "
@@ -682,7 +699,12 @@ async def main():
             await asyncio.sleep(0.1)
             if brain.expected_exit or brain.proc is not proc:
                 continue
-            ui.warn("the brain died; restarting it")
+            if brain.resumed and time.monotonic() - brain.started_at < 8:
+                with contextlib.suppress(OSError):
+                    os.unlink(SESSION)             # the remembered session would not resume: start fresh, once
+                ui.note("the remembered conversation is gone; starting fresh")
+            else:
+                ui.warn("the brain died; restarting it")
             async with brain.lock:
                 await brain.start()
             start("[event] You just crashed and were restarted. Say in a few words that you are back, "
@@ -726,10 +748,14 @@ async def main():
             case "StartOfTurn":
                 if cfg["barge_in"] and live() and current["commit"].is_set():
                     pause()
+            case "Update":
+                if paused() and later["resume"]:           # still talking: the 3 s grace starts over
+                    later["resume"].cancel()
+                    later["resume"] = asyncio.create_task(resume_later())
             case "EagerEndOfTurn" if said and not paused():
                 if SLASH.search(words):
                     return                      # a command: wait for the final transcript, no brain
-                ui.you(said, tentative=True)
+                ui.you(said)                    # the eager text is the real one nearly always; a change prints again
                 start(said, committed=False)
             case "TurnResumed":
                 if live() and not current["commit"].is_set():
@@ -740,7 +766,7 @@ async def main():
                 if paused():
                     if said and not backchannel(said):     # a real interruption: this is the new turn
                         ui.you(said)
-                        cut()
+                        cut(None)
                         start(said, committed=True)
                     else:
                         if said:

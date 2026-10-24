@@ -19,14 +19,7 @@ claudio set <key> <value>   change one setting (orchestrator, model, effort, voi
 claudio hook <event>        what the hooks call"""
 
 
-def workspaces():
-    cmux = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
-            or "/Applications/cmux.app/Contents/Resources/bin/cmux")
-    try:
-        text = subprocess.run([cmux, "surface", "list"], capture_output=True, text=True, timeout=5).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    return [l.strip().rsplit("  workspace:", 1)[0] for l in text.splitlines() if "  workspace:" in l]
+workspaces = config.workspaces
 
 
 def key_ok(key):
@@ -38,7 +31,7 @@ def key_ok(key):
 
 
 def setup():
-    cfg = config.load()
+    cfg = config.stored()                    # the global files' own values: what setup writes back
     ui.banner(subtitle="setup · a few questions, then it listens")
     for name, ok in [("claude", shutil.which("claude")), ("cmux", workspaces() or os.path.exists("/Applications/cmux.app"))]:
         ui.check(ok, name, "needed; install it and run setup again")
@@ -66,22 +59,40 @@ def setup():
     names = [v for v, _ in VOICES]
     default = names.index(cfg["voice"]) + 1 if cfg["voice"] in names else 1
     cfg["voice"] = names[IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(1, len(VOICES) + 1)]) - 1]
-    cfg["model"] = Prompt.ask("  Brain model", choices=["default", "sonnet", "opus", "haiku"], default=cfg["model"])
-    cfg["effort"] = Prompt.ask("  Brain effort", choices=["low", "medium", "high"], default=cfg["effort"])
+    cfg["model"] = Prompt.ask("  Brain model", choices=list(config.MODELS), default=cfg["model"])
+    cfg["effort"] = Prompt.ask("  Brain effort", choices=list(config.EFFORTS), default=cfg["effort"])
     cfg["barge_in"] = Confirm.ask("  Interrupt it by talking over it? [dim](echo cancellation is built in with the Xcode tools; otherwise use headphones)[/]",
                                   default=cfg["barge_in"])
     config.save(cfg)
-    console.print(f"  [green]saved[/] {config.CONF}   persona: {config.PROMPT}")
+    console.print(f"  [green]saved[/] {config.CONF}   key: {config.SECRETS_FILE}   persona: {config.PROMPT}")
     if Confirm.ask("  Add the Claude Code hooks now? [dim](Stop, Notification, AskUserQuestion; sessions started after this report back)[/]", default=True):
         install()
     console.print("\n  Run [bold]claudio[/] from a project directory to talk.")
 
 
 def _settings():
-    try:
-        return json.load(open(SETTINGS))
-    except (OSError, ValueError):
+    """The user's Claude Code settings. A file that exists but cannot be read or parsed stops us:
+    writing over it would throw away every permission, env and hook they have."""
+    if not os.path.exists(SETTINGS):
         return {}
+    try:
+        data = json.load(open(SETTINGS))
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"  {SETTINGS} could not be read as JSON ({e}); fix it first, nothing was changed")
+    if not isinstance(data, dict):
+        raise SystemExit(f"  {SETTINGS} is not a JSON object; nothing was changed")
+    return data
+
+
+def _write_settings(s):
+    """Atomic, with a backup of what was there."""
+    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
+    if os.path.exists(SETTINGS):
+        shutil.copy(SETTINGS, SETTINGS + ".bak-claudio")
+    tmp = SETTINGS + ".claudio-tmp"
+    with open(tmp, "w") as f:
+        json.dump(s, f, indent=2)
+    os.replace(tmp, SETTINGS)
 
 
 def install():
@@ -99,9 +110,8 @@ def install():
             slot = {"matcher": matcher, "hooks": []} if matcher else {"hooks": []}
             hooks[event].append(slot)
         slot.setdefault("hooks", []).append(cmd)
-    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
-    json.dump(s, open(SETTINGS, "w"), indent=2)
-    console.print(f"  [green]hooks installed[/] in {SETTINGS}")
+    _write_settings(s)
+    console.print(f"  [green]hooks installed[/] in {SETTINGS}  [dim](backup: settings.json.bak-claudio)[/]")
 
 
 def uninstall():
@@ -110,7 +120,7 @@ def uninstall():
         for e in entries:
             e["hooks"] = [h for h in e.get("hooks", []) if "claudio hook" not in h.get("command", "")]
         s["hooks"][event] = [e for e in entries if e.get("hooks")]
-    json.dump(s, open(SETTINGS, "w"), indent=2)
+    _write_settings(s)
     console.print(f"  [green]hooks removed[/] from {SETTINGS}")
 
 
@@ -138,8 +148,7 @@ def doctor():
     hooks = json.dumps(_settings().get("hooks", {}))
     row(hooks.count("claudio hook") >= 3, "the three Claude Code hooks installed", "claudio install")
     from . import agent
-    exe = os.path.join(config.DIR, "bin", "claudio-audio")
-    row(os.path.exists(exe) or shutil.which("swiftc"), "echo canceller built or buildable", "Xcode command line tools; headphones otherwise")
+    row(os.path.exists(config.HELPER) or shutil.which("swiftc"), "echo canceller built or buildable", "Xcode command line tools; headphones otherwise")
     try:
         import sounddevice as sd
         row(sd.query_devices(kind="input")["name"], f"microphone: {sd.query_devices(kind='input')['name']}")
@@ -153,9 +162,8 @@ def doctor():
 
 
 def forget():
-    path = os.path.join(config.DIR, "session")
-    if os.path.exists(path):
-        os.unlink(path)
+    if os.path.exists(config.SESSION):
+        os.unlink(config.SESSION)
     console.print("  forgotten; the next start is a fresh conversation")
 
 
