@@ -23,7 +23,16 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
           "level": 0, "latency": None}
 BARS = " ▁▂▃▄▅▆▇"
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
-              "status says the settings. mute and unmute. stop cuts a reply.")
+              "style plain, brief or caveman. status says the settings. mute and unmute. stop cuts a reply.")
+STYLES = {
+    "plain": "",
+    "brief": "\n\nSTYLE OVERRIDE, brief: one sentence per reply, two at most when the answer has two parts. "
+             "No lead-in before a tool, no question back unless the next step is truly the user's call.",
+    "caveman": "\n\nSTYLE OVERRIDE, caveman: this replaces every rule above about sentences. Speak like a caveman: "
+               "at most six words per sentence, drop articles, auxiliaries and connectors, fragments are the norm. "
+               "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
+               "Want Sales started?\" Never a full polite sentence.",
+}
 SLASH = re.compile(r"\bslash\s+(\w+)\s*(.*)$")       # "slash effort low", also "um, slash mute"
 
 
@@ -75,7 +84,7 @@ def sessions():
 
 def system_prompt():
     lines = [f"- {w}: surface {sid} ({t}), in {c}" for sid, (w, t, c) in surfaces.items() if w]
-    return (open(config.PROMPT).read()
+    return (open(config.PROMPT).read() + STYLES.get(cfg["style"], "")
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nSessions now:\n" + "\n".join(lines))
 
 
@@ -108,6 +117,7 @@ class Brain:
             "--include-partial-messages", "--verbose", "--setting-sources", "",
             "--append-system-prompt", system_prompt(),
             "--allowedTools", "Read", "Grep", "Glob",
+            "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
             "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
             "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
             "Bash(claudio set:*)",
@@ -569,6 +579,10 @@ async def main():
             set_mute(cmd == "mute")
         elif cmd == "stop":
             cut("stopped")
+        elif cmd == "style" and arg in STYLES:
+            cut(None)
+            config.set_key("style", arg)
+            brain.changed.set()
         elif cmd in ("model", "effort", "voice") and arg:
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):
@@ -647,7 +661,7 @@ async def main():
                 continue
             stamp = now
             new = config.load()
-            restart = (new["model"], new["effort"]) != (cfg["model"], cfg["effort"])
+            restart = (new["model"], new["effort"], new["style"]) != (cfg["model"], cfg["effort"], cfg["style"])
             re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms"))
             diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
                              if k not in config.SECRETS and new[k] != cfg[k])
@@ -657,8 +671,8 @@ async def main():
                 asyncio.create_task(ears["ws"].close())   # the listener reconnects with the new ears
             if restart:
                 await brain.restart()
-                start(f"[event] You were just restarted with model {cfg['model']} at effort {cfg['effort']}. "
-                      "Say in a few words that you are back.", committed=True, event=True)
+                start(f"[event] You were just restarted with model {cfg['model']} at effort {cfg['effort']}, "
+                      f"style {cfg['style']}. Say in a few words that you are back, in that style.", committed=True, event=True)
 
     async def brain_watch():
         while True:

@@ -56,6 +56,7 @@ flowchart LR
 | "open a session called Core" | new cmux workspace running `claude` |
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
+| "slash style brief" · "caveman" · "plain" | how it talks: one sentence, caveman, or plain |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | "what did we do today?" | reads today's transcript and tells you |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
@@ -104,13 +105,14 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona; edit it freely.
+`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona; edit it freely. It carries the rules that keep the voice human: plain words, no forced triads, no inflated significance, no chatbot wrapper, stop on the last fact.
 
 | key | default | |
 |---|---|---|
 | `orchestrator` | | cmux workspace that gets tasks by default |
 | `model` · `effort` | `default` · `low` | the brain, through your Claude Code login |
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
+| `style` | `plain` | `plain`, `brief` (one sentence), `caveman` |
 | `ears` | `flux-general-en` | `flux-general-multi` for other languages |
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
 | `barge_in` | `true` | talking over it pauses it |

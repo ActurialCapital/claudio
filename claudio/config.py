@@ -9,7 +9,7 @@ SOCK = f"/tmp/claudio-{os.getuid()}.sock"
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
-            "narrate": "handed-off", "mouth": "deepgram", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
+            "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
