@@ -62,7 +62,7 @@ flowchart LR
 | "open a session called Core" | new cmux workspace running `claude` |
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
-| "mute" · "unmute" | hears nothing until you unmute |
+| "slash mute" · "slash unmute" | hears nothing until you unmute |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 
 <kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits

@@ -20,7 +20,6 @@ cfg, surfaces = {}, {}
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None}   # what the state line is derived from
-MUTE = {"mute", "mute please", "claudio mute", "go mute", "mute yourself", "shut up"}
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "status says the settings. mute and unmute. stop cuts a reply.")
 
@@ -29,7 +28,7 @@ def state_text():
     """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
     r = status["reply"]
     if status["muted"]:
-        return "muted · say unmute"
+        return "muted · say slash unmute"
     if not status["ears"]:
         return "ears lost · reconnecting"
     if r and r["paused"].is_set():
@@ -435,7 +434,7 @@ async def main():
         status["muted"] = on
         if on:
             cut("muted")
-        ui.note("muted · say unmute" if on else "unmuted")
+        ui.note("muted · say slash unmute" if on else "unmuted")
         start("Muted." if on else "I'm listening again.", committed=True, fixed=True)
 
     async def fresh_start():
@@ -560,12 +559,9 @@ async def main():
     def heard(ev):
         said = ev.get("transcript", "").strip()
         words = " ".join(norm(said))
-        if status["muted"]:                # only "unmute" gets through; nothing else is printed or kept
-            if ev["event"] == "EndOfTurn" and "unmute" in words.replace("un mute", "unmute"):
+        if status["muted"]:                # only "slash unmute" gets through; nothing else is printed or kept
+            if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
-            return
-        if ev["event"] == "EndOfTurn" and words in MUTE:
-            set_mute(True)
             return
         if ev["event"] == "EndOfTurn" and slash(words):
             return
@@ -621,9 +617,7 @@ async def main():
     async def keys():
         while line := await loop.run_in_executor(None, sys.stdin.readline):
             typed = line.strip().lower()
-            if typed in ("mute", "unmute"):
-                set_mute(typed == "mute")
-            elif typed.startswith("/") and slash("slash " + typed[1:]):
+            if typed.startswith("/") and slash("slash " + typed[1:]):
                 pass
             else:
                 cut()
