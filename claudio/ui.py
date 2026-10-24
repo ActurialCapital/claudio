@@ -1,8 +1,21 @@
 """The look: one wordmark, one status strip, one glyph per voice in the transcript."""
+import datetime, os
 from rich.console import Console
 from rich.text import Text
+from . import config
 
 console = Console(highlight=False)
+TRANSCRIPTS = os.path.join(config.DIR, "transcripts")
+
+
+def log(line):
+    """Append a line to today's transcript, ~/.config/claudio/transcripts/YYYY-MM-DD.md."""
+    try:
+        os.makedirs(TRANSCRIPTS, exist_ok=True)
+        with open(os.path.join(TRANSCRIPTS, datetime.date.today().isoformat() + ".md"), "a") as f:
+            f.write(f"{datetime.datetime.now():%H:%M}  {line}\n")
+    except OSError:
+        pass
 
 MARK = r"""
  ██████╗██╗      █████╗ ██╗   ██╗██████╗ ██╗ ██████╗
@@ -31,6 +44,7 @@ def short_voice(v):
 
 def banner(subtitle=None, facts=None, hints=None):
     """The header: wordmark, tagline (or a subtitle like 'setup'), a strip of facts, a line of hints."""
+    console.clear()
     console.print()
     console.print(wordmark())
     console.print(f"  [dim italic]{subtitle or TAGLINE}[/]")
@@ -57,6 +71,8 @@ def banner(subtitle=None, facts=None, hints=None):
 
 def you(text, tentative=False):
     console.print(f"\n{YOU} [dim]{text}[/]" if tentative else f"\n{YOU} {text}")
+    if not tentative:
+        log(f"› {text}")
 
 
 def me_line(sentence, first):
@@ -64,10 +80,25 @@ def me_line(sentence, first):
     line = Text.assemble(("◆ ", "bold #2dd4bf")) if first else Text("  ")
     line.append(sentence)
     console.print(line)
+    log(("◆ " if first else "  ") + sentence)
 
 
 def event(workspace, kind):
     console.print(f"\n{EVENT} [magenta]{workspace}[/] [dim]{kind}[/]")
+    log(f"▸ {workspace}  {kind}")
+
+
+def tool(name, inp):
+    """A dim line for what the brain is doing: reading a file, running a command."""
+    if name == "Read":
+        what = "reading " + os.path.basename(inp.get("file_path", ""))
+    elif name in ("Grep", "Glob"):
+        what = "searching " + inp.get("pattern", "")
+    elif name == "Bash":
+        what = " ".join(inp.get("command", "").split()[:3])
+    else:
+        what = name.lower()
+    console.print(f"  [dim]{what[:70]}[/]")
 
 
 def note(text):

@@ -131,6 +131,8 @@ class Brain:
                 open(SESSION, "w").write(f"{self.session_id} {time.time()}")
         if ev.get("type") == "assistant":
             for c in ev["message"].get("content", []):
+                if c.get("type") == "tool_use":
+                    ui.tool(c.get("name"), c.get("input", {}))
                 if c.get("type") == "tool_use" and c.get("name") == "Bash":
                     cmd = c["input"].get("command", "")
                     if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
@@ -359,7 +361,7 @@ async def main():
     ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
                      "voice": ui.short_voice(cfg["voice"]), "echo cancel": "on" if aec else "off",
                      "memory": "on" if remembered_session() else "fresh"},
-              hints="talk · Enter cuts a reply · Ctrl-C quits · claudio setup to change things")
+              hints="Enter cuts · Ctrl-C quits · claudio setup")
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
         async for _ in brain.turn("Say only: ready."):
