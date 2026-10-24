@@ -18,7 +18,7 @@
 <br>
 
 <p align="center">
-  <img src="assets/demo.svg" alt="a conversation with claudio" width="760">
+  <img src="assets/demo-v2.svg" alt="a conversation with claudio" width="760">
 </p>
 
 You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission. It is not a reading bot: a separate small brain talks with you, decides whether you are discussing or asking for work, and narrates what your sessions report back in plain words.
@@ -65,9 +65,21 @@ flowchart LR
 
 ## 🖥️ On screen
 
-- 📊 A state line at the bottom: a mic level, then listening, thinking, speaking, paused, muted, and what the orchestrator is up to, glanced from its pane every few seconds.
-- ⏱️ Each sentence appears as it is spoken, so the transcript keeps time with the voice. After each reply, how long it took to the first word.
-- 🔍 Under each lead-in, dim lines of what the brain is reading or running.
+```
+› rebase 44 on main and run the tests
+◆ Sending that to Sequencer.
+  → cmux agent message
+
+▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
+◆ Rebased, tests pass, nothing to fix.
+
+▃ listening  ·  1.1 s to first word  ·  Sequencer idle
+```
+
+- `›` you, `◆` claudio, `▸` a session reporting back with the request it was for, `→` what the brain is reading or running, `⚙` a setting you changed, `·` a note, `!` a warning. Room noise and "mm-hm"s show dim.
+- 📊 The state line: a mic level, then listening, thinking, speaking, paused, muted, how long the last reply took to its first word, and what the orchestrator is up to, glanced from its pane every few seconds.
+- ⏱️ Each sentence appears as it is spoken, so the transcript keeps time with the voice. Lines wrap at 90 columns however wide the pane.
+- 🕰️ A dim rule with the time marks a gap of more than five minutes.
 - 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 - 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
 - ✍️ Edit `prompt.md` and the brain restarts with the new persona, memory kept.

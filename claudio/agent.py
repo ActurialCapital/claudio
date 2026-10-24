@@ -19,7 +19,8 @@ SESSION = os.path.join(config.DIR, "session")
 cfg, surfaces = {}, {}
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
-status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True, "level": 0}
+status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
+          "level": 0, "latency": None}
 BARS = " ▁▂▃▄▅▆▇"
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "status says the settings. mute and unmute. stop cuts a reply.")
@@ -42,6 +43,9 @@ def state_text():
         mine = "speaking" if time.monotonic() - status["last_audio"] < 0.4 or out else "thinking"
     elif cfg.get("push_to_talk") and not status["gate_open"]:
         mine = "push to talk · Enter opens the mic"
+    lat = status["latency"]
+    if lat and time.monotonic() < lat[1]:
+        mine += f"  ·  {lat[0]} to first word"
     return f"{mine}  ·  {cfg['orchestrator']} {status['orch']}" if status["orch"] else mine
 
 
@@ -428,7 +432,9 @@ async def reply(text, commit, ctl, fixed=False):
             out.clear()
             r = status["reply"]
             if r and r.get("first_word") and not fixed:
-                ui.note(f"{r['first_word']:.1f} s to first word")
+                status["latency"] = (f"{r['first_word']:.1f} s", time.monotonic() + 6)
+                if r["first_word"] > 3:
+                    ui.warn(f"slow: {r['first_word']:.1f} s to first word")
                 r["first_word"] = None
             refresh()
 
@@ -643,9 +649,10 @@ async def main():
             new = config.load()
             restart = (new["model"], new["effort"]) != (cfg["model"], cfg["effort"])
             re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms"))
-            diff = ", ".join(f"{k} → {new[k]}" for k in config.DEFAULTS if k != "deepgram_api_key" and new[k] != cfg[k])
+            diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
+                             if k not in config.SECRETS and new[k] != cfg[k])
             cfg = new
-            ui.note(f"settings: {diff or 'reloaded'}{'; brain restarting' if restart else ''}")
+            ui.setting(f"{diff or 'settings reloaded'}{'  ·  brain restarting' if restart else ''}")
             if re_ear and ears["ws"]:
                 asyncio.create_task(ears["ws"].close())   # the listener reconnects with the new ears
             if restart:
@@ -687,7 +694,9 @@ async def main():
         words = " ".join(norm(said))
         if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
             if not words.startswith("claudio"):
-                return                          # not for me
+                if ev["event"] == "EndOfTurn":
+                    ui.you(said, tentative=True)    # heard, not for me: dim
+                return
             said = re.sub(r"^\W*claudio\W*", "", said, flags=re.I).strip() or said
             words = " ".join(norm(said))
         if status["muted"]:                # only "slash unmute" gets through; nothing else is printed or kept
@@ -719,6 +728,8 @@ async def main():
                         cut()
                         start(said, committed=True)
                     else:
+                        if said:
+                            ui.you(said, tentative=True)   # a backchannel: dim, and the reply goes on
                         resume()
                 elif said:
                     if live() and not current["commit"].is_set() and norm(current["text"]) == norm(said):

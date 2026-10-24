@@ -6,6 +6,12 @@ from . import config
 
 console = Console(highlight=False)
 TRANSCRIPTS = os.path.join(config.DIR, "transcripts")
+COLUMN = 90                     # transcript lines wrap here, however wide the pane; the header uses the full width
+last_turn = {"at": None}
+
+
+def width():
+    return min(COLUMN, console.width)
 
 
 def log(line):
@@ -70,7 +76,16 @@ def banner(subtitle=None, facts=None, hints=None):
 
 
 def you(text, tentative=False):
-    console.print(f"\n{YOU} [dim]{text}[/]" if tentative else f"\n{YOU} {text}")
+    now = datetime.datetime.now()
+    if not tentative and last_turn["at"] and (now - last_turn["at"]).total_seconds() > 300:
+        console.print()
+        console.rule(f"[dim]{now:%H:%M}[/]", style="dim", align="left")     # a gap of more than five minutes
+    if not tentative:
+        last_turn["at"] = now
+    line = Text("\n")
+    line.append("› ", style="bold cyan")
+    line.append(text, style="dim" if tentative else "")
+    console.print(line, width=width())
     if not tentative:
         log(f"› {text}")
 
@@ -79,16 +94,23 @@ def me_line(sentence, first):
     """One sentence of claudio's, as a whole line: the glyph on the first of an utterance, indented after."""
     line = Text.assemble(("◆ ", "bold #2dd4bf")) if first else Text("  ")
     line.append(sentence)
-    console.print(line)
+    console.print(line, width=width())
     log(("◆ " if first else "  ") + sentence)
 
 
+KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose"}
+
+
 def event(workspace, kind, asked=""):
-    console.print()
+    """One header per session report: ▸ Sequencer  done  ·  for "rebase 44…"; the narration follows under it."""
+    line = Text("\n")
+    line.append("▸ ", style="bold magenta")
+    line.append(workspace, style="magenta")
+    line.append(f"  {KIND.get(kind, kind.lower())}", style="dim")
     if asked:
-        console.print(f"  [dim]↳ for: {asked[:90]}[/]")
-    console.print(f"{EVENT} [magenta]{workspace}[/] [dim]{kind}[/]")
-    log(f"▸ {workspace}  {kind}" + (f"  (for: {asked})" if asked else ""))
+        line.append(f'  ·  for "{asked[:70]}"', style="dim")
+    console.print(line, width=width())
+    log(f"▸ {workspace}  {KIND.get(kind, kind)}" + (f'  ·  for "{asked}"' if asked else ""))
 
 
 def rule(title):
@@ -105,15 +127,20 @@ def tool(name, inp):
         what = " ".join(inp.get("command", "").split()[:3])
     else:
         what = name.lower()
-    console.print(f"  [dim]{what[:70]}[/]")
+    console.print(f"  [dim]→ {what[:70]}[/]", width=width())
+
+
+def setting(text):
+    console.print(f"[dim]⚙ {text}[/]", width=width())
+    log(f"⚙ {text}")
 
 
 def note(text):
-    console.print(f"{NOTE} [dim]{text}[/]")
+    console.print(f"{NOTE} [dim]{text}[/]", width=width())
 
 
 def warn(text):
-    console.print(f"[bold yellow]![/] [yellow]{text}[/]")
+    console.print(f"[bold yellow]![/] [yellow]{text}[/]", width=width())
 
 
 def check(ok, name, hint=""):
