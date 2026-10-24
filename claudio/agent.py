@@ -19,12 +19,27 @@ SESSION = os.path.join(config.DIR, "session")
 cfg, surfaces = {}, {}
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
-status = {"live": None}       # the state line at the bottom of the terminal
+status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None}   # what the state line is derived from
+MUTE = {"mute", "mute please", "claudio mute", "go mute", "mute yourself", "shut up"}
 
 
-def state(s):
+def state_text():
+    """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
+    r = status["reply"]
+    if status["muted"]:
+        return "muted · say unmute"
+    if not status["ears"]:
+        return "ears lost · reconnecting"
+    if r and r["paused"].is_set():
+        return "paused"
+    if r and r["commit"].is_set():
+        return "speaking" if time.monotonic() - status["last_audio"] < 0.4 or out else "thinking"
+    return "listening"
+
+
+def refresh():
     if status["live"]:
-        status["live"].update(f"[dim]{s}[/]")
+        status["live"].update(f"[dim]{state_text()}[/]")
 
 
 def sessions():
@@ -220,7 +235,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
                         if held:
                             out.extend(held); held.clear()
                         out.extend(m)
-                        state("speaking")
+                        status["last_audio"] = time.monotonic()
                     else:
                         held.extend(m)
                 elif json.loads(m).get("type") == "Flushed":
@@ -255,11 +270,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
             await tts.close()
 
 
-async def reply(text, commit, ctl):
+async def reply(text, commit, ctl, fixed=False):
     """One spoken reply. Text streams from the brain into sentences; the mouth follows, and can be
     paused (a possible interruption) and resumed a sentence or two back."""
     async with speaking:
-        state("thinking")
+        refresh()
         sentences, new, gen_done = [], asyncio.Event(), asyncio.Event()
 
         async def generate():
@@ -272,6 +287,9 @@ async def reply(text, commit, ctl):
                 ui.me_line(sentence.strip(), first)   # whole lines only: the live state line swallows partial ones
                 first = False
             try:
+                if fixed:
+                    emit(text)
+                    return
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
                         if buf.strip():
@@ -293,7 +311,7 @@ async def reply(text, commit, ctl):
         try:
             while True:
                 if ctl["paused"].is_set():
-                    state("paused")
+                    refresh()
                     await ctl["resume"].wait()
                     ctl["resume"].clear()
                     ctl["paused"].clear()
@@ -309,7 +327,7 @@ async def reply(text, commit, ctl):
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await gen
             out.clear()
-            state("listening")
+            refresh()
 
 
 def on_out(outdata, frames, t, status_):
@@ -400,14 +418,23 @@ async def main():
         if paused():
             current["ctl"]["resume"].set()
 
-    def start(text, committed, event=False):
+    def start(text, committed, event=False, fixed=False):
         if live() and not event:
             cut("replaced")
         ev = asyncio.Event()
         if committed:
             ev.set()
         ctl = new_ctl()
-        current.update(task=asyncio.create_task(reply(text, ev, ctl)), text=text, commit=ev, ctl=ctl)
+        current.update(task=asyncio.create_task(reply(text, ev, ctl, fixed=fixed)), text=text, commit=ev, ctl=ctl)
+        status["reply"] = {"paused": ctl["paused"], "commit": ev}
+        refresh()
+
+    def set_mute(on):
+        status["muted"] = on
+        if on:
+            cut("muted")
+        ui.note("muted · say unmute" if on else "unmuted")
+        start("Muted." if on else "I'm listening again.", committed=True, fixed=True)
 
     async def on_event(reader, writer):
         """A session's hook reported in. Narrate handed-off work, permission prompts and questions."""
@@ -426,6 +453,8 @@ async def main():
         ws = surfaces.get(sid, (None,))[0]
         if not ws:
             return
+        if status["muted"]:
+            return                         # muted: nothing spoken, not even the sessions
         if ev["event"] == "Stop" and ev.get("text") and brain.handoffs.get(ws, 0) > time.time() - 1800:
             text = f"[event] {ws} finished a turn. Its last message:\n{ev['text']}"
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
@@ -492,6 +521,14 @@ async def main():
 
     def heard(ev):
         said = ev.get("transcript", "").strip()
+        words = " ".join(norm(said))
+        if status["muted"]:                # only "unmute" gets through; nothing else is printed or kept
+            if ev["event"] == "EndOfTurn" and "unmute" in words.replace("un mute", "unmute"):
+                set_mute(False)
+            return
+        if ev["event"] == "EndOfTurn" and words in MUTE:
+            set_mute(True)
+            return
         match ev["event"]:
             case "StartOfTurn":
                 if cfg["barge_in"] and live() and current["commit"].is_set():
@@ -525,29 +562,40 @@ async def main():
                 async with websockets.connect(flux_url(), additional_headers=auth) as ws:
                     ears["ws"] = ws
                     delay = 1
-                    state("listening")
+                    status["ears"] = True
+                    refresh()
                     async for m in ws:
                         ev = json.loads(m)
                         if ev.get("type") == "TurnInfo":
                             heard(ev)
             except (OSError, websockets.exceptions.WebSocketException) as e:
                 ears["ws"] = None
-                state(f"ears lost ({type(e).__name__}); reconnecting in {delay}s")
+                status["ears"] = False
+                refresh()
+                ui.note(f"ears lost ({type(e).__name__}); reconnecting in {delay}s")
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 15)
             else:
                 ears["ws"] = None        # closed on purpose (new ear settings): straight back
 
     async def keys():
-        while await loop.run_in_executor(None, sys.stdin.readline):
-            cut()
+        while line := await loop.run_in_executor(None, sys.stdin.readline):
+            if line.strip().lower() in ("mute", "unmute"):
+                set_mute(line.strip().lower() == "mute")
+            else:
+                cut()
+
+    async def tick():                      # the state line follows what is happening, four times a second
+        while True:
+            await asyncio.sleep(0.25)
+            refresh()
 
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     status["live"] = console.status("[dim]listening[/]")
     status["live"].start()
-    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch()]
+    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick()]
     try:
         if aec:
             helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,

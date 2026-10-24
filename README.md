@@ -1,83 +1,116 @@
-<p align="center">
-  <img src="assets/claudio.png" alt="claudio" width="420">
-</p>
+<table border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td width="200" align="center" valign="middle">
+<img src="assets/avatar.png" alt="claudio" width="180">
+</td>
+<td valign="middle">
+<pre>
+ ██████╗██╗      █████╗ ██╗   ██╗██████╗ ██╗ ██████╗
+██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██║██╔═══██╗
+██║     ██║     ███████║██║   ██║██║  ██║██║██║   ██║
+██║     ██║     ██╔══██║██║   ██║██║  ██║██║██║   ██║
+╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝██║╚██████╔╝
+ ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
+</pre>
+<b>A voice in front of your Claude Code sessions.</b>
+</td>
+</tr>
+</table>
 
-<h1 align="center">claudio</h1>
+You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission.
 
-A voice in front of your Claude Code sessions. You talk in a terminal; it answers, in a sentence or two, and when you ask for work it hands the task to one of your Claude Code sessions and tells you when that session is done, asks something, or wants a permission.
+## 🧩 What it stands on
 
-Not a reading bot: a separate small brain talks with you, decides whether you're discussing or asking for work, and narrates what your sessions report back in plain words.
+```mermaid
+flowchart LR
+    mac["🍎 macOS"] --- cmux["🖥️ cmux<br/>terminal & agent inbox"] --- claude["🧠 Claude Code<br/>your plan, your sessions"]
+    cmux --- dg["🎧 Deepgram<br/>ears & mouth"]
+```
 
-**Scope, plainly:** macOS, [cmux](https://cmux.dev) as the terminal, [Deepgram](https://deepgram.com) for ears and mouth, a Claude plan for the brain. Other terminals and other speech engines are not supported yet. Not related to `ctoth/claudio`, which plays sound effects on hooks.
+## ⚙️ How it works
 
-## Install
+```mermaid
+flowchart LR
+    you(["🗣️ you"]) -->|speech| ears["👂 ears"]
+    ears -->|text| brain["🧠 brain"]
+    brain -->|text| mouth["👄 mouth"]
+    mouth -->|speech| you
+    brain -->|"hand off a task"| s1["💻 session"]
+    s1 -->|"done · question · permission"| brain
+```
+
+- **Discussing?** The brain answers itself, reading the project when it needs facts.
+- **Work?** It sends the task to your orchestrator session through cmux's agent inbox and says so.
+- **Sessions report back** through three Claude Code hooks. Claudio narrates in plain words, reads out questions and permission prompts; you answer those on the keyboard.
+
+## 🔬 Under the hood
+
+```mermaid
+flowchart TB
+    subgraph ears ["👂 ears"]
+        aec["🎙️ Apple voice-processing unit<br/>echo cancellation, so you can talk over it on speakers"] --> flux["Deepgram Flux STT<br/>eager end of turn · preemptive generation"]
+    end
+    subgraph brain ["🧠 brain"]
+        cp["one long-lived <code>claude -p</code><br/>stream-json · low effort · remembers across runs"]
+    end
+    subgraph mouth ["👄 mouth"]
+        aura["Deepgram Aura TTS<br/>streamed sentence by sentence"]
+    end
+    subgraph hooks ["🪝 hooks"]
+        h["Stop · Notification · AskUserQuestion<br/>→ Unix socket → narration"]
+    end
+    flux --> cp --> aura
+    h --> cp
+```
+
+## 🚀 Install
 
 ```bash
 uv tool install git+https://github.com/ActurialCapital/claudio
-claudio          # first run: setup, then it listens
+claudio          # setup on first run, then it listens
 ```
 
-Setup checks for `claude` and cmux, asks for your Deepgram key and tests it, lets you pick which cmux workspace is the orchestrator (the session that gets your tasks by default), a voice, the brain's model and effort, and whether talking over it cuts it. Then it adds three hooks to `~/.claude/settings.json`. Sessions started after that report back.
-
-Then, from a project directory:
+Setup asks for your [Deepgram](https://console.deepgram.com) key, lets you pick the orchestrator from your live cmux workspaces, a voice, the brain's model and effort, and installs the hooks. Then, from any project:
 
 ```bash
 cd ~/code/myproject && claudio
 ```
 
-## Talking to it
+## 🎙️ Talking to it
 
-- Ask a question: it answers itself, reading the project if it needs to.
-- Ask for work: it sends the task to the orchestrator through cmux's agent inbox (`cmux agent message`), and says so. Name another session to send it there instead.
-- "What is the sequencer doing?" reads that pane and sums it up.
-- "Open a session called Core" opens a new cmux workspace running `claude`. "Open a terminal next to it" splits a pane.
-- When a session you handed work to finishes a turn, claudio tells you what it did. When a session asks a permission or a multiple-choice question, claudio reads it out; you answer on that session's keyboard.
-- "Use Sonnet", "the orchestrator is Core now", "stop interrupting me": settings changed by voice, kept for next time.
-- Talking over it pauses it at once. If what you said was a real turn, that becomes the new question. If it was an "mm-hm", a cough, or nothing, it carries on from a sentence back. On speakers too: on a Mac with the Xcode command line tools, claudio builds a small helper on first run that runs Apple's voice-processing audio unit (the FaceTime echo canceller) for mic and speaker. Without it, barge-in needs headphones. Enter also cuts. Ctrl-C quits.
-
-## Commands
-
-| | |
+| say | it |
 |---|---|
-| `claudio` | talk (runs setup the first time) |
-| `claudio setup` | the wizard again |
-| `claudio doctor` | checks claude, cmux, the key, the hooks, the echo canceller, the mic, then runs one typed turn |
-| `claudio install` / `uninstall` | the three Claude Code hooks in `~/.claude/settings.json` |
-| `claudio forget` | drop the brain's memory of past conversations |
-| `claudio set <key> <value>` | change one setting; what the brain runs when you ask by voice |
+| "what's the sequencer doing?" | reads that pane and sums it up |
+| "rebase 44 and run the tests" | hands it to the orchestrator |
+| "open a session called Core" | opens a cmux workspace running `claude` |
+| "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
+| "mute" · "unmute" | hears nothing until you unmute |
+| talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 
-## Settings
+Enter cuts a reply. Ctrl-C quits.
 
-`~/.config/claudio/config.json`, written by setup and by voice. `~/.config/claudio/prompt.md` is the persona; edit it freely, it's read at each start.
+## 🎛️ Settings
+
+`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona; edit freely.
 
 | key | default | |
 |---|---|---|
-| `orchestrator` | | cmux workspace title that gets tasks by default |
-| `model` | `default` | brain: `default`, `sonnet`, `opus`, `haiku` (your Claude Code login) |
-| `effort` | `low` | brain effort; low is the quick conversational one |
+| `orchestrator` | | cmux workspace that gets tasks by default |
+| `model` · `effort` | `default` · `low` | the brain, through your Claude Code login |
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
-| `ears` | `flux-general-en` | Deepgram Flux model; `flux-general-multi` for other languages |
-| `eager_eot` / `eot` | `0.3` / `0.7` | Flux end-of-turn thresholds |
-| `eot_timeout_ms` | `1500` | how long Flux waits when unsure you've finished (its default 5000 feels slow) |
-| `barge_in` | `true` | talking over it pauses it (set false on speakers without the echo canceller) |
-| `memory` | `true` | resume the brain's last session at start, up to a week old, so it remembers |
-| `deepgram_api_key` | | or export `DEEPGRAM_API_KEY` |
+| `ears` | `flux-general-en` | `flux-general-multi` for other languages |
+| `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | Flux end-of-turn tuning |
+| `barge_in` | `true` | talking over it pauses it |
+| `memory` | `true` | resume the last conversation, up to a week old |
 
-`CLAUDIO_<KEY>=value` overrides one run. The brain's own errors go to `~/.config/claudio/brain.log`. `CLAUDIO_TEXT="..."` runs one typed turn without the mic, to check the pipeline.
+`claudio doctor` checks everything and runs one typed turn. `claudio forget` resets the memory. `claudio set <key> <value>` changes one setting.
 
-## Hands-free picking
+<details>
+<summary>Hands-free picking of multiple-choice answers</summary>
 
-By default claudio reads multiple-choice questions and permission prompts aloud and you press the key. If you want your spoken answer to pick the option for you, add `"Bash(cmux send-key:*)"` to the brain's allowed tools in `claudio/agent.py` (the prompt already explains the keystrokes). Then a misheard "yes" can press keys in your sessions; your call.
+By default claudio reads a session's multiple-choice question aloud and you press the key. To let your spoken answer press it, add `"Bash(cmux send-key:*)"` to the brain's allowed tools in `claudio/agent.py`; the persona already knows the keystrokes. A misheard "yes" can then press keys in your sessions.
+</details>
 
-## How it works
-
-- Ears: Deepgram Flux over one websocket. It decides the end of your turn itself, and fires an eager signal first; the brain starts on the eager text and the audio is held until the final transcript confirms it.
-- Brain: one long-lived `claude -p` in stream-json mode, started in your project directory with your hooks switched off, read-only tools plus a few cmux commands. An interruption sends Claude Code's own interrupt.
-- Mouth: Deepgram Aura over a websocket per reply, flushed at each sentence end, so the first sentence plays while the rest is written.
-- Audio: `audio.swift`, compiled once into `~/.config/claudio/bin/`, is Apple's voice-processing I/O unit as a pipe: speech in on stdin, echo-cancelled mic out on stdout, both 24 kHz. Measured on a MacBook Pro: the speaker's own voice drops about 17 dB in the mic. Falls back to PortAudio without it.
-- Resilience: the ears reconnect with backoff, the brain restarts if it dies and says so, the mouth retries once. The brain's errors go to `~/.config/claudio/brain.log`.
-- Sessions report back through three Claude Code hooks (Stop, Notification, PreToolUse on AskUserQuestion) that post to a Unix socket when claudio is running and exit at once otherwise.
-
-## License
+## 📄 License
 
 MIT
