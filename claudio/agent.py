@@ -84,7 +84,7 @@ def sessions():
 
 def system_prompt():
     lines = [f"- {w}: surface {sid} ({t}), in {c}" for sid, (w, t, c) in surfaces.items() if w]
-    return (open(config.PROMPT).read() + STYLES.get(cfg["style"], "")
+    return (STYLES.get(cfg["style"], "").strip() + "\n\n" + open(config.PROMPT).read()
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nSessions now:\n" + "\n".join(lines))
 
 
@@ -169,7 +169,8 @@ class Brain:
     async def turn(self, text):
         async with self.lock:
             self.busy = True
-            await self.send({"type": "user", "message": {"role": "user", "content": text}})
+            tag = "" if cfg["style"] == "plain" or text.startswith("[event]") else f"({cfg['style']} style) "
+            await self.send({"type": "user", "message": {"role": "user", "content": tag + text}})
             q = asyncio.Queue()
 
             async def pump():
