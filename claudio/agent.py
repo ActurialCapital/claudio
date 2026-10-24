@@ -23,15 +23,18 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
 BARS = " ▁▂▃▄▅▆▇"
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "status says the settings. mute and unmute. stop cuts a reply.")
+SLASH = re.compile(r"\bslash\s+(\w+)\s*(.*)$")       # "slash effort low", also "um, slash mute"
 
 
 def state_text():
     """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
     r = status["reply"]
     if status["muted"]:
-        return "muted · say slash unmute"
+        return "muted · say /unmute"
     if not status["ears"]:
         return "ears lost · reconnecting"
+    if r and r["task"].done():
+        r = None
     if r and r["paused"].is_set():
         return "paused"
     mine = "listening"
@@ -431,8 +434,9 @@ async def main():
         if live():
             current["task"].cancel()
             drop_audio()
-            console.print()
-            ui.note(why)
+            if why:
+                console.print()
+                ui.note(why)
 
     def pause():
         if live() and not paused():
@@ -458,14 +462,15 @@ async def main():
             ev.set()
         ctl = new_ctl()
         current.update(task=asyncio.create_task(reply(text, ev, ctl, fixed=fixed)), text=text, commit=ev, ctl=ctl)
-        status["reply"] = {"paused": ctl["paused"], "commit": ev, "committed_at": time.monotonic() if committed else None}
+        status["reply"] = {"task": current["task"], "paused": ctl["paused"], "commit": ev,
+                           "committed_at": time.monotonic() if committed else None}
         refresh()
 
     def set_mute(on):
         status["muted"] = on
         if on:
-            cut("muted")
-        ui.note("muted · say slash unmute" if on else "unmuted")
+            cut(None)
+        ui.note("muted · say /unmute" if on else "unmuted")
         start("Muted." if on else "I'm listening again.", committed=True, fixed=True)
 
     async def fresh_start():
@@ -478,10 +483,10 @@ async def main():
 
     def slash(words):
         """Spoken slash commands: "slash clear", "slash model sonnet"… True when handled."""
-        parts = words.split()
-        if len(parts) < 2 or parts[0] != "slash":
+        m = SLASH.search(words)
+        if not m:
             return False
-        cmd, arg = parts[1], " ".join(parts[2:])
+        cmd, arg = m.group(1), m.group(2).strip()
         ui.note(f"/{cmd} {arg}".strip())
         if cmd == "clear":
             cut("cleared")
@@ -494,8 +499,11 @@ async def main():
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):
                 value = f"aura-2-{value}-en"
+            cut(None)
             config.set_key(cmd, value)
             brain.changed.set()
+            if cmd == "voice":
+                start(f"{arg.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd == "status":
             start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "
                   f"Voice {ui.short_voice(cfg['voice'])}. Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
@@ -607,13 +615,17 @@ async def main():
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
             return
-        if ev["event"] == "EndOfTurn" and slash(words):
+        if ev["event"] == "EndOfTurn" and SLASH.search(words):
+            ui.you(said)
+            slash(words)
             return
         match ev["event"]:
             case "StartOfTurn":
                 if cfg["barge_in"] and live() and current["commit"].is_set():
                     pause()
             case "EagerEndOfTurn" if said and not paused():
+                if SLASH.search(words):
+                    return                      # a command: wait for the final transcript, no brain
                 ui.you(said, tentative=True)
                 start(said, committed=False)
             case "TurnResumed":

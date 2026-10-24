@@ -8,7 +8,6 @@
   <b>A voice in front of your Claude Code sessions.</b>
 </p>
 <p align="center">
-  <a href="https://github.com/ActurialCapital/claudio/actions/workflows/test.yml"><img alt="tests" src="https://github.com/ActurialCapital/claudio/actions/workflows/test.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-0d9488"></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-0d9488">
   <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-0d9488">
@@ -22,7 +21,7 @@
   <img src="assets/demo.svg" alt="a conversation with claudio" width="760">
 </p>
 
-You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission.
+You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission. It is not a reading bot: a separate small brain talks with you, decides whether you are discussing or asking for work, and narrates what your sessions report back in plain words.
 
 ## 🚀 Install
 
@@ -31,7 +30,7 @@ uv tool install git+https://github.com/ActurialCapital/claudio
 cd ~/code/myproject && claudio
 ```
 
-First run is a short setup: your [Deepgram](https://console.deepgram.com) key, the cmux workspace that is your orchestrator, a voice, the brain's model and effort. It installs the Claude Code hooks for you.
+The first run is a short setup: your [Deepgram](https://console.deepgram.com) key, the cmux workspace that is your orchestrator, a voice, the brain's model and effort. It installs the Claude Code hooks for you. `claudio doctor` checks everything afterwards.
 
 ## ⚙️ How it works
 
@@ -46,7 +45,7 @@ flowchart LR
 
 - 💬 **Discussing?** The brain answers itself, reading the project when it needs facts.
 - 🛠️ **Work?** It sends the task to your orchestrator through cmux's agent inbox and says so.
-- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words and reads out questions and permission prompts; you answer those on the keyboard.
+- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words, with the request it was for, and reads out questions and permission prompts with the actual command. You answer those on the keyboard.
 
 ## 🎙️ Say
 
@@ -61,16 +60,14 @@ flowchart LR
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
 
-<kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits
+<kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits · typed `/mute`, `/effort low`, `/clear` work too
 
 ## 🖥️ On screen
 
-- The state line at the bottom follows what is happening: a mic level, then listening, thinking, speaking, paused, muted, and what the orchestrator is up to (idle, working, waiting on you), glanced from its pane every few seconds.
-- Each sentence appears as it is spoken, not before, so the transcript keeps time with the voice.
-- Under each lead-in, dim lines of what the brain is reading or running. After each reply, how long it took to the first word.
-- A permission prompt is read with the actual command from the session's pane, not just "needs permission".
-- When a session reports back, the request it was for is shown above the narration.
-- Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
+- 📊 A state line at the bottom: a mic level, then listening, thinking, speaking, paused, muted, and what the orchestrator is up to, glanced from its pane every few seconds.
+- ⏱️ Each sentence appears as it is spoken, so the transcript keeps time with the voice. After each reply, how long it took to the first word.
+- 🔍 Under each lead-in, dim lines of what the brain is reading or running.
+- 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 
 ## 🔬 Under the hood
 
@@ -87,11 +84,12 @@ flowchart LR
 
 - 🍎 macOS · 🖥️ [cmux](https://cmux.dev) · 🎧 [Deepgram](https://deepgram.com) · 🧠 your Claude plan
 - The brain starts on Flux's eager end of turn; its audio is held until the final transcript agrees.
-- Ears reconnect, the brain restarts if it dies, the mouth retries. Errors in `~/.config/claudio/brain.log`.
+- Ears reconnect, the brain restarts if it dies and says so, the mouth retries. Errors land in `~/.config/claudio/brain.log`.
+- 🔇 Echo cancellation needs the Xcode command line tools once, to build a 100-line Swift helper. Without it, barge-in needs headphones.
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona.
+`~/.config/claudio/config.json`, written by setup and by voice. `prompt.md` beside it is the persona; edit it freely.
 
 | key | default | |
 |---|---|---|
@@ -105,13 +103,7 @@ flowchart LR
 | `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 
-`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>`
-
-<details>
-<summary>🖐️ Hands-free picking of multiple-choice answers</summary>
-<br>
-By default claudio reads a session's multiple-choice question aloud and you press the key. To let your spoken answer press it, add <code>"Bash(cmux send-key:*)"</code> to the brain's allowed tools in <code>claudio/agent.py</code>; the persona already knows the keystrokes. A misheard "yes" can then press keys in your sessions.
-</details>
+`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 
 <br>
 
