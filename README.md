@@ -57,6 +57,7 @@ flowchart LR
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
+| "what did we do today?" | reads today's transcript and tells you |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
 
@@ -68,6 +69,8 @@ flowchart LR
 - ⏱️ Each sentence appears as it is spoken, so the transcript keeps time with the voice. After each reply, how long it took to the first word.
 - 🔍 Under each lead-in, dim lines of what the brain is reading or running.
 - 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
+- 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
+- ✍️ Edit `prompt.md` and the brain restarts with the new persona, memory kept.
 
 ## 🔬 Under the hood
 
@@ -102,8 +105,12 @@ flowchart LR
 | `push_to_talk` | `false` | the mic stays closed until you press Enter, for one turn |
 | `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
+| `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
+| `mouth` | `deepgram` | or `elevenlabs`, with `ELEVENLABS_API_KEY` set and `elevenlabs_voice` a voice id |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
+
+A `.claudio.json` in a project root overrides any of these for that project, `{"orchestrator": "Core"}` being the usual one.
 
 <br>
 

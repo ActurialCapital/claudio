@@ -223,49 +223,119 @@ def new_ctl():
     return {"paused": asyncio.Event(), "resume": asyncio.Event()}
 
 
+class DeepgramMouth:
+    """Deepgram Aura over one Speak socket: Speak + Flush per sentence, a Flushed message per sentence back."""
+    def __init__(self):
+        self.ws, self.sent, self.got = None, 0, 0
+
+    async def open(self):
+        url = f"wss://api.deepgram.com/v1/speak?model={cfg['voice']}&encoding=linear16&sample_rate={OUT_RATE}"
+        self.ws = await websockets.connect(url, additional_headers={"Authorization": f"Token {cfg['deepgram_api_key']}"})
+
+    async def receive(self, on_audio):
+        try:
+            async for m in self.ws:
+                if isinstance(m, bytes):
+                    on_audio(m)
+                elif json.loads(m).get("type") == "Flushed":
+                    self.got += 1
+        except websockets.ConnectionClosed:
+            pass
+
+    async def say(self, text):
+        await self.ws.send(json.dumps({"type": "Speak", "text": text}))
+        await self.ws.send(json.dumps({"type": "Flush"}))
+        self.sent += 1
+
+    def done(self):
+        return self.got >= self.sent
+
+    async def finish(self):
+        pass
+
+    async def close(self):
+        with contextlib.suppress(Exception):
+            await self.ws.close()
+
+
+class ElevenMouth:
+    """ElevenLabs over its stream-input socket: text + flush per sentence, base64 PCM back, isFinal at the end.
+    Untested against a live key when written; the protocol is from ElevenLabs' websocket reference."""
+    def __init__(self):
+        self.ws, self.sent, self.final = None, 0, False
+
+    async def open(self):
+        url = (f"wss://api.elevenlabs.io/v1/text-to-speech/{cfg['elevenlabs_voice']}/stream-input"
+               f"?model_id=eleven_flash_v2_5&output_format=pcm_24000")
+        self.ws = await websockets.connect(url, additional_headers={"xi-api-key": cfg["elevenlabs_api_key"]})
+        await self.ws.send(json.dumps({"text": " ", "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}}))
+
+    async def receive(self, on_audio):
+        import base64
+        try:
+            async for m in self.ws:
+                ev = json.loads(m)
+                if ev.get("audio"):
+                    on_audio(base64.b64decode(ev["audio"]))
+                if ev.get("isFinal"):
+                    self.final = True
+        except websockets.ConnectionClosed:
+            self.final = True
+
+    async def say(self, text):
+        await self.ws.send(json.dumps({"text": text if text.endswith(" ") else text + " ", "flush": True}))
+        self.sent += 1
+
+    def done(self):
+        return self.final
+
+    async def finish(self):
+        await self.ws.send(json.dumps({"text": ""}))      # end of input: the last audio, then isFinal
+
+    async def close(self):
+        with contextlib.suppress(Exception):
+            await self.ws.close()
+
+
+def new_mouth():
+    return ElevenMouth() if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"] else DeepgramMouth()
+
+
 async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
-    """Speak sentences[i:] over one Speak socket until done or paused. Returns (next index, finished).
+    """Speak sentences[i:] over one mouth socket until done or paused. Returns (next index, finished).
     A sentence is printed when its audio starts playing, so the transcript keeps time with the voice."""
-    auth = {"Authorization": f"Token {cfg['deepgram_api_key']}"}
-    url = f"wss://api.deepgram.com/v1/speak?model={cfg['voice']}&encoding=linear16&sample_rate={OUT_RATE}"
-    tts = None
+    mouth = None
     for attempt in (1, 2):
         try:
-            tts = await websockets.connect(url, additional_headers=auth)
+            mouth = new_mouth()
+            await mouth.open()
             break
         except (OSError, websockets.exceptions.WebSocketException):
+            mouth = None
             await asyncio.sleep(1)
-    if tts is None:
-        ui.warn("mouth lost: Deepgram speak unreachable; text only")
+    if mouth is None:
+        ui.warn("mouth lost: the speech service is unreachable; text only")
         await gen_done.wait()
         for k in range(i, len(sentences)):
             show(sentences, k, shown)
         return len(sentences), True
-    got = sent = 0
-    first = i                     # the sentence whose audio is arriving: first + got
+    first = i                     # the sentence whose audio is arriving: first + mouth.got (Deepgram) or in order
     held = bytearray()
+    spoken = {"n": 0}
 
-    async def play():
-        nonlocal got
-        try:
-            async for m in tts:
-                if isinstance(m, bytes):
-                    if commit.is_set():
-                        if held:
-                            out.extend(held); held.clear()
-                        out.extend(m)
-                        show(sentences, first + got, shown)
-                        status["last_audio"] = time.monotonic()
-                        r = status["reply"]
-                        if r and r.get("committed_at") and not r.get("first_word"):
-                            r["first_word"] = time.monotonic() - r["committed_at"]
-                    else:
-                        held.extend(m)
-                elif json.loads(m).get("type") == "Flushed":
-                    got += 1
-        except websockets.ConnectionClosed:
-            pass
-    player = asyncio.create_task(play())
+    def on_audio(m):
+        if commit.is_set():
+            if held:
+                out.extend(held); held.clear()
+            out.extend(m)
+            status["last_audio"] = time.monotonic()
+            r = status["reply"]
+            if r and r.get("committed_at") and not r.get("first_word"):
+                r["first_word"] = time.monotonic() - r["committed_at"]
+            show(sentences, first + getattr(mouth, "got", spoken["n"]), shown)
+        else:
+            held.extend(m)
+    player = asyncio.create_task(mouth.receive(on_audio))
     try:
         while True:
             while i >= len(sentences) and not gen_done.is_set() and not ctl["paused"].is_set():
@@ -275,24 +345,22 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
                 return i, False
             if i >= len(sentences):
                 break
-            await tts.send(json.dumps({"type": "Speak", "text": sentences[i][0]}))
-            await tts.send(json.dumps({"type": "Flush"}))
-            sent += 1
+            await mouth.say(sentences[i][0])
             i += 1
-        while got < sent and not ctl["paused"].is_set():
+        await mouth.finish()
+        while not mouth.done() and not ctl["paused"].is_set() and not player.done():
             await asyncio.sleep(0.02)
         if ctl["paused"].is_set():
             return i, False
         await commit.wait()
         if held:
             out.extend(held); held.clear()
-            for k in range(first, i):
-                show(sentences, k, shown)
+        for k in range(first, i):
+            show(sentences, k, shown)
         return i, True
     finally:
         player.cancel()
-        with contextlib.suppress(Exception):
-            await tts.close()
+        await mouth.close()
 
 
 def show(sentences, k, shown):
@@ -533,8 +601,12 @@ async def main():
         if status["muted"]:
             return                         # muted: nothing spoken, not even the sessions
         when, asked = brain.handoffs.get(ws, (0, ""))
-        if ev["event"] == "Stop" and ev.get("text") and when > time.time() - 1800:
-            text = f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}"
+        if cfg["narrate"] == "none":
+            return
+        handed = when > time.time() - 1800
+        if ev["event"] == "Stop" and ev.get("text") and (handed or cfg["narrate"] == "all"):
+            text = (f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}" if handed
+                    else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
             screen = await loop.run_in_executor(None, pane, sid, 18)
             text = f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}"
@@ -552,11 +624,18 @@ async def main():
     async def watch_config():
         global cfg
         stamp = os.path.getmtime(config.CONF)
+        persona = os.path.getmtime(config.PROMPT)
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(brain.changed.wait(), 1.0)
             brain.changed.clear()
             await asyncio.sleep(0.2)          # let `claudio set` finish writing
+            if os.path.getmtime(config.PROMPT) != persona:        # the persona was edited: new brain, same memory
+                persona = os.path.getmtime(config.PROMPT)
+                ui.note("persona changed; brain restarting")
+                await brain.restart()
+                start("[event] Your persona prompt was just edited and you were restarted with it. "
+                      "Say in a few words that you are back.", committed=True, event=True)
             now = os.path.getmtime(config.CONF)
             if now == stamp:
                 continue
@@ -718,9 +797,17 @@ async def main():
             return "waiting on you"
         return "idle"
 
-    async def orchestrator_watch():        # every 5 s, a glance at the orchestrator's pane
+    async def orchestrator_watch():        # every 5 s, a glance at the orchestrator's pane; a nudge when it waits
+        waiting_since, nudged = None, False
         while True:
             status["orch"] = await loop.run_in_executor(None, orchestrator_state)
+            if status["orch"] == "waiting on you":
+                waiting_since = waiting_since or time.monotonic()
+                if not nudged and time.monotonic() - waiting_since > 120 and not status["muted"] and not live():
+                    nudged = True
+                    start(f"{cfg['orchestrator']} has been waiting on you for a couple of minutes.", committed=True, fixed=True)
+            else:
+                waiting_since, nudged = None, False
             await asyncio.sleep(5)
 
     if os.path.exists(config.SOCK):

@@ -8,7 +8,11 @@ PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
-            "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False, "deepgram_api_key": ""}
+            "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
+            "narrate": "handed-off", "mouth": "deepgram", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
+            "deepgram_api_key": "", "elevenlabs_api_key": ""}
+SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
+PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
 KINDS = {k: (lambda v: v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)
          for k, d in DEFAULTS.items()}
 
@@ -21,8 +25,14 @@ def load():
     c = dict(DEFAULTS)
     if os.path.exists(CONF):
         c.update(json.load(open(CONF)))
-    if os.environ.get("DEEPGRAM_API_KEY"):
-        c["deepgram_api_key"] = os.environ["DEEPGRAM_API_KEY"]
+    if os.path.exists(PROJECT_FILE):
+        try:
+            c.update({k: v for k, v in json.load(open(PROJECT_FILE)).items() if k in DEFAULTS and k not in SECRETS})
+        except ValueError:
+            pass
+    for secret in SECRETS:
+        if os.environ.get(secret.upper()):
+            c[secret] = os.environ[secret.upper()]
     for k in DEFAULTS:
         v = os.environ.get("CLAUDIO_" + k.upper())
         if v is not None:
@@ -37,8 +47,8 @@ def save(cfg):
 
 
 def set_key(key, value):
-    if key not in KINDS or key == "deepgram_api_key":
-        raise SystemExit(f"usage: claudio set <{'|'.join(k for k in KINDS if k != 'deepgram_api_key')}> <value>")
+    if key not in KINDS or key in SECRETS:
+        raise SystemExit(f"usage: claudio set <{'|'.join(k for k in KINDS if k not in SECRETS)}> <value>")
     cfg = load()
     cfg[key] = KINDS[key](value)
     save(cfg)
