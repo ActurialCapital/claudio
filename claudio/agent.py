@@ -19,7 +19,7 @@ SESSION = os.path.join(config.DIR, "session")
 cfg, surfaces = {}, {}
 out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
-status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None}   # what the state line is derived from
+status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True}
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "status says the settings. mute and unmute. stop cuts a reply.")
 
@@ -33,9 +33,12 @@ def state_text():
         return "ears lost · reconnecting"
     if r and r["paused"].is_set():
         return "paused"
+    mine = "listening"
     if r and r["commit"].is_set():
-        return "speaking" if time.monotonic() - status["last_audio"] < 0.4 or out else "thinking"
-    return "listening"
+        mine = "speaking" if time.monotonic() - status["last_audio"] < 0.4 or out else "thinking"
+    elif cfg.get("push_to_talk") and not status["gate_open"]:
+        mine = "push to talk · Enter opens the mic"
+    return f"{mine}  ·  {cfg['orchestrator']} {status['orch']}" if status["orch"] else mine
 
 
 def refresh():
@@ -136,7 +139,8 @@ class Brain:
                 if c.get("type") == "tool_use" and c.get("name") == "Bash":
                     cmd = c["input"].get("command", "")
                     if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
-                        self.handoffs[m.group(1) or m.group(2)] = time.time()
+                        asked = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
+                        self.handoffs[m.group(1) or m.group(2)] = (time.time(), asked[-1] if asked else "")
                     if "claudio set" in cmd:
                         self.changed.set()
 
@@ -239,6 +243,9 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit):
                             out.extend(held); held.clear()
                         out.extend(m)
                         status["last_audio"] = time.monotonic()
+                        r = status["reply"]
+                        if r and r.get("committed_at") and not r.get("first_word"):
+                            r["first_word"] = time.monotonic() - r["committed_at"]
                     else:
                         held.extend(m)
                 elif json.loads(m).get("type") == "Flushed":
@@ -330,6 +337,10 @@ async def reply(text, commit, ctl, fixed=False):
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await gen
             out.clear()
+            r = status["reply"]
+            if r and r.get("first_word") and not fixed:
+                ui.note(f"{r['first_word']:.1f} s to first word")
+                r["first_word"] = None
             refresh()
 
 
@@ -429,7 +440,7 @@ async def main():
             ev.set()
         ctl = new_ctl()
         current.update(task=asyncio.create_task(reply(text, ev, ctl, fixed=fixed)), text=text, commit=ev, ctl=ctl)
-        status["reply"] = {"paused": ctl["paused"], "commit": ev}
+        status["reply"] = {"paused": ctl["paused"], "commit": ev, "committed_at": time.monotonic() if committed else None}
         refresh()
 
     def set_mute(on):
@@ -444,6 +455,7 @@ async def main():
         with contextlib.suppress(OSError):
             os.unlink(SESSION)
         await brain.restart()
+        ui.rule("fresh start")
         start("Fresh start.", committed=True, fixed=True)
 
     def slash(words):
@@ -494,15 +506,16 @@ async def main():
             return
         if status["muted"]:
             return                         # muted: nothing spoken, not even the sessions
-        if ev["event"] == "Stop" and ev.get("text") and brain.handoffs.get(ws, 0) > time.time() - 1800:
-            text = f"[event] {ws} finished a turn. Its last message:\n{ev['text']}"
+        when, asked = brain.handoffs.get(ws, (0, ""))
+        if ev["event"] == "Stop" and ev.get("text") and when > time.time() - 1800:
+            text = f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}"
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
             text = f"[event] {ws} asks for permission: {ev.get('message')}"
         elif ev["event"] == "AskUserQuestion" and ev.get("questions"):
             text = f"[event] {ws} (surface {sid}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
             return
-        ui.event(ws, ev["event"])
+        ui.event(ws, ev["event"], asked if ev["event"] == "Stop" else "")
         start(text, committed=True, event=True)
 
     def flux_url():
@@ -547,13 +560,15 @@ async def main():
             start("[event] You just crashed and were restarted. Say in a few words that you are back, "
                   "and ask the user to repeat what they said last if they were mid-request.", committed=True, event=True)
 
+    status["gate_open"] = not cfg["push_to_talk"]   # push to talk: Enter opens the mic until your turn ends
+
     async def send_mic():
         while True:
             b = await mic.get()
             ws = ears["ws"]
             if ws is None:
                 continue
-            if speaking.locked() and not cfg["barge_in"]:
+            if (speaking.locked() and not cfg["barge_in"]) or not status["gate_open"]:
                 b = b"\x00" * len(b)
             with contextlib.suppress(websockets.ConnectionClosed):
                 await ws.send(b)
@@ -578,6 +593,8 @@ async def main():
                 if live() and not current["commit"].is_set():
                     cut("resumed")
             case "EndOfTurn":
+                if cfg["push_to_talk"]:
+                    status["gate_open"] = False
                 if paused():
                     if said and not backchannel(said):     # a real interruption: this is the new turn
                         ui.you(said)
@@ -588,6 +605,7 @@ async def main():
                 elif said:
                     if live() and not current["commit"].is_set() and norm(current["text"]) == norm(said):
                         current["commit"].set()
+                        status["reply"]["committed_at"] = time.monotonic()
                     else:
                         ui.you(said)
                         start(said, committed=True)
@@ -621,6 +639,9 @@ async def main():
             typed = line.strip().lower()
             if typed.startswith("/") and slash("slash " + typed[1:]):
                 pass
+            elif cfg["push_to_talk"] and not status["gate_open"]:
+                status["gate_open"] = True
+                ui.note("mic open")
             else:
                 cut()
 
@@ -629,12 +650,33 @@ async def main():
             await asyncio.sleep(0.25)
             refresh()
 
+    def orchestrator_state():
+        """What the orchestrator's pane shows: working, waiting on you, or idle."""
+        sid = next((sid for sid, (w, _, _) in surfaces.items() if w == cfg["orchestrator"]), None)
+        if not sid:
+            return ""
+        try:
+            screen = subprocess.run([CMUX, "read-screen", "--surface", sid, "--lines", "14"],
+                                    capture_output=True, text=True, timeout=4).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        if "esc to interrupt" in screen:
+            return "working"
+        if "Do you want" in screen or "❯ 1." in screen:
+            return "waiting on you"
+        return "idle"
+
+    async def orchestrator_watch():        # every 5 s, a glance at the orchestrator's pane
+        while True:
+            status["orch"] = await loop.run_in_executor(None, orchestrator_state)
+            await asyncio.sleep(5)
+
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     status["live"] = console.status("[dim]listening[/]")
     status["live"].start()
-    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick()]
+    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
     try:
         if aec:
             helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,

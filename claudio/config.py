@@ -8,7 +8,7 @@ PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
-            "barge_in": True, "memory": True, "deepgram_api_key": ""}
+            "barge_in": True, "memory": True, "push_to_talk": False, "deepgram_api_key": ""}
 KINDS = {k: (lambda v: v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)
          for k, d in DEFAULTS.items()}
 

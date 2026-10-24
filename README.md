@@ -17,17 +17,11 @@
 
 <br>
 
-You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission.
+<p align="center">
+  <img src="assets/demo.svg" alt="a conversation with claudio" width="760">
+</p>
 
-```
-› what's the sequencer doing?
-◆ Checking its screen.
-◆ Idle, waiting on you. It just merged the six core PRs and main is green.
-› rebase 44 on main and run the tests
-◆ Sent to Sequencer.
-▸ Sequencer  Stop
-◆ Rebased, tests pass, nothing to fix.
-```
+You talk. It answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission.
 
 ## 🚀 Install
 
@@ -67,6 +61,13 @@ flowchart LR
 
 <kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits
 
+## 🖥️ On screen
+
+- The state line at the bottom follows what is happening: listening, thinking, speaking, paused, muted, and what the orchestrator is up to (idle, working, waiting on you), glanced from its pane every few seconds.
+- Under each lead-in, dim lines of what the brain is reading or running. After each reply, how long it took to the first word.
+- When a session reports back, the request it was for is shown above the narration.
+- Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
+
 ## 🔬 Under the hood
 
 ```mermaid
@@ -96,6 +97,7 @@ flowchart LR
 | `ears` | `flux-general-en` | `flux-general-multi` for other languages |
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
 | `barge_in` | `true` | talking over it pauses it |
+| `push_to_talk` | `false` | the mic stays closed until you press Enter, for one turn |
 | `memory` | `true` | resume the last conversation, up to a week old |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>`

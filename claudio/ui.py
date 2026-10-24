@@ -83,9 +83,16 @@ def me_line(sentence, first):
     log(("◆ " if first else "  ") + sentence)
 
 
-def event(workspace, kind):
-    console.print(f"\n{EVENT} [magenta]{workspace}[/] [dim]{kind}[/]")
-    log(f"▸ {workspace}  {kind}")
+def event(workspace, kind, asked=""):
+    console.print()
+    if asked:
+        console.print(f"  [dim]↳ for: {asked[:90]}[/]")
+    console.print(f"{EVENT} [magenta]{workspace}[/] [dim]{kind}[/]")
+    log(f"▸ {workspace}  {kind}" + (f"  (for: {asked})" if asked else ""))
+
+
+def rule(title):
+    console.rule(f"[dim]{title}[/]", style="dim")
 
 
 def tool(name, inp):

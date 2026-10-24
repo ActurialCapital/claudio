@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="370" viewBox="0 0 760 370" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">
+<rect width="760" height="370" rx="12" fill="#0f1416"/>
+<circle cx="22" cy="22" r="6" fill="#ff5f57"/><circle cx="42" cy="22" r="6" fill="#febc2e"/><circle cx="62" cy="22" r="6" fill="#28c840"/>
+<text x="380.0" y="27" text-anchor="middle" fill="#6b7280" font-size="13">claudio</text>
+<text x="28" y="70" opacity="0"><tspan fill="#67e8f9" font-weight="bold">› </tspan><tspan fill="#e5e7eb">what&#x27;s the sequencer doing?</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.042;0.050;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="96" opacity="0"><tspan fill="#2dd4bf" font-weight="bold">◆ </tspan><tspan fill="#d1fae5">Checking its screen.</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.116;0.124;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="46" y="122" fill="#6b7280" opacity="0">cmux read-screen<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.153;0.161;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="148" opacity="0"><tspan fill="#2dd4bf" font-weight="bold">◆ </tspan><tspan fill="#d1fae5">Idle, waiting on you. It just merged the six core PRs; main is green.</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.211;0.218;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="174" fill="#6b7280" opacity="0">· 1.1 s to first word<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.326;0.334;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="200" opacity="0"><tspan fill="#67e8f9" font-weight="bold">› </tspan><tspan fill="#e5e7eb">rebase 44 on main and run the tests</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.400;0.408;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="226" opacity="0"><tspan fill="#2dd4bf" font-weight="bold">◆ </tspan><tspan fill="#d1fae5">Sending that to Sequencer.</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.474;0.482;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="46" y="252" fill="#6b7280" opacity="0">cmux agent message<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.505;0.513;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="278" opacity="0"><tspan fill="#e879f9" font-weight="bold">▸ </tspan><tspan fill="#e879f9">Sequencer</tspan><tspan fill="#6b7280">  Stop</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.695;0.703;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="304" opacity="0"><tspan fill="#2dd4bf" font-weight="bold">◆ </tspan><tspan fill="#d1fae5">Rebased, tests pass, nothing to fix.</tspan><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.758;0.766;0.985;1" dur="19.0s" repeatCount="indefinite"/></text>
+<text x="28" y="356" fill="#4b5563" font-size="13">⠸ listening  ·  Sequencer idle</text>
+</svg>
