@@ -21,6 +21,8 @@ out = bytearray()             # audio waiting for the speaker
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None}   # what the state line is derived from
 MUTE = {"mute", "mute please", "claudio mute", "go mute", "mute yourself", "shut up"}
+SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
+              "status says the settings. mute and unmute. stop cuts a reply.")
 
 
 def state_text():
@@ -436,6 +438,42 @@ async def main():
         ui.note("muted · say unmute" if on else "unmuted")
         start("Muted." if on else "I'm listening again.", committed=True, fixed=True)
 
+    async def fresh_start():
+        """/clear: forget the conversation and restart the brain on a blank session."""
+        with contextlib.suppress(OSError):
+            os.unlink(SESSION)
+        await brain.restart()
+        start("Fresh start.", committed=True, fixed=True)
+
+    def slash(words):
+        """Spoken slash commands: "slash clear", "slash model sonnet"… True when handled."""
+        parts = words.split()
+        if len(parts) < 2 or parts[0] != "slash":
+            return False
+        cmd, arg = parts[1], " ".join(parts[2:])
+        ui.note(f"/{cmd} {arg}".strip())
+        if cmd == "clear":
+            cut("cleared")
+            asyncio.create_task(fresh_start())
+        elif cmd in ("mute", "unmute"):
+            set_mute(cmd == "mute")
+        elif cmd == "stop":
+            cut("stopped")
+        elif cmd in ("model", "effort", "voice") and arg:
+            value = arg.replace(" ", "-")
+            if cmd == "voice" and not value.startswith("aura-"):
+                value = f"aura-2-{value}-en"
+            config.set_key(cmd, value)
+            brain.changed.set()
+        elif cmd == "status":
+            start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "
+                  f"Voice {ui.short_voice(cfg['voice'])}. Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
+        elif cmd == "help":
+            start(SLASH_HELP, committed=True, fixed=True)
+        else:
+            start(f"I don't know slash {cmd}. {SLASH_HELP}", committed=True, fixed=True)
+        return True
+
     async def on_event(reader, writer):
         """A session's hook reported in. Narrate handed-off work, permission prompts and questions."""
         global surfaces
@@ -529,6 +567,8 @@ async def main():
         if ev["event"] == "EndOfTurn" and words in MUTE:
             set_mute(True)
             return
+        if ev["event"] == "EndOfTurn" and slash(words):
+            return
         match ev["event"]:
             case "StartOfTurn":
                 if cfg["barge_in"] and live() and current["commit"].is_set():
@@ -580,8 +620,11 @@ async def main():
 
     async def keys():
         while line := await loop.run_in_executor(None, sys.stdin.readline):
-            if line.strip().lower() in ("mute", "unmute"):
-                set_mute(line.strip().lower() == "mute")
+            typed = line.strip().lower()
+            if typed in ("mute", "unmute"):
+                set_mute(typed == "mute")
+            elif typed.startswith("/") and slash("slash " + typed[1:]):
+                pass
             else:
                 cut()
 
