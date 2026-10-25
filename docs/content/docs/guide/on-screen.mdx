@@ -1,78 +1,88 @@
 ---
 title: On screen
-description: The banner, the transcript glyphs, the state line, and the transcript files.
+description: Read the banner, the transcript and the state line, and find past conversations.
 ---
 
-claudio is meant to be heard, but the terminal keeps a written record that stays in time with the voice.
+claudio is meant to be heard, but the terminal keeps a written record in step with the voice. This page explains how to read the banner, the transcript and the live state line, and where past conversations are saved.
 
-## The banner
+## Read the banner
 
-When claudio starts it prints the wordmark and one line of facts:
+When claudio starts, it clears the terminal and prints its mark, a small dithered orange sun, with "claudio" and the line "a voice in front of your Claude Code sessions" beside it. Under the mark are the settings in use and the keys you need:
 
-<Transcript>{`
+```text title="banner, under the mark"
   orchestrator Sequencer  ·  brain default/low  ·  voice orion  ·  echo cancel on  ·  memory on
   Enter cuts · Ctrl-C quits · claudio setup
-`}</Transcript>
+```
 
-`echo cancel off` means you need headphones to talk over it. `memory fresh` means this is a new conversation.
+Two of these facts change what you can do:
 
-## The transcript
+- **`echo cancel off`**: claudio hears itself on speakers, so wear headphones to talk over it
+- **`memory fresh`**: this is a new conversation; `memory on` means the brain resumed the last one
 
-Each line starts with a glyph that says who it is from.
+With the ElevenLabs mouth, `voice` shows `elevenlabs` and the start of the voice id.
+
+## Read the transcript
+
+Each line starts with a glyph that says who it's from:
 
 | Glyph | Line |
 |---|---|
 | `›` | you |
-| `◆` | claudio |
+| `◆` | claudio; its next sentences are indented under it |
 | `▸` | a session reporting back, with the request it was for |
 | `→` | what the brain is reading or running |
-| `⚙` | a setting you changed |
-| `·` | a note: cut, resumed, muted, reconnecting |
+| `⚙` | a setting that changed |
+| `·` | a note: cut, replaced, resumed, muted, reconnecting |
 | `!` | a warning |
 
-Room noise and backchannels ("mm-hm") show dim, as do turns that did not start with "claudio" when `address_me` is on.
+Here you say "mm-hm" mid-reply, so the reply carries on, then a spoken command changes the voice. The `voice = …` line is `claudio set` confirming the change:
 
-A few details:
-
-- **Sentences appear as they are spoken.** Each sentence is printed when its audio starts playing, so the text never runs ahead of the voice.
-- **Lines wrap at 90 columns**, however wide the pane.
-- **A dim rule with the time** marks a gap of more than five minutes between turns.
-
-<Transcript>{`
-› what's the sequencer doing?
-  → cmux read-screen
+```transcript
+› what's Sequencer doing?
+◆ Checking its screen.
+  → cmux read-screen --surface
 ◆ Sequencer is halfway through the migration tests.
-  Twelve pass, two are still running.
-· cut
+
 › mm-hm
-⚙ voice → thalia
-! slow: 3.4 s to first word
-`}</Transcript>
+  Twelve pass, two are still running.
 
-## The state line
+› slash voice thalia
+· /voice thalia
+voice = aura-2-thalia-en
+⚙ settings reloaded
+◆ Thalia from now on.
+```
 
-The last line of the terminal is live. From left to right:
+Backchannels show dim, as do turns that don't start with "claudio" when `address_me` is on. Three more rules keep the transcript readable:
 
-1. **A mic level bar**, `▁` to `▇`.
-2. **What claudio is doing**: `listening`, `thinking`, `speaking`, `paused`, `muted · say /unmute`, `ears lost · reconnecting`, or `push to talk · Enter opens the mic`.
-3. **How long the last reply took to its first word**, shown for a few seconds after each reply.
-4. **What the orchestrator is up to**: `working`, `waiting on you` or `idle`.
+- **Sentences appear as they're spoken**: each sentence prints when its audio starts playing, so the text never runs ahead of the voice
+- **Lines wrap at 90 columns**, however wide the pane
+- **A dim rule with the time** marks a gap of more than 5 minutes between your turns
 
-<Transcript>{`
+## Read the state line
+
+The last line of the terminal updates four times a second. From left to right, it shows:
+
+1. **The mic level**, from blank to `▇`
+2. **What claudio is doing**: `listening`, `thinking`, `speaking`, `paused`, `muted · say /unmute`, `ears lost · reconnecting`, or `push to talk · Enter opens the mic`
+3. **How long the last reply took to its first word**, for 6 seconds after it starts
+4. **The orchestrator's state**: `working`, `waiting on you` or `idle` (see [checking on a session](/docs/guide/sessions#check-on-a-session))
+
+```transcript
 ▃ listening  ·  1.1 s to first word  ·  Sequencer idle
-`}</Transcript>
+```
 
-## Transcripts
+## Find past conversations
 
-Every conversation is kept as Markdown, one file a day:
+claudio saves every conversation as Markdown, one file a day:
 
 ```text
 ~/.config/claudio/transcripts/2026-10-25.md
 ```
 
-Each line has the time and the same glyphs as the screen:
+Each line has the time and the same glyphs as the screen. Your turns, claudio's sentences, session reports and setting changes are saved. Notes, warnings and `→` lines aren't.
 
-```text
+```text title="2026-10-25.md"
 14:02  › rebase 44 on main and run the tests
 14:02  ◆ Sending that to Sequencer.
 14:05  ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"

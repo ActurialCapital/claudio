@@ -73,8 +73,8 @@ export function Hero() {
           <Link href="/docs/guide/getting-started" className={`${pillBrand} max-sm:text-sm`}>
             Install claudio
           </Link>
-          <Link href="/sandbox" className={`${pillQuiet} max-sm:text-sm`}>
-            Open the sandbox
+          <Link href="/docs" className={`${pillQuiet} max-sm:text-sm`}>
+            Read the docs
           </Link>
         </div>
       </div>

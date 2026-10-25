@@ -1,65 +1,101 @@
 ---
 title: Persona and style
-description: Edit what the brain is told, and switch how it talks without touching it.
+description: Edit what the brain is told, or switch how it talks with one setting.
 ---
 
-The brain's instructions are a plain Markdown file:
+To change how claudio talks for a while, set a style: “slash style brief”. To change what it is told for good, edit the persona, a plain Markdown file:
 
 ```text
 ~/.config/claudio/prompt.md
 ```
 
-It is copied from the package on the first run. After that it is yours: edit it freely. When you save it, the brain restarts with the new persona and its memory kept, and says it is back.
+claudio copies it from the package the first time it runs. After that the file is yours. When you save it, the brain restarts with the new persona, keeps the conversation when `memory` is on, and says it is back. You see `· persona changed; brain restarting`.
 
 ## What the default persona says
 
-The packaged persona sets out a few things. Keep them in mind when you edit:
+Know these rules before you edit, since the rest of claudio relies on some of them:
 
-- **Write for the ear.** Two to five short, plain sentences. No Markdown, lists, code, paths or URLs, since all of it is spoken.
-- **Lead with the answer.** End with a question only when the next step is your call.
-- **Say what it is about to do** in two to five words before any tool call, so you hear something while the tool runs: "Checking the roadmap."
-- **Discuss or hand over.** Answer discussion itself, hand work to a session, and never do the work.
-- **How to use cmux**: hand over with the agent inbox and the marker, list sessions, read a screen, open workspaces and splits.
-- **How to narrate events**: finishes in plain words, permission prompts read out but never answered, choices read out numbered.
-- **How to change settings** with `claudio set`.
+- **Write for the ear**: two to five short, plain sentences, with no Markdown, lists, code, paths or URLs, since every word is spoken
+- **Lead with the answer**: end with a question only when the next step is your call
+- **Say the next step before a tool call**, in two to five words, so you hear something while it runs: “Checking the roadmap.”
+- **Discuss or hand over**: answer questions itself, hand work to a session, and never do the work itself
+- **Read the transcripts** for “what did we do today”, rather than trust its memory of past days
+- **Use cmux**: hand over through the agent inbox with the marker, list sessions, read a session's screen, open workspaces, splits and tabs
+- **Narrate events**: finishes in plain words, permission prompts read out but never answered, multiple-choice questions read out numbered
+- **Change settings** with `claudio set`, and say first that a model, effort or style change restarts it
 
-It also carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced groups of three, no inflated significance, at most one hedge, no chatbot wrapper, and stop on the last fact.
+It also carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words (“is”, not “serves as”), no forced groups of three, no inflated significance, at most one hedge, no chatbot wrapper such as “Great question”, and stop on the last fact.
 
-<Callout>
-The persona is copied to `~/.config/claudio/prompt.md` only on the first run. To pick up rules added in a later version, copy the packaged `prompt.md` over yours, or merge the new lines into your own edits.
-</Callout>
+The handover marker matters most: sessions rely on `[spoken by the user, transcribed by claudio]` to know the words are yours. Keep it if you rewrite the cmux lines.
 
-### Placeholders
+## Fill in the placeholders
 
-Two placeholders are filled in when the brain starts:
+Two placeholders in the file are replaced each time the brain starts:
 
 | Placeholder | Becomes |
 |---|---|
-| `{TRANSCRIPTS}` | the transcripts directory |
-| `{KEYS}` | the names of the settings it may change |
+| `{TRANSCRIPTS}` | the transcripts directory, `~/.config/claudio/transcripts` |
+| `{KEYS}` | the names of the settings, without the API keys |
 
-After the persona, claudio appends the orchestrator, the current settings, and the list of open sessions with their surface ids and directories. You do not need to write those.
+claudio also adds text you do not need to write:
 
-## Style
+- **Before the persona**: the style's instructions, when `style` is not `plain`
+- **After the persona**: the orchestrator, the current settings, and the open sessions with their surface ids and directories, as they were when the brain started
 
-The `style` setting changes how it talks without editing the persona. It follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip mid-session.
+The brain also reads `CLAUDE.md` files, the project's and your own, like any Claude Code session.
+
+## Get a newer default persona
+
+claudio never overwrites your copy, so rules added in a later version do not reach it. To take the new default and keep your edits:
+
+<Steps>
+<Step>
+
+### Quit claudio
+
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd>. Do this first: claudio stops if the persona file disappears while it runs.
+
+</Step>
+<Step>
+
+### Move your copy aside
+
+```bash
+mv ~/.config/claudio/prompt.md ~/.config/claudio/prompt.md.old
+```
+
+</Step>
+<Step>
+
+### Start claudio
+
+It copies the packaged persona into `prompt.md`. Merge your edits back from `prompt.md.old`.
+
+</Step>
+</Steps>
+
+## Switch the style
+
+The `style` setting changes how claudio talks without touching the persona. It follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip mid-session:
 
 | Style | Sounds like |
 |---|---|
-| `plain` | the persona as written, two to five sentences |
-| `brief` | one sentence per reply, two when the answer has two parts, no lead-in before a tool |
-| `caveman` | at most six words a sentence, no articles, fragments; names and numbers stay exact |
+| `plain` | the persona as written: two to five sentences |
+| `brief` | one sentence a reply, two when the answer has two parts; no lead-in before a tool, and no question back unless the next step is yours |
+| `caveman` | at most six words a sentence, no articles or connectors, fragments; facts, names and numbers stay exact |
 
-<Transcript>{`
+```transcript
 › slash style caveman
+· /style caveman
+style = caveman
 ⚙ style → caveman  ·  brain restarting
 ◆ Back. Caveman now.
 › what's left on the roadmap?
 ◆ Next: Sales. File fields still open. Main clean. Want Sales started?
-`}</Transcript>
+```
 
-Switch by voice ("slash style brief"), by typing `/style brief`, or with `claudio set style brief`. The brain restarts with its memory kept.
+Switch by saying “slash style brief”, by typing `/style brief`, or with `claudio set style brief`. The brain restarts and keeps the conversation when `memory` is on.
 
-<Callout>
-To make a style permanent for one project only, put `{ "style": "brief" }` in that project's `.claudio.json`.
-</Callout>
+Each of your turns is tagged with the style, such as `(brief style)`, so the brain keeps to it. When the brain starts a tool without a lead-in, claudio still says “Looking.” or “Checking.”, so a tool call is never silence.
+
+To keep a style for one project only, put `{ "style": "brief" }` in that project's [`.claudio.json`](/docs/configure/settings#per-project).

@@ -18,8 +18,9 @@ const DIM = new Set(['→', '·', '⚙', '▃']);
 // long lines wrap under their text, not under the glyph
 const LINE = 'block whitespace-pre-wrap break-words ps-[2ch] -indent-[2ch]';
 
-export function Transcript({ children }: { children: string }) {
-  const lines = children.replace(/^\n+|\n+$/g, '').split('\n');
+// written in MDX as a ```transcript fence (lib/remark-transcript.ts), which keeps every leading space
+export function Transcript({ text }: { text: string }) {
+  const lines = text.replace(/^\n+|\n+$/g, '').split('\n');
   return (
     <div
       data-ui

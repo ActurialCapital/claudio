@@ -575,12 +575,13 @@ async def main():
     typed = os.environ.get("CLAUDIO_TEXT")
     aec = None if typed else helper()
     rate = {"in": OUT_RATE if aec else IN_RATE}
-    ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
-                     "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
-                               else ui.short_voice(cfg["voice"])),
-                     "echo cancel": "on" if aec else "off",
-                     "memory": "on" if remembered_session() else "fresh"},
-              hints="Enter cuts · Ctrl-C quits · claudio setup")
+    if not typed:                # a typed turn runs under the doctor's own banner; redrawing would clear its checks
+        ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
+                         "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
+                                   else ui.short_voice(cfg["voice"])),
+                         "echo cancel": "on" if aec else "off",
+                         "memory": "on" if remembered_session() else "fresh"},
+                  hints="Enter cuts · Ctrl-C quits · claudio setup")
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
         async for _ in brain.turn("Say only: ready."):
