@@ -4,10 +4,13 @@ import { useEffect } from 'react';
 // Section entrances, choreographed per group. Each [data-stagger] group arrives once as its top passes 88% of the
 // screen; its [data-reveal] parts follow in reading order, 75ms apart, four steps at most.
 // Only groups below the fold are ever hidden, and only by this script: without it, or with reduced motion, all shows.
+// Browsers with scroll-driven animations get the scroll-linked entrances in landing.css instead.
 export function Reveal() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (!('IntersectionObserver' in window)) return;
+    // where the browser can tie an entrance to the scroll itself (landing.css), it does; this is the fallback
+    if (CSS.supports('animation-timeline: view()')) return;
     const groups = [...document.querySelectorAll<HTMLElement>('[data-stagger]')];
     const fold = window.innerHeight;
     const watch = new IntersectionObserver(

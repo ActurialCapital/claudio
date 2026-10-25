@@ -1,15 +1,8 @@
-/* Landing only. Motion tokens (taste-skill motion.md §4), then the moves, each with its reduced-motion state:
-   the finished page. Transform, opacity and clip-path only. */
+/* Landing only. Its motion tokens (the shared ones are in app/global.css; taste-skill motion.md §4), then the
+   moves, each with its reduced-motion state: the finished page. Transform, opacity and clip-path only. */
 :root {
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
-  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
-  --t-press: 140ms;
-  --t-hover: 180ms;
-  --t-ui: 240ms;
   --t-reveal: 800ms;
-  --t-open: 1200ms;
   --stagger-item: 75ms;
   /* claudio's window, light: a near-white sheet, its state line one tone down, glyph inks tuned for a light ground */
   --t-bg: #fdfdfc;
@@ -278,95 +271,6 @@
   mask-image: linear-gradient(to bottom, transparent, #000 45%); /* taste-skill-ignore: an alpha mask on the dithered wave, not a colour fill */
 }
 
-/* ---- Say it your way: the phrase being said is the section's type, lit word by word as it is spoken ---- */
-.said {
-  font-size: clamp(2.25rem, 5.4vw, 5.25rem);
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.045em;
-  text-wrap: balance;
-  min-height: 2em; /* two lines held, so the card keeps its height from phrase to phrase */
-}
-.said-word {
-  opacity: 0.32;
-  transition: opacity 260ms ease;
-}
-.said-word.is-said {
-  opacity: 1;
-}
-.said-in {
-  animation: rise-in 520ms var(--ease-out) both;
-}
-/* the voice level: bars that rise with whoever is speaking */
-.level {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 72px;
-}
-@media (min-width: 768px) {
-  .level {
-    height: 112px;
-  }
-}
-.level > span {
-  flex: 1;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--t-you);
-  transform-origin: 50% 50%;
-  transition: background-color 400ms ease;
-}
-.level.is-me > span {
-  background: var(--t-me);
-}
-.level.is-idle > span {
-  background: color-mix(in oklab, var(--color-brand) 45%, transparent);
-}
-/* the phrase list: every phrase in full ink, the one being said marked and timed */
-.pick {
-  opacity: 0.62;
-  transition:
-    opacity var(--t-hover) ease,
-    transform var(--t-press) var(--ease-out);
-}
-.pick[aria-pressed='true'] {
-  opacity: 1;
-  font-weight: 500;
-}
-@media (hover: hover) and (pointer: fine) {
-  .pick:hover {
-    opacity: 1;
-  }
-}
-.pick-mark {
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity var(--t-ui) ease,
-    transform 360ms var(--ease-out);
-}
-.pick[aria-pressed='true'] .pick-mark {
-  opacity: 1;
-  transform: none;
-}
-/* how long until the next phrase: a bar that fills under the one being said */
-.phrase-timer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.12em;
-  height: 3px;
-  border-radius: 3px;
-  background: var(--color-brand);
-  transform: scaleX(0);
-  transform-origin: 0 50%;
-  animation: fill-x var(--hold, 2600ms) linear forwards;
-}
-@keyframes fill-x {
-  to { transform: scaleX(1); }
-}
-
 /* ---- Built for talking: tiles with a picture each, a light that follows the hand, a slight lean ---- */
 .tile {
   transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
@@ -391,9 +295,6 @@
   z-index: 0;
   pointer-events: none;
 }
-.art-br {
-  mask-image: radial-gradient(110% 85% at 100% 100%, #000 30%, transparent 78%); /* taste-skill-ignore: an alpha mask on the picture */
-}
 .art-c {
   mask-image: radial-gradient(62% 70% at 64% 52%, #000 15%, transparent 78%); /* taste-skill-ignore: an alpha mask on the picture */
 }
@@ -402,23 +303,6 @@
 }
 .art-r {
   mask-image: linear-gradient(to right, transparent 20%, #000 70%); /* taste-skill-ignore: an alpha mask on the picture */
-}
-
-/* a link with an arrow that leans the way it goes */
-.arrow-link .arrow {
-  transition: transform var(--t-ui) var(--ease-out);
-}
-@media (hover: hover) and (pointer: fine) {
-  .arrow-link:hover .arrow {
-    transform: translateX(3px);
-  }
-  .arrow-link:hover .link {
-    text-decoration-color: currentColor;
-  }
-}
-.arrow-link:focus-visible {
-  outline: 2px solid var(--color-fd-ring);
-  outline-offset: 4px;
 }
 
 /* the doctor's output prints row by row as the close arrives */
@@ -434,7 +318,7 @@
   transform: none;
 }
 
-/* ---- states that change in place: lines arriving, a state word, a picked example ---- */
+/* ---- states that change in place: lines arriving, a state word ---- */
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(5px); }
 }
@@ -445,12 +329,8 @@
   animation: rise-in 280ms var(--ease-out) both;
 }
 .replay[data-live] .state-in,
-.state-swap,
-.label-in {
+.state-swap {
   animation: fade-in 220ms ease both;
-}
-.swap {
-  animation: rise-in 300ms var(--ease-out) both;
 }
 
 /* ---- section entrances: hidden only by script, only below the fold, once ---- */
@@ -463,52 +343,113 @@
       transform var(--t-reveal) var(--ease-expo);
     transition-delay: calc(var(--i, 0) * var(--stagger-item));
   }
-  /* the signature move: the showcase window opens like a shutter while its contents settle */
-  [data-armed] [data-reveal='shutter'] {
-    opacity: 1;
-    transform: none;
-    clip-path: inset(0 0 100% 0 round 12px);
-    transition: clip-path 1100ms var(--ease-in-out) 120ms;
-  }
-  [data-armed] [data-reveal='shutter'] [data-shutter-inner] {
-    transform: scale(1.12);
-    transform-origin: 50% 0;
-    transition: transform 1500ms var(--ease-soft) 120ms;
-  }
   [data-armed][data-in] [data-reveal] {
     opacity: 1;
     transform: none;
   }
-  [data-armed][data-in] [data-reveal='shutter'] {
-    clip-path: inset(0 0 0 0 round 12px);
-  }
-  [data-armed][data-in] [data-reveal='shutter'] [data-shutter-inner] {
-    transform: none;
-  }
 }
 
-/* ---- one quiet scroll-linked move: the hero card recedes a little as it leaves ---- */
+/* ---- scroll-linked motion, where the browser ties animation to the scroll (otherwise the reveal above).
+   Each part plays forward as it rises into view and back as it leaves, locked to the scrollbar with no smoothing.
+   Individual translate / scale properties, so they compose with the tiles' lean and the hero's recede.
+   Under reduced motion none of this exists: the page is simply finished. ---- */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
+    /* the hero card recedes a little as it leaves, and its replay window lifts away a touch faster */
     .hero-recede {
       animation: recede linear both;
       animation-timeline: view();
       animation-range: exit 0% exit 100%;
+    }
+    .hero-recede .replay {
+      animation: lift-away linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* the parts of a section rise into place as they come up the screen */
+    [data-stagger] [data-reveal] {
+      animation: rise-into-view linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 14%; /* short enough to finish even for the last parts above the page's end */
+    }
+    /* a section heading rises out of its own baseline and comes into focus */
+    [data-stagger] h2[data-reveal] {
+      animation: heading-in linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 24%;
+    }
+    /* cards settle from a little smaller as they arrive */
+    .stage-card[data-reveal] {
+      animation: card-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+    /* the bento cascades in, one tile after another, and each picture drifts inside its tile */
+    .tile[data-reveal] {
+      animation: card-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 30%;
+    }
+    .tile[data-reveal]:nth-child(2) { animation-range: entry 8% cover 34%; }
+    .tile[data-reveal]:nth-child(3) { animation-range: entry 14% cover 38%; }
+    .tile[data-reveal]:nth-child(4) { animation-range: entry 4% cover 30%; }
+    .tile-art {
+      scale: 1.14;
+      animation: drift linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+    .tile:nth-child(even) .tile-art {
+      animation-name: drift-back;
+    }
+    /* the close's light comes up as the card reaches the middle of the screen */
+    .needs-light {
+      animation: light-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 50%;
+    }
+    /* the footer band arrives last */
+    main > footer {
+      animation: rise-into-view linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
     }
   }
 }
 @keyframes recede {
   to { transform: translateY(6%) scale(0.95); }
 }
+@keyframes lift-away {
+  to { translate: 0 -7%; }
+}
+@keyframes rise-into-view {
+  from { opacity: 0; translate: 0 28px; }
+}
+@keyframes heading-in {
+  from { clip-path: inset(0 0 100% 0); translate: 0 0.45em; filter: blur(6px); }
+  to { clip-path: inset(-0.3em -0.3em -0.3em -0.3em); }
+}
+@keyframes card-in {
+  from { opacity: 0; scale: 0.96; translate: 0 40px; }
+}
+@keyframes drift {
+  from { translate: 0 -5%; }
+  to { translate: 0 5%; }
+}
+@keyframes drift-back {
+  from { translate: 0 4%; }
+  to { translate: 0 -4%; }
+}
+@keyframes light-up {
+  from { opacity: 0.3; scale: 1.08; filter: saturate(0.6); }
+}
 
 /* reduced motion: the finished page. Colour still answers; nothing travels or loops. */
 @media (prefers-reduced-motion: reduce) {
   .caret,
-  .said-in,
   .line-in,
-  .swap,
   .state-swap,
-  .label-in,
   .replay[data-live] .state-in {
     animation: none;
   }
@@ -524,20 +465,12 @@
   .stage-node,
   .stage-chip,
   .track-fill,
-  .pick,
-  .pick-mark,
   .tile,
-  .said-word,
-  .arrow-link .arrow,
   [data-ui] .doc-row {
     transition: none;
   }
-  .phrase-timer,
   .stage-node::after,
   .meter > span {
     animation: none !important;
-  }
-  .phrase-timer {
-    display: none;
   }
 }

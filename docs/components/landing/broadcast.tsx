@@ -3,7 +3,7 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import { type Line, TranscriptLine, termBar, termFrame } from './term';
 
 // One real exchange, as claudio prints it. `me` lines show sentence by sentence as their audio starts.
-export type Step =
+type Step =
   | { kind: 'you'; text: string }
   | { kind: 'me'; sentences: string[]; clip: string; ms: number; latency: string }
   | { kind: 'tool'; text: string }
@@ -46,7 +46,7 @@ const NOOP = () => {};
 type State = 'listening' | 'thinking' | 'speaking';
 
 // what the replay is doing right now, for a section that follows it (the stages light up in step with the window)
-export type Cue = 'reset' | 'typing' | 'heard' | 'thinking' | 'speaking' | 'spoken' | 'tool' | 'working' | 'event' | 'end';
+type Cue = 'reset' | 'typing' | 'heard' | 'thinking' | 'speaking' | 'spoken' | 'tool' | 'working' | 'event' | 'end';
 const BARS = ' ▁▂▃▄▅▆▇';
 
 // The replay window. The hero's plays the whole exchange and may speak; other sections pass their own script, silent.

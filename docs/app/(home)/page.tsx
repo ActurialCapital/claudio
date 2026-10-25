@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Hero } from '@/components/landing/hero';
 import { Needs } from '@/components/landing/needs';
 import { Reveal } from '@/components/landing/reveal';
-import { Say } from '@/components/landing/say';
 import { Stages } from '@/components/landing/stages';
 import { Traits } from '@/components/landing/traits';
 import { SunMark } from '@/components/sun-mark';
@@ -21,11 +20,6 @@ export default function HomePage() {
       {/* one turn, stage by stage: the path lights up in step with the window that plays it */}
       <div className={`w-full ${sectionGap}`}>
         <Stages />
-      </div>
-
-      {/* what you say, and what it does with it */}
-      <div className={`w-full ${sectionGap}`}>
-        <Say />
       </div>
 
       {/* why it feels like talking: four traits, each shown by the transcript it leaves */}

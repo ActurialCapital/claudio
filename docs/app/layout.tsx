@@ -19,7 +19,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen font-sans">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider theme={{ defaultTheme: 'dark' }}>{children}</RootProvider>
       </body>
     </html>
   );

@@ -1,14 +1,13 @@
 'use client';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Install } from './install';
-import { heading } from './styles';
+import { heading, pillBrand, pillQuiet } from './styles';
 import { termBar, termBody, termFrame } from './term';
 import { useDark, useInView, useStill } from './use-landing';
+import { GrainGradient } from './shaders';
 
 // The close returns to the hero's light: the same grain gradient, so the page ends where it began.
-const GrainGradient = dynamic(() => import('@paper-design/shaders-react').then((m) => m.GrainGradient), { ssr: false });
 
 const NEEDS = ['A Mac', 'cmux, with the workspace you send work to', 'Claude Code, signed in', 'A Deepgram API key', 'Python 3.11 and uv'];
 
@@ -23,9 +22,6 @@ const DOCTOR = [
 ];
 const CMD = 'claudio doctor';
 const ROWS = DOCTOR.length + 3; // the checks, the typed turn, its answer, all good
-
-const pill =
-  'press inline-flex justify-center rounded-full px-5 py-3 font-medium tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring';
 
 // The doctor's check, as the first screen you will see. It runs once as the section arrives: the command is
 // typed, then each check prints. Before that, without script and with reduced motion, it is the finished output.
@@ -118,20 +114,23 @@ export function Needs() {
       aria-labelledby="needs"
       className="surface relative mx-auto w-full max-w-[1400px] overflow-hidden rounded-2xl text-fd-foreground"
     >
-      {near && (
-        <GrainGradient
-          className="absolute inset-0 animate-fd-fade-in duration-800"
-          colors={dark ? ['#39BE1C', '#9c2f05', '#7A2A0000'] : ['#fcfc51', '#ffa057', '#7A2A0020']}
-          colorBack="#00000000"
-          softness={1}
-          intensity={0.9}
-          noise={0.5}
-          speed={still ? 0 : 0.6}
-          shape="wave"
-          minPixelRatio={1}
-          maxPixelCount={1600000}
-        />
-      )}
+      {/* the light comes up as the card reaches the middle of the screen */}
+      <div aria-hidden className="needs-light absolute inset-0">
+        {near && (
+          <GrainGradient
+            className="absolute inset-0 animate-fd-fade-in duration-800"
+            colors={dark ? ['#39BE1C', '#9c2f05', '#7A2A0000'] : ['#fcfc51', '#ffa057', '#7A2A0020']}
+            colorBack="#00000000"
+            softness={1}
+            intensity={0.9}
+            noise={0.5}
+            speed={still ? 0 : 0.6}
+            shape="wave"
+            minPixelRatio={1}
+            maxPixelCount={1600000}
+          />
+        )}
+      </div>
       <div className="relative z-1 grid gap-12 px-6 py-12 md:px-12 md:py-16 lg:grid-cols-12 lg:gap-8 lg:py-20">
         <div className="flex min-w-0 flex-col gap-7 lg:col-span-5">
           <h2 id="needs" data-reveal className={heading}>
@@ -151,10 +150,10 @@ export function Needs() {
             <Install />
           </div>
           <div data-reveal className="flex flex-wrap items-center gap-3">
-            <Link href="/docs/guide/getting-started" className={`${pill} bg-brand text-black hover:bg-brand-200`}>
+            <Link href="/docs/guide/getting-started" className={pillBrand}>
               Install claudio
             </Link>
-            <Link href="/docs" className={`${pill} border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent`}>
+            <Link href="/docs" className={pillQuiet}>
               Read the docs
             </Link>
           </div>

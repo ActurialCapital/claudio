@@ -1,19 +1,23 @@
 'use client';
-import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { heading, intro } from './styles';
 import { type Line, TranscriptLine, termBody, termFrame } from './term';
 import { useDark, useInView, useStill } from './use-landing';
+import { Dithering, GrainGradient } from './shaders';
 
 // The page's shader language, lazy and client only; each tile mounts its picture only as it nears the screen.
-const Dithering = dynamic(() => import('@paper-design/shaders-react').then((m) => m.Dithering), { ssr: false });
-const GrainGradient = dynamic(() => import('@paper-design/shaders-react').then((m) => m.GrainGradient), { ssr: false });
 
 // A transcript file line: claudio writes each line of the conversation with the time in front of it.
 type Row = Line | { kind: 'file'; time: string; line: Line };
 type Beat = { ms: number; rows: Row[] };
 
 const ASKED = 'rebase 44 on main';
+const RECORD: Row[] = [
+  { kind: 'tool', text: 'transcripts/2026-10-25.md' },
+  { kind: 'file', time: '14:02', line: { kind: 'you', text: ASKED } },
+  { kind: 'file', time: '14:02', line: { kind: 'me', text: 'Sending that to Sequencer.', first: true } },
+  { kind: 'file', time: '14:05', line: { kind: 'event', who: 'Sequencer', what: 'done' } },
+];
 
 // Each trait plays a few beats of the real transcript. The last beat is the finished state: the first paint,
 // what shows without script, and all that shows with reduced motion.
@@ -82,31 +86,11 @@ const TRAITS: { name: string; line: string; beats: Beat[] }[] = [
   {
     name: 'It keeps the record',
     line: 'Every conversation lands in a dated Markdown file it can read back.',
+    // the day's file growing a line at a time
     beats: [
-      {
-        ms: 900,
-        rows: [
-          { kind: 'tool', text: 'transcripts/2026-10-25.md' },
-          { kind: 'file', time: '14:02', line: { kind: 'you', text: 'rebase 44 on main' } },
-        ],
-      },
-      {
-        ms: 900,
-        rows: [
-          { kind: 'tool', text: 'transcripts/2026-10-25.md' },
-          { kind: 'file', time: '14:02', line: { kind: 'you', text: 'rebase 44 on main' } },
-          { kind: 'file', time: '14:02', line: { kind: 'me', text: 'Sending that to Sequencer.', first: true } },
-        ],
-      },
-      {
-        ms: 2800,
-        rows: [
-          { kind: 'tool', text: 'transcripts/2026-10-25.md' },
-          { kind: 'file', time: '14:02', line: { kind: 'you', text: 'rebase 44 on main' } },
-          { kind: 'file', time: '14:02', line: { kind: 'me', text: 'Sending that to Sequencer.', first: true } },
-          { kind: 'file', time: '14:05', line: { kind: 'event', who: 'Sequencer', what: 'done' } },
-        ],
-      },
+      { ms: 900, rows: RECORD.slice(0, 2) },
+      { ms: 900, rows: RECORD.slice(0, 3) },
+      { ms: 2800, rows: RECORD },
     ],
   },
 ];
@@ -124,7 +108,7 @@ function RowLine({ row, fresh }: { row: Row; fresh: boolean }) {
 }
 
 // One small window that plays its beats while it is on screen, from the start each time round.
-function Demo({ beats }: { beats: Beat[] }) {
+function Demo({ beats, tall = false }: { beats: Beat[]; tall?: boolean }) {
   const last = beats.length - 1;
   const [at, setAt] = useState(last);
   const [live, setLive] = useState(false);
@@ -148,7 +132,7 @@ function Demo({ beats }: { beats: Beat[] }) {
   // a line is new when the beat before did not have one at its place
   const before = at > 0 ? beats[at - 1].rows.length : 0;
   return (
-    <div ref={root} data-ui className={`${termFrame} h-[172px] sm:h-[148px]`}>
+    <div ref={root} data-ui className={`${termFrame} h-[172px] sm:h-[148px] ${tall ? 'lg:h-[216px]' : ''}`}>
       <samp className={`${termBody} overflow-hidden`}> {/* taste-skill-ignore: real terminal output in a data-ui fragment */}
         {rows.map((r, i) => (
           <RowLine key={`${at === 0 ? 'a' : 'b'}${i}`} row={r} fresh={live && i >= before} />
@@ -246,7 +230,7 @@ function Tile({ t, i, hot, onHot }: { t: (typeof TRAITS)[number]; i: number; hot
           <p className="text-base leading-snug">{t.line}</p>
         </div>
         <div className={`mt-auto ${wide ? 'lg:col-span-6 lg:col-start-7' : i === 0 ? 'lg:max-w-[30rem]' : ''}`}>
-          <Demo beats={t.beats} />
+          <Demo beats={t.beats} tall={i === 0} />
         </div>
       </div>
     </li>

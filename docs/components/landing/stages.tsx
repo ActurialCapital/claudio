@@ -1,13 +1,12 @@
 'use client';
-import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { heading, intro } from './styles';
 import { type Line, Term, TranscriptLine } from './term';
 import { useDark, useInView, useStill } from './use-landing';
+import { Dithering } from './shaders';
 
 // The hero's sun, carried down the page: a dithered sound wave that moves only while sound flows (you talking,
 // the mouth speaking). Lazy, client only, mounted as it nears the screen, wide screens only.
-const Dithering = dynamic(() => import('@paper-design/shaders-react').then((m) => m.Dithering), { ssr: false });
 
 // One turn, as a signal path: five parts, each with its one job and the setting that shapes it.
 const STAGES = [

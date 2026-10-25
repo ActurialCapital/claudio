@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pillBrand, pillQuiet } from '@/components/landing/styles';
 
 export const metadata: Metadata = {
   title: 'Sandbox',
@@ -20,13 +21,13 @@ export default function SandboxPage() {
         <div className="flex flex-wrap gap-4">
           <Link
             href="/docs/guide/getting-started"
-            className="press inline-flex justify-center rounded-full bg-brand px-5 py-3 font-medium tracking-tight text-brand-foreground hover:bg-brand-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring"
+            className={pillBrand}
           >
             Install claudio
           </Link>
           <Link
             href="/docs"
-            className="press inline-flex justify-center rounded-full bg-fd-secondary px-5 py-3 font-medium tracking-tight text-fd-secondary-foreground hover:bg-fd-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring"
+            className={pillQuiet}
           >
             Read the docs
           </Link>

@@ -1,39 +1,21 @@
 'use client';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Broadcast } from './broadcast';
+import { pillBrand, pillQuiet } from './styles';
+import { useDark, useStill } from './use-landing';
+import { Dithering, GrainGradient } from './shaders';
 
 // fumadocs.dev's hero, shader for shader: a grain gradient across the card and a 4x4-dithered shape.
 // claudio's one change: the dithered sphere is still at rest and turns only while claudio is speaking.
-const GrainGradient = dynamic(() => import('@paper-design/shaders-react').then((m) => m.GrainGradient), { ssr: false });
-const Dithering = dynamic(() => import('@paper-design/shaders-react').then((m) => m.Dithering), { ssr: false });
-
-function useDark() {
-  const [dark, setDark] = useState(true);
-  useEffect(() => {
-    const root = document.documentElement;
-    const read = () => setDark(root.classList.contains('dark'));
-    read();
-    const watch = new MutationObserver(read);
-    watch.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => watch.disconnect();
-  }, []);
-  return dark;
-}
-
-const pill =
-  'press inline-flex justify-center rounded-full px-5 py-3 font-medium tracking-tight max-sm:text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring';
 
 export function Hero() {
   const dark = useDark();
   const [sound, setSound] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [still, setStill] = useState(false);
+  const still = useStill();
   const audio = useRef<HTMLAudioElement | null>(null);
   const onSpeaking = useCallback((on: boolean) => setSpeaking(on), []);
-
-  useEffect(() => setStill(window.matchMedia('(prefers-reduced-motion: reduce)').matches), []);
 
   const toggleSound = () => {
     if (!audio.current) audio.current = new Audio();
@@ -88,10 +70,10 @@ export function Hero() {
           sessions <span className="text-brand">work</span>.
         </h1>
         <div className="flex w-fit flex-row flex-wrap items-center justify-center gap-4">
-          <Link href="/docs/guide/getting-started" className={`${pill} bg-brand text-brand-foreground hover:bg-brand-200`}>
+          <Link href="/docs/guide/getting-started" className={`${pillBrand} max-sm:text-sm`}>
             Install claudio
           </Link>
-          <Link href="/sandbox" className={`${pill} border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent`}>
+          <Link href="/sandbox" className={`${pillQuiet} max-sm:text-sm`}>
             Open the sandbox
           </Link>
         </div>

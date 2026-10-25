@@ -58,9 +58,9 @@ h1, h2, h3 {
    Everything below is scoped to the docs layout (#nd-docs-layout), so the landing keeps its own tokens.
    `:root:has(#nd-docs-layout)` also reaches what Fumadocs portals out of the layout: search, popovers. */
 
+/* motion tokens shared by the docs and the landing */
 :root {
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19);
   --t-press: 140ms;
   --t-hover: 180ms;
   --t-ui: 240ms;
