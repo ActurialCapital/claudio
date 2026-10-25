@@ -131,17 +131,21 @@ def tool(name, inp):
 
 
 def setting(text):
-    console.print(f"[dim]⚙ {text}[/]", width=width())
+    console.print(Text(f"⚙ {text}", style="dim"), width=width())
     log(f"⚙ {text}")
 
 
 def note(text):
-    console.print(f"{NOTE} [dim]{text}[/]", width=width())
+    console.print(Text(f"· {text}", style="dim"), width=width())
 
 
 def warn(text):
-    console.print(f"[bold yellow]![/] [yellow]{text}[/]", width=width())
+    line = Text.assemble(("! ", "bold yellow"), (text, "yellow"))
+    console.print(line, width=width())
 
 
 def check(ok, name, hint=""):
-    console.print(f"  {'[green]✓[/]' if ok else '[red]✗[/]'} {name}" + (f"  [dim]{hint}[/]" if hint and not ok else ""))
+    line = Text.assemble(("  ✓ ", "green") if ok else ("  ✗ ", "red"), name)
+    if hint and not ok:
+        line.append(f"  {hint}", style="dim")
+    console.print(line)

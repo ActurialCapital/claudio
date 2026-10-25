@@ -146,7 +146,7 @@ def test_slash_only_at_the_start_of_a_turn():
 
 def test_check_rejects_bad_types_choices_and_ranges():
     assert config.check("eot", "abc")[1].startswith("eot must be a number")
-    assert config.check("eot_timeout_ms", "1.5")[1].startswith("eot_timeout_ms must be a number")
+    assert config.check("eot_timeout_ms", "1.5")[1].startswith("eot_timeout_ms must be a whole number")
     assert config.check("eot", "7")[1].startswith("eot must be between")
     assert config.check("model", "opus-four")[1].startswith("model must be one of")
     assert config.check("model", 123)[1]
@@ -160,8 +160,8 @@ def test_load_skips_bad_project_values_with_a_warning(tmp_path, monkeypatch):
     (tmp_path / ".claudio.json").write_text('{"model": 123, "effort": null, "eot": "x", "voice": 7, "orchestrator": "Core"}')
     c = config.load()
     assert (c["model"], c["effort"], c["eot"], c["orchestrator"]) == ("default", "low", 0.7, "Core")
-    assert c["voice"] == "7"                                   # a number for a string key is just a string
-    assert len(config.WARNINGS) == 3
+    assert c["voice"] == "aura-2-orion-en"                     # a number for a string key is refused
+    assert len(config.WARNINGS) == 4
 
 
 def test_tool_line_survives_markup_characters(capsys):
@@ -188,3 +188,39 @@ def test_settings_write_follows_a_symlink_and_refuses_odd_hook_shapes(tmp_path, 
         with pytest.raises(SystemExit):
             cli.install()
         assert real.read_text() == bad
+
+
+def test_check_is_strict_about_bools_strings_and_whole_numbers():
+    assert config.check("barge_in", "ture")[1].startswith("barge_in must be true or false")
+    assert config.check("barge_in", "no") == (False, None)
+    assert config.check("barge_in", "Yes ") == (True, None)
+    assert config.check("voice", ["x"])[1].startswith("voice must be text")
+    assert config.check("voice", "")[1] == "voice cannot be empty"
+    assert config.check("orchestrator", "") == ("", None)
+    assert config.check("eot_timeout_ms", "1500.0") == (1500, None)
+    assert config.check("eot_timeout_ms", 1500.7)[1].startswith("eot_timeout_ms must be a whole number")
+    assert config.check("eot", "nan")[1].startswith("eot must be a number")
+
+
+def test_ui_helpers_print_brackets_literally(capsys):
+    from claudio import ui
+    ui.warn("model must be one of a, b, not '[/]'")
+    ui.note("/effort [/]")
+    ui.setting("orchestrator → [wip] core")
+    ui.check(False, "orchestrator '[wip] core' is live", "hint [x]")
+    out = capsys.readouterr().out
+    assert out.count("[/]") == 2 and "[wip] core" in out and out.count("[wip]") == 2 and "[x]" in out
+
+
+def test_eleven_mouth_maps_audio_to_sentences_by_character_position():
+    from claudio.agent import ElevenMouth
+    m = ElevenMouth()
+    for t in ("One. ", "Two two. ", "Three. "):            # say() without a socket: just the bookkeeping
+        m.ends.append((m.ends[-1] if m.ends else 0) + len(t))
+    seen = []
+    for chars in (list("One. "), list("Two "), list("two. "), list("Three. ")):
+        start = m.chars
+        m.chars += len(chars)
+        m.current = next((n for n, end in enumerate(m.ends) if start < end), max(0, len(m.ends) - 1))
+        seen.append(m.got)
+    assert seen == [0, 1, 1, 2]

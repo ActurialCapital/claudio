@@ -50,17 +50,43 @@ def stored():
     return c
 
 
+TRUE, FALSE = ("1", "true", "yes", "on"), ("0", "false", "no", "off")
+MAY_BE_EMPTY = ("orchestrator",)
+
+
 def check(key, value):
     """The value as its proper type, or a message saying why it cannot be."""
-    try:
-        if isinstance(DEFAULTS[key], bool):
-            v = value if isinstance(value, bool) else KINDS[key](str(value))
-        elif isinstance(value, bool) or value is None:
-            raise TypeError
+    kind = type(DEFAULTS[key])
+    if kind is bool:
+        if isinstance(value, bool):
+            v = value
+        elif str(value).strip().lower() in TRUE:
+            v = True
+        elif str(value).strip().lower() in FALSE:
+            v = False
         else:
-            v = KINDS[key](value)
-    except (TypeError, ValueError):
-        return None, f"{key} must be a {'number' if KINDS[key] in (float, int) else 'string'}, not {value!r}"
+            return None, f"{key} must be true or false, not {value!r}"
+    elif kind is int:
+        try:
+            f = float(value) if not isinstance(value, bool) else None
+        except (TypeError, ValueError):
+            f = None
+        if f is None or not f.is_integer():
+            return None, f"{key} must be a whole number, not {value!r}"
+        v = int(f)
+    elif kind is float:
+        try:
+            v = float(value) if not isinstance(value, bool) else None
+        except (TypeError, ValueError):
+            v = None
+        if v is None or v != v:
+            return None, f"{key} must be a number, not {value!r}"
+    else:
+        if not isinstance(value, str):
+            return None, f"{key} must be text, not {value!r}"
+        v = value.strip()
+        if not v and key not in MAY_BE_EMPTY:
+            return None, f"{key} cannot be empty"
     if key in CHOICES and v not in CHOICES[key]:
         return None, f"{key} must be one of {', '.join(CHOICES[key])}, not {v!r}"
     if key in RANGES and not RANGES[key][0] <= v <= RANGES[key][1]:

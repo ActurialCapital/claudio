@@ -36,8 +36,9 @@ def setup():
     for name, ok in [("claude", shutil.which("claude")), ("cmux", workspaces() or os.path.exists("/Applications/cmux.app"))]:
         ui.check(ok, name, "needed; install it and run setup again")
     for _ in range(3):
-        key = Prompt.ask("  Deepgram API key [dim](console.deepgram.com)[/]", password=True,
-                         default=cfg["deepgram_api_key"] or None)
+        hint = " [dim](a key is stored; Enter keeps it)[/]" if cfg["deepgram_api_key"] else " [dim](console.deepgram.com)[/]"
+        key = Prompt.ask("  Deepgram API key" + hint, password=True, default=cfg["deepgram_api_key"] or None,
+                         show_default=False) or cfg["deepgram_api_key"]
         if key and key_ok(key):
             cfg["deepgram_api_key"] = key
             break
