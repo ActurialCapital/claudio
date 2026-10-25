@@ -98,9 +98,10 @@ flowchart LR
     cp -->|cmux agent message| sessions["💻 sessions"]
 ```
 
-- 🍎 macOS · 🖥️ [cmux](https://cmux.dev) · 🎧 [Deepgram](https://deepgram.com) · 🧠 your Claude plan
+- 🍎 macOS · 🖥️ [cmux](https://cmux.dev) · 🎧 [Deepgram](https://deepgram.com), or [ElevenLabs](https://elevenlabs.io) for the mouth · 🧠 your Claude plan
 - The brain starts on Flux's eager end of turn; its audio is held until the final transcript agrees.
-- Ears reconnect, the brain restarts if it dies and says so, the mouth retries. Errors land in `~/.config/claudio/brain.log`.
+- Ears reconnect, the brain restarts if it dies and says so, a mouth that drops mid-reply is reopened, and if the echo canceller stops the plain mic takes over with the reason shown. Errors land in `~/.config/claudio/brain.log` and `helper.log`.
+- Every setting is checked for type, choice and range wherever it comes from; a bad value is skipped with a warning and `claudio set` says why.
 - 🔇 Echo cancellation needs the Xcode command line tools once, to build a 100-line Swift helper. Without it, barge-in needs headphones.
 
 ## 🎛️ Settings
@@ -120,7 +121,7 @@ flowchart LR
 | `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 | `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
-| `mouth` | `deepgram` | or `elevenlabs`, with `ELEVENLABS_API_KEY` set and `elevenlabs_voice` a voice id |
+| `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 
