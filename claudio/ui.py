@@ -23,24 +23,40 @@ def log(line):
     except OSError:
         pass
 
-MARK = r"""
- ██████╗██╗      █████╗ ██╗   ██╗██████╗ ██╗ ██████╗
-██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██║██╔═══██╗
-██║     ██║     ███████║██║   ██║██║  ██║██║██║   ██║
-██║     ██║     ██╔══██║██║   ██║██║  ██║██║██║   ██║
-╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝██║╚██████╔╝
- ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
-""".strip("\n").splitlines()
-SHADES = ["#ccfbf1", "#99f6e4", "#5eead4", "#2dd4bf", "#14b8a6", "#0d9488"]   # teal, light to deep, one per line
+SUN = "#DF3F00"                  # the website's dithered sun
 TAGLINE = "a voice in front of your Claude Code sessions"
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
 
 
-def wordmark():
-    t = Text()
-    for line, shade in zip(MARK, SHADES):
-        t.append(line + "\n", style=f"bold {shade}")
+def sun(n=12):
+    """The mark: a sphere lit from the top left, 4x4 Bayer-dithered, two pixels per half-block character
+    so they come out square. Same maths as the site's components/sun-mark.tsx."""
+    bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+
+    def on(x, y):
+        nx, ny = (x + .5) / (n / 2) - 1, (y + .5) / (n / 2) - 1
+        r2 = nx * nx + ny * ny
+        if r2 > 1:
+            return False
+        lit = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98)
+        return .18 + .82 * lit > (bayer[(y % 4) * 4 + x % 4] + .5) / 16
+    cell = {(True, True): "█", (True, False): "▀", (False, True): "▄", (False, False): " "}
+    return ["".join(cell[on(x, y), on(x, y + 1)] for x in range(n)) for y in range(0, n, 2)]
+
+
+def wordmark(subtitle=TAGLINE):
+    """The sun with 'claudio' and the subtitle beside its middle."""
+    t, rows = Text(), sun()
+    mid = len(rows) // 2
+    for i, row in enumerate(rows):
+        t.append("  " + row, style=SUN)
+        if i == mid - 1:
+            t.append("   claudio", style="bold")
+        elif i == mid:
+            t.append(f"   {subtitle}", style="dim italic")
+        if i < len(rows) - 1:
+            t.append("\n")
     return t
 
 
@@ -52,8 +68,7 @@ def banner(subtitle=None, facts=None, hints=None):
     """The header: wordmark, tagline (or a subtitle like 'setup'), a strip of facts, a line of hints."""
     console.clear()
     console.print()
-    console.print(wordmark())
-    console.print(f"  [dim italic]{subtitle or TAGLINE}[/]")
+    console.print(wordmark(subtitle or TAGLINE))
     if facts:
         console.print()
         row, width = Text("  "), 2

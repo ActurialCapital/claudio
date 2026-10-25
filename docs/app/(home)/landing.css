@@ -1,0 +1,476 @@
+/* Landing only. Its motion tokens (the shared ones are in app/global.css; taste-skill motion.md §4), then the
+   moves, each with its reduced-motion state: the finished page. Transform, opacity and clip-path only. */
+:root {
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-reveal: 800ms;
+  --stagger-item: 75ms;
+  /* claudio's window, light: a near-white sheet, its state line one tone down, glyph inks tuned for a light ground */
+  --t-bg: #fdfdfc;
+  --t-bar: #f3f3f2;
+  --t-line: color-mix(in oklab, #000 9%, transparent);
+  --t-fg: #1c1c1c;
+  --t-dim: #6b6b6b; /* 5.3:1 on the sheet */
+  --t-you: #0e7490; /* › you, cyan 700 */
+  --t-me: #0f766e; /* ◆ claudio, teal 700 */
+  --t-ses: #a3127f; /* ▸ a session, magenta */
+  --t-ok: #15803d; /* the doctor's tick */
+  --t-hover: color-mix(in oklab, #000 6%, transparent);
+  /* a surface one tone step off the page, in either theme: cards are filled, never outlined */
+  --surface: color-mix(in oklab, var(--color-fd-foreground) 4.5%, var(--color-fd-background));
+}
+
+/* the replay caret */
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.caret {
+  animation: caret 1s steps(1) infinite;
+}
+
+/* ---- feedback under the hand ---- */
+.press {
+  transition:
+    transform var(--t-press) var(--ease-out),
+    background-color var(--t-hover) ease,
+    color var(--t-hover) ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+.link {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 0.07em;
+  transition: text-decoration-color var(--t-hover) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Copy and Copied share one cell and cross */
+.copy-label {
+  transition:
+    opacity var(--t-hover) ease,
+    transform var(--t-ui) var(--ease-out);
+}
+.copy-label.is-off {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* footer links: muted at rest, full ink under the hand, like the navbar */
+.foot-link {
+  color: var(--color-fd-muted-foreground);
+  border-radius: 4px;
+  transition: color var(--t-hover) ease;
+}
+.foot-link:hover {
+  color: var(--color-fd-foreground);
+}
+.foot-link:focus-visible {
+  color: var(--color-fd-foreground);
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 4px;
+}
+
+/* claudio's window, dark: one step below the dark page, the terminal's own inks */
+.dark {
+  --t-bg: #0d0d0d;
+  --t-bar: #111111;
+  --t-line: #ffffff1a;
+  --t-fg: #e5e5e5;
+  --t-dim: #8a8a8a;
+  --t-you: #22d3ee;
+  --t-me: #2dd4bf;
+  --t-ses: #f472d0;
+  --t-ok: #4ade80;
+  --t-hover: #ffffff1a;
+}
+
+.surface {
+  background-color: var(--surface);
+}
+
+/* ---- One turn: the signal path. While the card is held, the page's scroll fills it (--fill, 0 to 1).
+   On a phone it runs down the left of five equal rows; on wide screens it runs across their tops. ---- */
+.stage-hold {
+  display: contents; /* a phone holds the card alone; the heading scrolls away above it */
+}
+.stage-hold .stage-card {
+  position: sticky;
+  top: 4.5rem;
+}
+@media (min-width: 1024px) {
+  .stage-hold {
+    display: block;
+    position: sticky;
+    top: max(4.5rem, calc(50svh - 21rem));
+  }
+  .stage-hold .stage-card {
+    position: relative;
+    top: auto;
+  }
+}
+.stage-run::after {
+  content: '';
+  display: block;
+  height: 170svh; /* the stretch of scroll the turn is played over; the card is held through it */
+}
+.track-rail,
+.track-fill {
+  position: absolute;
+  pointer-events: none;
+  left: 8px;
+  top: 10px;
+  width: 4px;
+  height: 80%;
+  border-radius: 4px;
+  translate: -50% 0;
+}
+.track-rail {
+  background: color-mix(in oklab, var(--color-fd-foreground) 12%, transparent);
+}
+.track-fill {
+  background: var(--color-brand);
+  transform: scaleY(var(--fill, 1));
+  transform-origin: 50% 0;
+  transition: transform 160ms var(--ease-out);
+}
+/* a node: an open ring ahead, a filled dot behind, and the one you are at drawn as a ring around a dot */
+.stage-node {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid color-mix(in oklab, var(--color-fd-foreground) 22%, transparent);
+  transition:
+    background-color var(--t-ui) ease,
+    border-color var(--t-ui) ease,
+    transform 360ms var(--ease-out);
+}
+.stage-node::before,
+.stage-node::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+  opacity: 0;
+}
+.stage-node::before {
+  inset: 3px;
+  background: var(--color-brand);
+  transition: opacity var(--t-ui) ease;
+}
+.stage-node::after {
+  inset: -6px;
+  border: 2px solid var(--color-brand);
+}
+.stage[data-state='past'] .stage-node,
+.stage[data-state='all'] .stage-node {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+.stage[data-state='on'] .stage-node {
+  border-color: var(--color-brand);
+  transform: scale(1.15);
+}
+.stage[data-state='on'] .stage-node::before {
+  opacity: 1;
+}
+.track[data-linked] .stage[data-state='on'] .stage-node::after {
+  animation: node-pulse 2200ms var(--ease-out) infinite;
+}
+@keyframes node-pulse {
+  0% { opacity: 0.5; transform: scale(0.7); }
+  70%, 100% { opacity: 0; transform: scale(1.5); }
+}
+/* the words of a part come forward when the turn reaches it */
+.stage-label {
+  color: var(--color-fd-foreground);
+  transition:
+    opacity 420ms ease,
+    transform 520ms var(--ease-out);
+}
+.stage[data-state='next'] .stage-label {
+  opacity: 0.42;
+  transform: translateY(3px);
+}
+.stage[data-state='past'] .stage-label {
+  opacity: 0.62;
+}
+.stage-chip {
+  color: var(--color-fd-foreground);
+  background: color-mix(in oklab, var(--color-fd-foreground) 7%, transparent);
+  transition:
+    background-color var(--t-ui) ease,
+    color var(--t-ui) ease,
+    opacity 420ms ease;
+}
+.stage[data-state='next'] .stage-chip {
+  opacity: 0.5;
+}
+.stage[data-state='on'] .stage-chip {
+  background: color-mix(in oklab, var(--color-brand) 26%, transparent);
+}
+@media (min-width: 1024px) {
+  .track-rail,
+  .track-fill {
+    left: 8px;
+    top: 8px;
+    width: 80%;
+    height: 4px;
+    translate: 0 -50%;
+  }
+  .track-fill {
+    transform: scaleX(var(--fill, 1));
+    transform-origin: 0 50%;
+  }
+  .stage-node {
+    top: 0;
+  }
+}
+
+/* the window's mic meter: three bars that move while sound flows */
+.meter {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.meter > span {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--t-you);
+  transform: scaleY(0.25);
+  transform-origin: 50% 100%;
+  transition: transform 300ms var(--ease-out);
+}
+.meter.is-on > span {
+  animation: level 640ms ease-in-out infinite alternate;
+}
+.meter.is-on > span:nth-child(2) { animation-delay: -220ms; animation-duration: 520ms; }
+.meter.is-on > span:nth-child(3) { animation-delay: -410ms; animation-duration: 700ms; }
+@keyframes level {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+
+/* the wave rises out of the card's ground instead of starting on an edge */
+.wave-field {
+  mask-image: linear-gradient(to bottom, transparent, #000 45%); /* taste-skill-ignore: an alpha mask on the dithered wave, not a colour fill */
+}
+
+/* ---- Built for talking: tiles with a picture each, a light that follows the hand, a slight lean ---- */
+.tile {
+  transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 420ms var(--ease-out);
+}
+.tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 50%), color-mix(in oklab, var(--color-fd-foreground) 8%, transparent), transparent 62%); /* taste-skill-ignore: the hand's light, shown only under the pointer */
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.tile.is-hot::after {
+  opacity: 1;
+}
+.tile-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.art-c {
+  mask-image: radial-gradient(62% 70% at 64% 52%, #000 15%, transparent 78%); /* taste-skill-ignore: an alpha mask on the picture */
+}
+.art-tr {
+  mask-image: radial-gradient(62% 100% at 100% 0%, #000 22%, transparent 70%); /* taste-skill-ignore: an alpha mask on the picture */
+}
+.art-r {
+  mask-image: linear-gradient(to right, transparent 20%, #000 70%); /* taste-skill-ignore: an alpha mask on the picture */
+}
+
+/* the doctor's output prints row by row as the close arrives */
+[data-ui] .doc-row {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 260ms ease,
+    transform 320ms var(--ease-out);
+}
+[data-ui] .doc-row.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- states that change in place: lines arriving, a state word ---- */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(5px); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+.line-in {
+  animation: rise-in 280ms var(--ease-out) both;
+}
+.replay[data-live] .state-in,
+.state-swap {
+  animation: fade-in 220ms ease both;
+}
+
+/* ---- section entrances: hidden only by script, only below the fold, once ---- */
+@media (prefers-reduced-motion: no-preference) {
+  [data-armed] [data-reveal] {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 700ms var(--ease-out),
+      transform var(--t-reveal) var(--ease-expo);
+    transition-delay: calc(var(--i, 0) * var(--stagger-item));
+  }
+  [data-armed][data-in] [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- scroll-linked motion, where the browser ties animation to the scroll (otherwise the reveal above).
+   Each part plays forward as it rises into view and back as it leaves, locked to the scrollbar with no smoothing.
+   Individual translate / scale properties, so they compose with the tiles' lean and the hero's recede.
+   Under reduced motion none of this exists: the page is simply finished. ---- */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* the hero card recedes a little as it leaves, and its replay window lifts away a touch faster */
+    .hero-recede {
+      animation: recede linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+    .hero-recede .replay {
+      animation: lift-away linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* the parts of a section rise into place as they come up the screen */
+    [data-stagger] [data-reveal] {
+      animation: rise-into-view linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 14%; /* short enough to finish even for the last parts above the page's end */
+    }
+    /* a section heading rises out of its own baseline and comes into focus */
+    [data-stagger] h2[data-reveal] {
+      animation: heading-in linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 24%;
+    }
+    /* cards settle from a little smaller as they arrive */
+    .stage-card[data-reveal] {
+      animation: card-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+    /* the bento cascades in, one tile after another, and each picture drifts inside its tile */
+    .tile[data-reveal] {
+      animation: card-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 30%;
+    }
+    .tile[data-reveal]:nth-child(2) { animation-range: entry 8% cover 34%; }
+    .tile[data-reveal]:nth-child(3) { animation-range: entry 14% cover 38%; }
+    .tile[data-reveal]:nth-child(4) { animation-range: entry 4% cover 30%; }
+    .tile-art {
+      scale: 1.14;
+      animation: drift linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+    .tile:nth-child(even) .tile-art {
+      animation-name: drift-back;
+    }
+    /* the close's light comes up as the card reaches the middle of the screen */
+    .needs-light {
+      animation: light-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 50%;
+    }
+    /* the footer band arrives last */
+    main > footer {
+      animation: rise-into-view linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}
+@keyframes recede {
+  to { transform: translateY(6%) scale(0.95); }
+}
+@keyframes lift-away {
+  to { translate: 0 -7%; }
+}
+@keyframes rise-into-view {
+  from { opacity: 0; translate: 0 28px; }
+}
+@keyframes heading-in {
+  from { clip-path: inset(0 0 100% 0); translate: 0 0.45em; filter: blur(6px); }
+  to { clip-path: inset(-0.3em -0.3em -0.3em -0.3em); }
+}
+@keyframes card-in {
+  from { opacity: 0; scale: 0.96; translate: 0 40px; }
+}
+@keyframes drift {
+  from { translate: 0 -5%; }
+  to { translate: 0 5%; }
+}
+@keyframes drift-back {
+  from { translate: 0 4%; }
+  to { translate: 0 -4%; }
+}
+@keyframes light-up {
+  from { opacity: 0.3; scale: 1.08; filter: saturate(0.6); }
+}
+
+/* reduced motion: the finished page. Colour still answers; nothing travels or loops. */
+@media (prefers-reduced-motion: reduce) {
+  .caret,
+  .line-in,
+  .state-swap,
+  .replay[data-live] .state-in {
+    animation: none;
+  }
+  .press:active {
+    transform: none;
+  }
+  .tile {
+    transform: none;
+  }
+  .foot-link,
+  .copy-label,
+  .stage-label,
+  .stage-node,
+  .stage-chip,
+  .track-fill,
+  .tile,
+  [data-ui] .doc-row {
+    transition: none;
+  }
+  .stage-node::after,
+  .meter > span {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "index",
+    "---Guide---",
+    "...guide",
+    "---Configure---",
+    "...configure",
+    "---Reference---",
+    "...reference",
+    "---Help---",
+    "troubleshooting",
+    "faq"
+  ]
+}

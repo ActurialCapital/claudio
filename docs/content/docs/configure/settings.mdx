@@ -1,0 +1,100 @@
+---
+title: Settings
+description: Where settings live, the four ways to change them, and which one wins.
+---
+
+Every setting has a default, and you only change the ones you care about. Each value is checked for type, choice and range wherever it comes from. A bad value is skipped with a warning that says why, and the previous value is kept.
+
+## Where they live
+
+| File | Holds |
+|---|---|
+| `~/.config/claudio/config.json` | the settings, written by setup and by `claudio set` |
+| `~/.config/claudio/secrets.json` | the API keys, readable only by you (mode 600) |
+| `~/.config/claudio/prompt.md` | the [persona](/docs/configure/persona) |
+
+If `XDG_CONFIG_HOME` is set, claudio uses `$XDG_CONFIG_HOME/claudio` instead.
+
+The brain is not allowed to read `secrets.json`, and its settings list never shows the keys.
+
+## Four ways to change one
+
+<Tabs items={['By voice', 'claudio set', 'Per project', 'One run']}>
+<Tab value="By voice">
+
+Ask in plain words, or use a slash command:
+
+<Transcript>{`
+› use Sonnet
+◆ Switching to Sonnet; I'll restart for that.
+⚙ model → sonnet  ·  brain restarting
+`}</Transcript>
+
+The change is saved to `config.json`, so it is kept for next time.
+
+</Tab>
+<Tab value="claudio set">
+
+```bash
+claudio set eot 0.8
+```
+
+Writes one global setting, after checking it. A running claudio picks up the change within a second.
+
+</Tab>
+<Tab value="Per project" id="per-project">
+
+A `.claudio.json` in the directory you run claudio from overrides any setting for that project:
+
+```json title=".claudio.json"
+{ "orchestrator": "Core", "style": "brief" }
+```
+
+Keys cannot go in a project file. They are ignored there.
+
+</Tab>
+<Tab value="One run">
+
+An environment variable overrides one setting for one run:
+
+```bash
+CLAUDIO_STYLE=caveman CLAUDIO_BARGE_IN=false claudio
+```
+
+Each setting's variable is `CLAUDIO_` and its name in capitals. The keys use `DEEPGRAM_API_KEY` and `ELEVENLABS_API_KEY`.
+
+</Tab>
+</Tabs>
+
+## Which one wins
+
+Later sources override earlier ones:
+
+1. the defaults
+2. `config.json` and `secrets.json`
+3. `.claudio.json` in the current directory
+4. environment variables
+
+`claudio set`, setup and voice changes only ever write the global files. A project's or the environment's override is never saved as your default.
+
+## Value formats
+
+- **Booleans** take `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0`.
+- **Whole numbers** must be whole: `1500` or `1500.0`, not `1500.5`.
+- **Text** is trimmed and cannot be empty, except `orchestrator`.
+
+## What a change does
+
+| Changed | Takes effect |
+|---|---|
+| `model`, `effort`, `style` | the brain restarts, memory kept |
+| `voice` | from the next reply |
+| `ears`, `eot`, `eager_eot`, `eot_timeout_ms` | the ears reconnect |
+| `push_to_talk` off | the mic opens again |
+| anything else | at once |
+
+## All settings
+
+<Settings />
+
+The [settings reference](/docs/reference/settings) also lists the two keys.

@@ -1,0 +1,77 @@
+---
+title: Voices and mouths
+description: Pick a voice, or switch the mouth to ElevenLabs.
+---
+
+The mouth turns each sentence of the reply into speech as soon as the brain finishes writing it. Deepgram Aura is the default. ElevenLabs is the alternative.
+
+## Deepgram Aura
+
+Any Aura-2 voice works. Setup offers these six:
+
+<Voices />
+
+Change it by voice, "slash voice asteria", or from the shell:
+
+```bash
+claudio set voice aura-2-asteria-en
+```
+
+By voice, the short name is enough: "slash voice asteria" becomes `aura-2-asteria-en`. The full list of voices is in [Deepgram's docs](https://developers.deepgram.com/docs/tts-models).
+
+A voice change applies from the next reply. A spoken "slash voice" is the exception: its confirmation is already in the new voice.
+
+## ElevenLabs
+
+<Steps>
+<Step>
+
+### Add the key
+
+Put it in `~/.config/claudio/secrets.json`:
+
+```json title="secrets.json"
+{ "deepgram_api_key": "…", "elevenlabs_api_key": "…" }
+```
+
+Or export it for the shell you run claudio from:
+
+```bash
+export ELEVENLABS_API_KEY=…
+```
+
+</Step>
+<Step>
+
+### Switch the mouth
+
+```bash
+claudio set mouth elevenlabs
+```
+
+</Step>
+<Step>
+
+### Pick a voice
+
+`elevenlabs_voice` takes an ElevenLabs voice id, not a name:
+
+```bash
+claudio set elevenlabs_voice pNInz6obpgDQGcFmaJgB
+```
+
+</Step>
+</Steps>
+
+claudio uses the `eleven_flash_v2_5` model, ElevenLabs' low-latency one. If `mouth` is `elevenlabs` but no ElevenLabs key is set, Deepgram speaks instead. The banner shows which mouth is in use.
+
+The ears are always Deepgram, so you need a Deepgram key either way.
+
+## When the mouth fails
+
+- If the speech service cannot be reached, claudio tries once more after a second. If that fails too, the reply is shown as text only, with `! mouth lost`.
+- If the connection drops mid-reply, it opens a new one and carries on from the sentence it was on.
+
+## Settings
+
+<Settings only={['mouth', 'voice', 'elevenlabs_voice']} />

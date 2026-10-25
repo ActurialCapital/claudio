@@ -1,0 +1,51 @@
+---
+title: Listening and turns
+description: Tune when your turn ends, when it may be interrupted, and who it listens to.
+---
+
+The defaults suit one person talking at a desk. Change them when it cuts you off, waits too long, or hears the wrong people.
+
+## When your turn ends
+
+Deepgram Flux gives every moment of your speech a confidence that you have finished. Three settings act on it:
+
+<Settings only={['eager_eot', 'eot', 'eot_timeout_ms']} />
+
+| If | Try |
+|---|---|
+| It answers before you have finished a thought | raise `eot` (0.8) and `eot_timeout_ms` (2500) |
+| It waits too long after you stop | lower `eot` (0.6) or `eot_timeout_ms` (1000) |
+| Replies feel slow to start | lower `eager_eot` so the brain starts earlier |
+| Early starts are often wasted and you see `· resumed` | raise `eager_eot` closer to `eot` |
+
+An early start costs nothing you hear: its audio is held until your turn is final and the words match. It only spends brain time.
+
+Changes reconnect the ears straight away, so you can tune by voice while you talk: "set eot to 0.8".
+
+## Other languages
+
+```bash
+claudio set ears flux-general-multi
+```
+
+The persona is in English. Edit [`prompt.md`](/docs/configure/persona) to have it answer in your language, and pick a voice that speaks it.
+
+## Interrupting
+
+<Settings only={['barge_in']} />
+
+With `barge_in` on, talking over a reply pauses it, then cuts it or lets it go on. [Talking over it](/docs/guide/talking#talking-over-it) explains the rules. On speakers this needs the echo canceller, which is shown as `echo cancel on` in the banner.
+
+Turn it off if a noisy room keeps pausing it. Replies then play through, and <kbd>Enter</kbd> cuts them.
+
+## Push to talk
+
+<Settings only={['push_to_talk']} />
+
+The mic stays closed until you press <kbd>Enter</kbd>, then closes again when your turn ends. The state line reads `push to talk · Enter opens the mic` while it is closed.
+
+## Rooms with other people
+
+<Settings only={['address_me']} />
+
+Only turns that start with "claudio" count. Everything else is shown dim and ignored. "claudio, what's the sequencer doing?" works; the name is dropped before the brain sees the turn.

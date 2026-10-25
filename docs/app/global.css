@@ -1,0 +1,412 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* fumadocs.dev's own look: the neutral theme, Geist + JetBrains Mono, a yellow (dark) / orange (light) brand */
+@theme {
+  --font-sans: var(--ff-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--ff-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --leading-tighter: 1.1;
+
+  --color-brand: #dd7627;
+  --color-brand-foreground: #0a0a0a; /* dark text on #dd7627: 6.9:1, white was 2.9:1 */
+  --color-brand-200: #ff8c00;
+  --color-landing-foreground: #59592a;
+  --color-landing-foreground-200: #a8a866;
+
+  /* claudio's terminal glyphs: you, claudio, a session */
+  --color-you: #0e7490;
+  --color-me: #0f766e;
+  --color-event: #a21caf;
+
+  /* the docs' static transcripts stay a dark terminal in both themes */
+  --color-term: #0d0d0d;
+  --color-term-line: #ffffff1a;
+  --color-term-fg: #e5e5e5;
+  --color-term-dim: #8a8a8a;
+  --color-term-me: #2dd4bf;
+  --color-term-you: #22d3ee;
+  --color-term-event: #e879f9;
+}
+
+.dark {
+  --color-brand: #fff383;
+  --color-brand-foreground: black;
+  --color-brand-200: #fff7c8;
+  --color-landing-foreground: #e4e2d0;
+  --color-landing-foreground-200: #b7af7e;
+
+  --color-you: #22d3ee;
+  --color-me: #2dd4bf;
+  --color-event: #e879f9;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* ───────────────────────── docs pages ─────────────────────────
+   Everything below is scoped to the docs layout (#nd-docs-layout), so the landing keeps its own tokens.
+   `:root:has(#nd-docs-layout)` also reaches what Fumadocs portals out of the layout: search, popovers. */
+
+/* motion tokens shared by the docs and the landing */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+}
+
+/* orange, from fumadocs.dev's own sun (#DF3F00 / #fa8023), tuned for AA on the neutral grounds */
+:root:has(#nd-docs-layout) {
+  --color-fd-primary: #c2410c; /* 4.75:1 on the page, white on it 5.18:1 */
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-ring: #c2410c;
+  --color-fd-info: #c2410c;
+  --color-fd-card: hsl(0, 0%, 93.4%); /* one clear tone step from the page, so surfaces need no outline */
+  --docs-accent-ink: #a8400a; /* orange text on an orange tint: 4.66:1 */
+  --docs-accent-tint: color-mix(in oklab, var(--color-fd-primary) 9%, transparent);
+}
+
+.dark:has(#nd-docs-layout) {
+  --color-fd-primary: #fa8023; /* 7.29:1 on the page */
+  --color-fd-primary-foreground: #171717;
+  --color-fd-ring: #fa8023;
+  --color-fd-info: #fa8023;
+  --color-fd-card: hsl(0, 0%, 10.6%);
+  --docs-accent-ink: #fa8023;
+  --docs-accent-tint: color-mix(in oklab, var(--color-fd-primary) 9%, transparent);
+  --color-term: #0a0a0a; /* the terminal sits one step below the dark page */
+}
+
+:root:has(#nd-docs-layout) ::selection {
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+}
+
+#nd-docs-layout :focus-visible {
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 2px;
+}
+
+/* the frame: tone steps instead of hairlines */
+#nd-sidebar {
+  border-inline-end-color: transparent;
+}
+#nd-sidebar .border-t {
+  border-top-color: transparent;
+}
+
+/* sidebar items: a quiet hover, a press, an orange active row */
+#nd-sidebar a,
+#nd-sidebar a:hover {
+  transition-property: background-color, color, transform;
+  transition-duration: var(--t-hover), var(--t-hover), var(--t-press);
+  transition-timing-function: ease, ease, var(--ease-out);
+}
+#nd-sidebar a[data-active='true'] {
+  background-color: var(--docs-accent-tint);
+  color: var(--docs-accent-ink);
+}
+#nd-sidebar a[data-active='true']::before {
+  width: 2px;
+  border-radius: 2px;
+}
+
+/* the page title and the line under it */
+#nd-page > h1 {
+  font-size: clamp(2rem, 1.45rem + 1.5vw, 2.625rem);
+  line-height: 1.08;
+  letter-spacing: -0.032em;
+}
+@media (min-width: 768px) {
+  #nd-page > h1 {
+    margin-left: -0.03em; /* optical: the cap's side bearing, so it lines up with the text below */
+  }
+}
+#nd-page > h1 + p {
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+
+/* running text in the full ink, at a readable measure */
+#nd-page .prose {
+  --tw-prose-body: var(--color-fd-foreground);
+  --tw-prose-kbd-shadows: color-mix(in oklab, var(--color-fd-foreground) 22%, transparent); /* keys stay neutral */
+  line-height: 1.7;
+}
+#nd-page .prose :is(p, ul, ol, blockquote) {
+  max-width: 58ch; /* about 75 characters of Geist */
+}
+/* text in callouts, tabs and accordions is running text too: the body size, not a step below it */
+#nd-page [style*='--callout-color'],
+#nd-page .docs-tabs [role='tabpanel'],
+#nd-page .docs-accordions .prose-no-margin {
+  font-size: 1rem;
+}
+#nd-page .prose :is(h2, h3) {
+  letter-spacing: -0.018em;
+}
+#nd-page .prose > h2 {
+  margin-top: 2.6em;
+}
+
+/* links: ink text, an orange underline that fills on hover (contrast goes up, never down) */
+#nd-page .prose a:not([data-card]) {
+  text-decoration-color: color-mix(in oklab, var(--color-fd-primary) 50%, transparent);
+  transition: text-decoration-color var(--t-hover) ease, color var(--t-hover) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  #nd-page .prose a:not([data-card]):hover {
+    opacity: 1;
+    color: var(--docs-accent-ink);
+    text-decoration-color: var(--color-fd-primary);
+  }
+}
+
+/* surfaces: filled, no outline */
+#nd-page figure.shiki,
+#nd-page [style*='--callout-color'],
+#nd-page .prose a[data-card].rounded-xl,
+#nd-page > .\@container > a {
+  border-color: transparent;
+}
+#nd-page figure.shiki > div.border-b {
+  border-bottom-color: transparent;
+}
+/* the copy button covers code cleanly on a narrow screen: a solid chip, not glass */
+#nd-page figure.shiki > div.absolute {
+  backdrop-filter: none;
+  background-color: var(--color-fd-card);
+}
+#nd-page [style*='--callout-color'] .text-fd-muted-foreground {
+  color: var(--color-fd-foreground);
+}
+#nd-page [style*='--callout-color'] > [role='none'] {
+  width: 3px;
+  background-color: var(--callout-color);
+}
+
+/* cards and the previous / next pair: tone on hover, a small press, the arrow leans the way it goes */
+#nd-page .prose a[data-card].rounded-xl,
+#nd-page > .\@container > a {
+  background-color: var(--color-fd-card);
+  transition: background-color var(--t-hover) ease, transform var(--t-press) var(--ease-out);
+}
+#nd-page > .\@container > a svg {
+  transition: transform var(--t-ui) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  #nd-page .prose a[data-card].rounded-xl:hover,
+  #nd-page > .\@container > a:hover {
+    background-color: var(--color-fd-accent);
+    color: inherit;
+  }
+  #nd-page > .\@container > a:hover svg {
+    transform: translateX(-2px);
+  }
+  #nd-page > .\@container > a:last-child:hover svg {
+    transform: translateX(2px);
+  }
+}
+
+/* tabs: one tone surface, an orange bar under the active tab */
+#nd-page .docs-tabs {
+  border-color: transparent;
+  background-color: var(--color-fd-card);
+}
+#nd-page .docs-tabs [role='tab'] {
+  border-bottom-width: 2px;
+  transition: color var(--t-hover) ease, border-color var(--t-ui) var(--ease-out);
+}
+#nd-page .docs-tabs [role='tab'][data-active] {
+  color: var(--docs-accent-ink);
+}
+
+/* accordions: separate tone tiles instead of ruled rows */
+#nd-page .docs-accordions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-color: transparent;
+  background: transparent;
+  overflow: visible;
+}
+#nd-page .docs-accordions > * {
+  border-color: transparent;
+  border-radius: 4px;
+  background-color: var(--color-fd-card);
+  overflow: hidden;
+}
+#nd-page .docs-accordions > :first-child {
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+#nd-page .docs-accordions > :last-child {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+#nd-page .docs-accordions [data-panel-open] svg,
+#nd-page .docs-accordions svg {
+  transition-duration: var(--t-ui);
+  transition-timing-function: var(--ease-out);
+}
+#nd-page .docs-accordions [class*='--accordion-panel-height'] {
+  transition-duration: 280ms;
+  transition-timing-function: var(--ease-out);
+}
+
+/* steps: orange markers on a quiet spine */
+#nd-page .fd-steps {
+  border-inline-start-width: 2px;
+  border-inline-start-color: color-mix(in oklab, var(--color-fd-primary) 22%, transparent);
+}
+#nd-page .fd-step::before {
+  inset-inline-start: calc(-1rem - 1px);
+  background-color: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the mobile header and the TOC bar: one solid bar in the surface tone, no glass, no rule under it */
+#nd-subnav,
+[data-toc-popover] > header {
+  backdrop-filter: none;
+  border-bottom-color: transparent;
+}
+#nd-subnav[data-transparent='false'],
+[data-toc-popover] > header {
+  background-color: var(--color-fd-card);
+}
+
+/* the page's own actions: filled tone, no outline, readable size */
+#nd-page > .docs-actions :is(button, a) {
+  border-color: transparent;
+  background-color: var(--color-fd-card);
+  font-size: 13px;
+}
+@media (hover: hover) and (pointer: fine) {
+  #nd-page > .docs-actions :is(button, a):hover {
+    background-color: var(--color-fd-accent);
+  }
+}
+
+/* a heading's copy-link button shows for the keyboard as well as the pointer */
+#nd-page .prose :is(h2, h3, h4) button:focus-visible {
+  opacity: 1;
+}
+
+/* buttons give under the hand */
+#nd-docs-layout :is(button, [role='button']):not(:disabled) {
+  transition-property: color, background-color, border-color, transform, opacity;
+  transition-duration: var(--t-hover);
+  transition-timing-function: ease;
+}
+
+/* ── motion: everything that travels lives here, and only without a reduced-motion request ── */
+@media (prefers-reduced-motion: no-preference) {
+  /* the page arrives in reading order: title, line, actions, body; settled by 700ms */
+  #nd-page > :is(h1, p, .docs-actions, .prose) {
+    animation: docs-rise 560ms var(--ease-out) backwards;
+  }
+  #nd-page > p {
+    animation-delay: 60ms;
+  }
+  #nd-page > .docs-actions {
+    animation-delay: 120ms;
+  }
+  #nd-page > .prose {
+    animation-delay: 170ms;
+  }
+
+  #nd-sidebar a:active,
+  #nd-page .prose a[data-card].rounded-xl:active,
+  #nd-page > .\@container > a:active {
+    transform: scale(0.985);
+  }
+  #nd-docs-layout :is(button, [role='button']):not(:disabled):active {
+    transform: scale(0.96);
+    transition-duration: var(--t-press);
+  }
+
+  /* below-the-fold blocks rise once as they arrive (components/docs/motion.tsx arms them; no script, no hiding) */
+  [data-reveal='wait'] {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  [data-reveal='in'] {
+    transition:
+      opacity 640ms var(--ease-out),
+      transform 760ms var(--ease-out),
+      background-color var(--t-hover) ease;
+    transition-delay: calc(var(--reveal-step, 0) * 70ms), calc(var(--reveal-step, 0) * 70ms), 0ms;
+  }
+  [data-reveal-kind='settle'][data-reveal='wait'] {
+    transform: translateY(10px) scale(0.985);
+  }
+  /* steps fade only: a transform would move each step's numbered marker off the spine */
+  [data-reveal-kind='fade'][data-reveal='wait'] {
+    transform: none;
+  }
+
+  /* a transcript prints line by line, as claudio's terminal does */
+  [data-reveal-kind='lines'][data-reveal='wait'] {
+    opacity: 1;
+    transform: none;
+  }
+  [data-reveal-kind='lines'][data-reveal='wait'] [data-line] {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  [data-reveal-kind='lines'][data-reveal='in'] [data-line] {
+    transition:
+      opacity 360ms var(--ease-out),
+      transform 420ms var(--ease-out);
+    transition-delay: calc(120ms + min(var(--i, 0), 10) * 60ms);
+  }
+
+  /* a linked setting flashes its row once */
+  .docs-row:target {
+    animation: docs-target 1400ms var(--ease-out) both;
+  }
+
+  /* the theme switch crossfades (components/docs/motion.tsx starts the view transition) */
+  ::view-transition-old(root) {
+    animation: 220ms ease both docs-fade-out;
+  }
+  ::view-transition-new(root) {
+    animation: 320ms ease both docs-fade-in;
+  }
+}
+
+@keyframes docs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes docs-target {
+  from {
+    background-color: var(--docs-accent-tint);
+  }
+}
+@keyframes docs-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes docs-fade-in {
+  from {
+    opacity: 0;
+  }
+}
