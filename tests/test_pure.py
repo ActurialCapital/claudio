@@ -234,3 +234,9 @@ def test_sun_mark_is_a_square_block_of_equal_rows():
     from claudio import ui
     rows = ui.sun()
     assert len(rows) == 6 and {len(r) for r in rows} == {12} and any(r.strip() for r in rows)
+
+
+def test_set_key_returns_the_value_and_prints_nothing(tmp_path, monkeypatch, capsys):
+    _scratch(tmp_path, monkeypatch)
+    assert config.set_key("voice", "aura-2-thalia-en") == "aura-2-thalia-en"
+    assert capsys.readouterr().out == ""      # claudio's own transcript is on screen when the brain changes a setting

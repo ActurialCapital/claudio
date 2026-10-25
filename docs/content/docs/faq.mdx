@@ -18,12 +18,13 @@ The brain runs through your Claude Code login, so it uses your Claude plan like 
 </Accordion>
 <Accordion title="Can it change my code?">
 
-No. The brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, use a few cmux commands to message, list, read and open sessions, and run `claudio set`. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+No. The brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
 
 </Accordion>
 <Accordion title="Can it answer a session's prompts for me?">
 
-No. For a permission prompt, it reads the prompt out and tells you which session asked. For a multiple-choice question, it reads the options and confirms your choice. Either way, you answer in that session's pane: the brain isn't allowed to press keys there.
+- **Permission prompts**: no. It reads the prompt out and tells you which session asked; you answer in that session's pane. The brain is told never to press keys for a permission prompt.
+- **Multiple-choice questions**: yes. It reads the options aloud, you say which one, it confirms, then selects it in the session's pane with `cmux send-key`.
 
 </Accordion>
 <Accordion title="Does the brain use my CLAUDE.md or my Claude Code settings?">

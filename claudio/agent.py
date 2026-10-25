@@ -127,7 +127,8 @@ class Brain:
 
     async def start(self):
         me = os.path.dirname(os.path.abspath(sys.argv[0]))      # so the brain can run `claudio set`
-        env = dict(os.environ, PATH=f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}")
+        env = {k: v for k, v in os.environ.items() if k.lower() not in config.SECRETS}   # the brain never needs the keys
+        env["PATH"] = f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}"
         resume = remembered_session()
         self.resumed, self.started_at = bool(resume), time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
@@ -139,6 +140,7 @@ class Brain:
             "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
             "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
             "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
+            "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
@@ -764,23 +766,31 @@ async def main():
         return (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={rate['in']}"
                 f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}&eot_timeout_ms={cfg['eot_timeout_ms']}")
 
+    def mtime(path):
+        """When the file last changed, or None while it is missing (moved aside, being replaced)."""
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return None
+
     async def watch_config():
         global cfg
-        stamp = os.path.getmtime(config.CONF)
-        persona = os.path.getmtime(config.PROMPT)
+        stamp = mtime(config.CONF)
+        persona = mtime(config.PROMPT)
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(brain.changed.wait(), 1.0)
             brain.changed.clear()
             await asyncio.sleep(0.2)          # let `claudio set` finish writing
-            if os.path.getmtime(config.PROMPT) != persona:        # the persona was edited: new brain, same memory
-                persona = os.path.getmtime(config.PROMPT)
+            now = mtime(config.PROMPT)
+            if now is not None and now != persona:        # the persona was edited: new brain, same memory
+                persona = now
                 ui.note("persona changed; brain restarting")
                 await brain.restart()
                 start("[event] Your persona prompt was just edited and you were restarted with it. "
                       "Say in a few words that you are back.", committed=True, event=True)
-            now = os.path.getmtime(config.CONF)
-            if now == stamp:
+            now = mtime(config.CONF)
+            if now is None or now == stamp:
                 continue
             stamp = now
             new = config.load()
@@ -829,7 +839,10 @@ async def main():
             ws = ears["ws"]
             if ws is None:
                 continue
-            if (speaking.locked() and not cfg["barge_in"]) or not status["gate_open"]:
+            # barge-in off: deaf only while a reply your turn has committed is playing, never during an
+            # eager start, or the rest of what you are saying would be lost
+            answering = live() and current["commit"].is_set()
+            if (answering and not cfg["barge_in"]) or not status["gate_open"]:
                 b = b"\x00" * len(b)
             else:
                 peak = max(abs(x) for x in array.array("h", b)[::8]) if len(b) >= 16 else 0

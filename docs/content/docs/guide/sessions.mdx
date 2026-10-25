@@ -97,7 +97,7 @@ Answer the prompt in that session's pane. claudio never answers a permission pro
 
 ### A session asks you to choose
 
-When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood. Then pick that option in the session's pane: the brain isn't allowed to press keys in a session.
+When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then selects that option in the session's pane: it presses `down` once per option before yours, then `enter`, with `cmux send-key`. You can always pick it in the pane yourself instead.
 
 ```transcript
 ▸ Sequencer  asks you to choose
