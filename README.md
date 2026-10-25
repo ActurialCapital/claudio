@@ -5,6 +5,7 @@
   <b>A voice in front of your Claude Code sessions.</b>
 </p>
 <p align="center">
+  <a href="https://claudio-vert.vercel.app/docs"><img alt="docs" src="https://img.shields.io/badge/docs-claudio--vert.vercel.app-dd7627"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-dd7627"></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-dd7627">
   <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-dd7627">
@@ -28,6 +29,8 @@ cd ~/code/myproject && claudio
 ```
 
 The first run is a short setup: your [Deepgram](https://console.deepgram.com) key, the cmux workspace that is your orchestrator, a voice, the brain's model and effort. It installs the Claude Code hooks for you. `claudio doctor` checks everything afterwards.
+
+**Full documentation: [claudio-vert.vercel.app/docs](https://claudio-vert.vercel.app/docs)**, from setup to every setting and what to do when something goes wrong.
 
 ## ⚙️ How it works
 

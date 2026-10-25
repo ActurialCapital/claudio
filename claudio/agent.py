@@ -306,7 +306,7 @@ class DeepgramMouth:
 
 class ElevenMouth:
     """ElevenLabs over its stream-input socket: text + flush per sentence, base64 PCM back, isFinal at the end.
-    Untested against a live key when written; the protocol is from ElevenLabs' websocket reference."""
+    Checked against the live API (eleven_flash_v2_5, 2026-10-25): audio per sentence, isFinal at the end."""
     def __init__(self):
         self.ws, self.sent, self.final = None, 0, False
         self.ends, self.chars, self.current = [], 0, 0   # cumulative text ends per sentence; chars heard so far

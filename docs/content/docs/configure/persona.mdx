@@ -23,6 +23,12 @@ The packaged persona sets out a few things. Keep them in mind when you edit:
 - **How to narrate events**: finishes in plain words, permission prompts read out but never answered, choices read out numbered.
 - **How to change settings** with `claudio set`.
 
+It also carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced groups of three, no inflated significance, at most one hedge, no chatbot wrapper, and stop on the last fact.
+
+<Callout>
+The persona is copied to `~/.config/claudio/prompt.md` only on the first run. To pick up rules added in a later version, copy the packaged `prompt.md` over yours, or merge the new lines into your own edits.
+</Callout>
+
 ### Placeholders
 
 Two placeholders are filled in when the brain starts:
