@@ -1,0 +1,77 @@
+---
+title: Talking to claudio
+description: How a turn ends, how to interrupt, and the commands you can say or type.
+---
+
+There is no wake word and no grammar to learn. Talk as you would to someone sitting next to you. claudio sorts each turn into one of two kinds:
+
+- **Discussing.** You are thinking out loud, asking what something is, or weighing options. It answers itself, briefly, reading the project when it needs facts.
+- **Doing.** You want work done in the code, the repo or the plan. It hands the work to a session and says in one sentence what it handed over and to whom. It never does the work itself.
+
+## When your turn ends
+
+Deepgram Flux listens continuously and decides when you have finished. Two numbers matter:
+
+- At `eager_eot` confidence (0.3 by default) the brain **starts** on your words. Its reply is generated, and its first sentences are even synthesized, but nothing plays yet.
+- At `eot` confidence (0.7 by default) your turn is **final**. If the final words match what the brain started on, the held audio plays at once. If they differ, that early reply is dropped and a new one starts.
+- If you go quiet for `eot_timeout_ms` (1500 ms by default) your turn ends whatever the confidence.
+
+If you start talking again before the turn is final, the early reply is dropped. The state line shows how long the last reply took to its first word. Over three seconds, it warns you.
+
+[Listening and turns](/docs/configure/listening) explains how to tune these numbers.
+
+## Talking over it
+
+With `barge_in` on, which is the default, you can talk while it speaks.
+
+1. The moment you start, the reply **pauses** and the state line reads `paused`.
+2. If what you said is a real turn, the reply is cut and your words become the next turn.
+3. If it was only a backchannel ("mm-hm", "yeah", "ok", "right") or a noise, the reply **carries on** from a sentence back.
+4. If you say nothing that ends a turn within three seconds, the reply carries on too.
+
+A backchannel is fewer than two words, or only filler words. The full list is in the [spoken commands reference](/docs/reference/spoken#backchannels).
+
+<Callout>
+On speakers, talking over it needs the echo canceller, or claudio hears itself. It is built from a small Swift file the first time you run claudio, if the Xcode command line tools are installed. Without them, use headphones.
+</Callout>
+
+With `barge_in` off, the mic sends silence while claudio speaks. Press <kbd>Enter</kbd> to cut a reply instead.
+
+## Spoken commands
+
+Say "slash" and a command. Up to two filler words before "slash" are fine ("um, slash mute"). The word has to come near the start of the turn, so "add a slash command" is not a command.
+
+| Say | What happens |
+|---|---|
+| "slash clear" | forgets the conversation and restarts the brain on a fresh one |
+| "slash stop" | cuts the current reply |
+| "slash mute" · "slash unmute" | stops listening, and narrating, until you unmute |
+| "slash status" | says the orchestrator, model, effort, voice and memory |
+| "slash help" | says the list of commands |
+| "slash model sonnet" | `default`, `sonnet`, `opus` or `haiku`; restarts the brain |
+| "slash effort high" | `low`, `medium` or `high`; restarts the brain |
+| "slash style brief" | `plain`, `brief` or `caveman`; restarts the brain |
+| "slash voice thalia" | any Aura-2 voice by name; the confirmation is already in the new voice |
+
+While muted, "slash unmute" is the only thing it hears.
+
+You can also change settings in plain words: "use Sonnet", "make the orchestrator Core". The brain runs `claudio set` for you, and the change is kept for next time.
+
+## Typing
+
+Typing works alongside talking, for when you cannot talk.
+
+- **A line of text** is a turn, as if you had said it.
+- **A line starting with `/`** is a slash command: `/mute`, `/effort low`, `/clear`.
+- **<kbd>Enter</kbd> on an empty line** cuts the current reply. With push-to-talk on, it opens the mic instead.
+- **<kbd>Ctrl</kbd>+<kbd>C</kbd>** quits.
+
+## Memory
+
+The brain remembers your conversation across restarts, for up to a week. Start claudio again tomorrow and it picks up where you left off. The banner shows `memory on` when it resumed and `memory fresh` when it did not.
+
+- "slash clear" starts a fresh conversation now.
+- `claudio forget` does the same from the shell, for the next start.
+- `claudio set memory false` turns memory off.
+
+Memory is the brain's own context. For "what did we do yesterday", the brain reads that day's [transcript file](/docs/guide/on-screen#transcripts) instead, because a long memory mixes up the days.

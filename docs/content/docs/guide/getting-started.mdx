@@ -1,0 +1,102 @@
+---
+title: Getting started
+description: Install claudio, answer a few setup questions, and check everything with the doctor.
+---
+
+<Steps>
+<Step>
+
+### Install
+
+```bash
+uv tool install git+https://github.com/ActurialCapital/claudio
+```
+
+This puts a `claudio` command on your path.
+
+</Step>
+<Step>
+
+### Run it from a project
+
+```bash
+cd ~/code/myproject && claudio
+```
+
+Run it from the project you want to talk about. The brain reads files in the directory it starts in, and a `.claudio.json` there can [override settings](/docs/configure/settings#per-project) for that project.
+
+</Step>
+<Step>
+
+### Answer the setup questions
+
+The first run is a short wizard. It checks that `claude` and cmux are installed, then asks for:
+
+1. **Your Deepgram key.** It is tested against Deepgram before it is saved. You get three tries.
+2. **The orchestrator.** The cmux workspace that gets your tasks by default, picked from the workspaces cmux has open.
+3. **A voice.** One of six Aura-2 voices. Any other Aura-2 voice works later with `claudio set voice`.
+4. **The brain's model and effort.** `default` and `low` are a good start.
+5. **Barge-in.** Whether talking over it pauses it.
+
+The settings go to `~/.config/claudio/config.json` and the key to `secrets.json` beside it, readable only by you.
+
+</Step>
+<Step>
+
+### Install the hooks
+
+Setup offers to add three hooks to `~/.claude/settings.json`: `Stop`, `Notification`, and `PreToolUse` for `AskUserQuestion`. They are how your sessions report back. Say yes.
+
+Your existing settings are kept, and a backup is written to `settings.json.bak-claudio`. You can add or remove the hooks any time with `claudio install` and `claudio uninstall`.
+
+<Callout type="warn">
+Sessions only load hooks when they start. Restart any Claude Code session that was already running, or it will not report back.
+</Callout>
+
+</Step>
+<Step>
+
+### Check everything
+
+```bash
+claudio doctor
+```
+
+The doctor checks each part in order and finishes with one typed turn through the brain and the mouth. You should hear "the doctor is in."
+
+<Transcript>{`
+  ✓ claude on PATH
+  ✓ claude version 2.x.x (Claude Code)
+  ✓ cmux reachable
+  ✓ orchestrator 'Sequencer' is a live workspace
+  ✓ Deepgram key set
+  ✓ Deepgram key accepted
+  ✓ the three Claude Code hooks installed
+  ✓ echo canceller built or buildable
+  ✓ microphone: MacBook Pro Microphone
+  ✓ persona prompt present
+`}</Transcript>
+
+A line with ✗ shows what to do next to it. [Troubleshooting](/docs/troubleshooting) covers each one.
+
+</Step>
+</Steps>
+
+## The first conversation
+
+Run `claudio`. On the first start it builds the echo canceller, which takes a few seconds and happens once. Then it prints its banner, warms up the brain, and the state line reads `listening`.
+
+Ask it something about the project. Then ask for some work, and watch the orchestrator pick it up.
+
+<Transcript>{`
+› what's on the roadmap for this week?
+◆ Checking the roadmap.
+  → reading ROADMAP.md
+◆ Two things: the export screen and the retry logic for uploads.
+  Want the retry logic handed to Sequencer?
+› yes, do that
+◆ Sending that to Sequencer.
+  → cmux agent message
+`}</Transcript>
+
+<kbd>Enter</kbd> cuts a reply. <kbd>Ctrl</kbd>+<kbd>C</kbd> quits.

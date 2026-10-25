@@ -1,18 +1,15 @@
 <p align="center">
-  <img src="assets/avatar.png" alt="claudio" width="260">
-</p>
-<p align="center">
-  <img src="assets/wordmark.png" alt="claudio" width="380">
+  <img src="assets/banner.jpg" alt="claudio: talk, and your sessions work" width="100%">
 </p>
 <p align="center">
   <b>A voice in front of your Claude Code sessions.</b>
 </p>
 <p align="center">
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-0d9488"></a>
-  <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-0d9488">
-  <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-0d9488">
-  <img alt="ears & mouth" src="https://img.shields.io/badge/ears%20%26%20mouth-Deepgram-0d9488">
-  <img alt="brain" src="https://img.shields.io/badge/brain-Claude%20Code-0d9488">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-dd7627"></a>
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-dd7627">
+  <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-dd7627">
+  <img alt="ears & mouth" src="https://img.shields.io/badge/ears%20%26%20mouth-Deepgram-dd7627">
+  <img alt="brain" src="https://img.shields.io/badge/brain-Claude%20Code-dd7627">
 </p>
 
 <br>

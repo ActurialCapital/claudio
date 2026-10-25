@@ -1,0 +1,305 @@
+{
+  "settings": [
+    {
+      "key": "orchestrator",
+      "type": "text",
+      "default": "",
+      "choices": [],
+      "range": null,
+      "help": "cmux workspace that gets tasks by default",
+      "secret": false,
+      "env": "CLAUDIO_ORCHESTRATOR",
+      "may_be_empty": true
+    },
+    {
+      "key": "model",
+      "type": "text",
+      "default": "default",
+      "choices": [
+        "default",
+        "sonnet",
+        "opus",
+        "haiku"
+      ],
+      "range": null,
+      "help": "the brain's model, through your Claude Code login",
+      "secret": false,
+      "env": "CLAUDIO_MODEL",
+      "may_be_empty": false
+    },
+    {
+      "key": "effort",
+      "type": "text",
+      "default": "low",
+      "choices": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "range": null,
+      "help": "how hard the brain thinks before it answers",
+      "secret": false,
+      "env": "CLAUDIO_EFFORT",
+      "may_be_empty": false
+    },
+    {
+      "key": "voice",
+      "type": "text",
+      "default": "aura-2-orion-en",
+      "choices": [],
+      "range": null,
+      "help": "any Deepgram Aura-2 voice",
+      "secret": false,
+      "env": "CLAUDIO_VOICE",
+      "may_be_empty": false
+    },
+    {
+      "key": "ears",
+      "type": "text",
+      "default": "flux-general-en",
+      "choices": [],
+      "range": null,
+      "help": "Deepgram Flux model; flux-general-multi for other languages",
+      "secret": false,
+      "env": "CLAUDIO_EARS",
+      "may_be_empty": false
+    },
+    {
+      "key": "eager_eot",
+      "type": "number",
+      "default": 0.3,
+      "choices": [],
+      "range": [
+        0.0,
+        1.0
+      ],
+      "help": "confidence at which the brain starts on a turn early, before you have surely finished",
+      "secret": false,
+      "env": "CLAUDIO_EAGER_EOT",
+      "may_be_empty": false
+    },
+    {
+      "key": "eot",
+      "type": "number",
+      "default": 0.7,
+      "choices": [],
+      "range": [
+        0.0,
+        1.0
+      ],
+      "help": "confidence at which your turn counts as finished",
+      "secret": false,
+      "env": "CLAUDIO_EOT",
+      "may_be_empty": false
+    },
+    {
+      "key": "eot_timeout_ms",
+      "type": "integer",
+      "default": 1500,
+      "choices": [],
+      "range": [
+        100,
+        10000
+      ],
+      "help": "silence after which your turn ends whatever the confidence",
+      "secret": false,
+      "env": "CLAUDIO_EOT_TIMEOUT_MS",
+      "may_be_empty": false
+    },
+    {
+      "key": "barge_in",
+      "type": "boolean",
+      "default": true,
+      "choices": [],
+      "range": null,
+      "help": "talking over it pauses it",
+      "secret": false,
+      "env": "CLAUDIO_BARGE_IN",
+      "may_be_empty": false
+    },
+    {
+      "key": "memory",
+      "type": "boolean",
+      "default": true,
+      "choices": [],
+      "range": null,
+      "help": "resume the last conversation, up to a week old",
+      "secret": false,
+      "env": "CLAUDIO_MEMORY",
+      "may_be_empty": false
+    },
+    {
+      "key": "push_to_talk",
+      "type": "boolean",
+      "default": false,
+      "choices": [],
+      "range": null,
+      "help": "the mic stays closed until you press Enter, for one turn",
+      "secret": false,
+      "env": "CLAUDIO_PUSH_TO_TALK",
+      "may_be_empty": false
+    },
+    {
+      "key": "address_me",
+      "type": "boolean",
+      "default": false,
+      "choices": [],
+      "range": null,
+      "help": "only turns that start with \"claudio\" count, for a room with other people",
+      "secret": false,
+      "env": "CLAUDIO_ADDRESS_ME",
+      "may_be_empty": false
+    },
+    {
+      "key": "narrate",
+      "type": "text",
+      "default": "handed-off",
+      "choices": [
+        "handed-off",
+        "all",
+        "none"
+      ],
+      "range": null,
+      "help": "which sessions' finishes to narrate",
+      "secret": false,
+      "env": "CLAUDIO_NARRATE",
+      "may_be_empty": false
+    },
+    {
+      "key": "mouth",
+      "type": "text",
+      "default": "deepgram",
+      "choices": [
+        "deepgram",
+        "elevenlabs"
+      ],
+      "range": null,
+      "help": "who speaks: Deepgram Aura or ElevenLabs",
+      "secret": false,
+      "env": "CLAUDIO_MOUTH",
+      "may_be_empty": false
+    },
+    {
+      "key": "style",
+      "type": "text",
+      "default": "plain",
+      "choices": [
+        "plain",
+        "brief",
+        "caveman"
+      ],
+      "range": null,
+      "help": "how it talks: plain, brief (one sentence) or caveman",
+      "secret": false,
+      "env": "CLAUDIO_STYLE",
+      "may_be_empty": false
+    },
+    {
+      "key": "elevenlabs_voice",
+      "type": "text",
+      "default": "pNInz6obpgDQGcFmaJgB",
+      "choices": [],
+      "range": null,
+      "help": "ElevenLabs voice id, when mouth is elevenlabs",
+      "secret": false,
+      "env": "CLAUDIO_ELEVENLABS_VOICE",
+      "may_be_empty": false
+    },
+    {
+      "key": "deepgram_api_key",
+      "type": "text",
+      "default": "",
+      "choices": [],
+      "range": null,
+      "help": "Deepgram key, for ears and the Aura mouth",
+      "secret": true,
+      "env": "DEEPGRAM_API_KEY",
+      "may_be_empty": false
+    },
+    {
+      "key": "elevenlabs_api_key",
+      "type": "text",
+      "default": "",
+      "choices": [],
+      "range": null,
+      "help": "ElevenLabs key, when mouth is elevenlabs",
+      "secret": true,
+      "env": "ELEVENLABS_API_KEY",
+      "may_be_empty": false
+    }
+  ],
+  "commands": [
+    {
+      "usage": "claudio",
+      "help": "talk (runs setup the first time)"
+    },
+    {
+      "usage": "claudio setup",
+      "help": "the wizard again"
+    },
+    {
+      "usage": "claudio doctor",
+      "help": "check everything and run one typed turn"
+    },
+    {
+      "usage": "claudio install",
+      "help": "add the Claude Code hooks to ~/.claude/settings.json"
+    },
+    {
+      "usage": "claudio uninstall",
+      "help": "remove them"
+    },
+    {
+      "usage": "claudio forget",
+      "help": "drop the brain's memory of past conversations"
+    },
+    {
+      "usage": "claudio set <key> <value>",
+      "help": "change one setting"
+    },
+    {
+      "usage": "claudio hook <event>",
+      "help": "what the hooks call"
+    }
+  ],
+  "voices": [
+    {
+      "id": "aura-2-orion-en",
+      "description": "male, calm, approachable"
+    },
+    {
+      "id": "aura-2-arcas-en",
+      "description": "male, smooth, clear"
+    },
+    {
+      "id": "aura-2-apollo-en",
+      "description": "male, confident, casual"
+    },
+    {
+      "id": "aura-2-thalia-en",
+      "description": "female, clear, confident"
+    },
+    {
+      "id": "aura-2-asteria-en",
+      "description": "female, knowledgeable, energetic"
+    },
+    {
+      "id": "aura-2-athena-en",
+      "description": "female, calm, professional"
+    }
+  ],
+  "hooks": [
+    {
+      "event": "Stop",
+      "matcher": null
+    },
+    {
+      "event": "Notification",
+      "matcher": null
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "AskUserQuestion"
+    }
+  ]
+}

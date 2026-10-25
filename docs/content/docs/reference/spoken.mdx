@@ -1,0 +1,52 @@
+---
+title: Spoken and typed commands
+description: Slash commands, keys, and the words that count as a backchannel.
+---
+
+## Slash commands
+
+Say "slash" and the command, or type `/` and the command.
+
+| Command | Argument | Effect |
+|---|---|---|
+| `clear` | | forgets the conversation and restarts the brain fresh |
+| `stop` | | cuts the current reply |
+| `mute` | | hears and narrates nothing until unmuted |
+| `unmute` | | listens again |
+| `status` | | says the orchestrator, model, effort, voice and memory |
+| `help` | | says the list of commands |
+| `model` | `default` `sonnet` `opus` `haiku` | changes the brain's model; it restarts |
+| `effort` | `low` `medium` `high` | changes the brain's effort; it restarts |
+| `style` | `plain` `brief` `caveman` | changes how it talks; it restarts |
+| `voice` | an Aura-2 name, e.g. `thalia` | changes the voice from this reply on |
+
+Spoken, "slash" may follow up to two filler words, and must start the turn otherwise. An unknown command gets the help list read back. A model or effort it does not know gets the valid choices read back.
+
+## Keys
+
+| Key | Effect |
+|---|---|
+| <kbd>Enter</kbd> on an empty line | cuts the reply; with push-to-talk, opens the mic |
+| a typed line, then <kbd>Enter</kbd> | a turn |
+| `/` and a command, then <kbd>Enter</kbd> | a slash command |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd> | quits |
+
+## Backchannels
+
+While a reply is paused because you started talking, a turn is a **backchannel**, and the reply carries on, when it is fewer than two words or made only of these words:
+
+```text
+yeah yes yep ok okay mm mhm hmm uh huh um right sure oh ah no
+```
+
+Anything else cuts the reply and becomes the next turn.
+
+## The marker
+
+Work handed to a session starts with this, so the session knows the words are yours:
+
+```text
+[spoken by the user, transcribed by claudio]
+```
+
+The message is sent with `--from Voice`.

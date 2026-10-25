@@ -224,3 +224,13 @@ def test_eleven_mouth_maps_audio_to_sentences_by_character_position():
         m.current = next((n for n, end in enumerate(m.ends) if start < end), max(0, len(m.ends) - 1))
         seen.append(m.got)
     assert seen == [0, 1, 1, 2]
+
+
+def test_every_setting_has_a_description():
+    assert set(config.HELP) == set(config.DEFAULTS)
+
+
+def test_sun_mark_is_a_square_block_of_equal_rows():
+    from claudio import ui
+    rows = ui.sun()
+    assert len(rows) == 6 and {len(r) for r in rows} == {12} and any(r.strip() for r in rows)

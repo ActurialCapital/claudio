@@ -24,6 +24,24 @@ DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "a
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
+HELP = {"orchestrator": "cmux workspace that gets tasks by default",
+        "model": "the brain's model, through your Claude Code login",
+        "effort": "how hard the brain thinks before it answers",
+        "voice": "any Deepgram Aura-2 voice",
+        "ears": "Deepgram Flux model; flux-general-multi for other languages",
+        "eager_eot": "confidence at which the brain starts on a turn early, before you have surely finished",
+        "eot": "confidence at which your turn counts as finished",
+        "eot_timeout_ms": "silence after which your turn ends whatever the confidence",
+        "barge_in": "talking over it pauses it",
+        "memory": "resume the last conversation, up to a week old",
+        "push_to_talk": "the mic stays closed until you press Enter, for one turn",
+        "address_me": "only turns that start with \"claudio\" count, for a room with other people",
+        "narrate": "which sessions' finishes to narrate",
+        "mouth": "who speaks: Deepgram Aura or ElevenLabs",
+        "style": "how it talks: plain, brief (one sentence) or caveman",
+        "elevenlabs_voice": "ElevenLabs voice id, when mouth is elevenlabs",
+        "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
+        "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
 KINDS = {k: (lambda v: v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)
          for k, d in DEFAULTS.items()}

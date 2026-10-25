@@ -1,0 +1,66 @@
+---
+title: FAQ
+description: Short answers to the common questions.
+---
+
+<Accordions type="multiple">
+<Accordion title="Does it work on Linux or Windows?">
+
+Not today. The echo canceller is Apple's voice-processing unit, and the sessions live in cmux, which is a Mac app.
+
+</Accordion>
+<Accordion title="What does it cost?">
+
+The brain runs through your Claude Code login, so it uses your Claude plan like any other session. Deepgram bills the listening and the speaking. ElevenLabs bills the speaking if you use it.
+
+</Accordion>
+<Accordion title="Can it change my code?">
+
+No. The brain can read files, search, and run a few read-only git commands. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+
+</Accordion>
+<Accordion title="Can it approve a permission prompt for me?">
+
+No. It reads the prompt out and tells you which session asked. You answer on that session's keyboard. It can pick an option in a multiple-choice question, if you tell it which one.
+
+</Accordion>
+<Accordion title="Does the brain use my CLAUDE.md or my Claude Code settings?">
+
+No. It starts with no settings sources, so its behaviour comes only from the [persona](/docs/configure/persona) and claudio's own rules. Your sessions use your settings as usual.
+
+</Accordion>
+<Accordion title="Where does my audio go?">
+
+To Deepgram, to be transcribed, and the replies' text to Deepgram or ElevenLabs, to be spoken. The transcripts and logs stay on your Mac, under `~/.config/claudio`.
+
+</Accordion>
+<Accordion title="Can I use it in another language?">
+
+Set `ears` to `flux-general-multi`, then edit the persona so it answers in your language, and pick a voice that speaks it.
+
+</Accordion>
+<Accordion title="Can I use it with other people in the room?">
+
+Turn on `address_me`. Only turns that start with "claudio" count.
+
+</Accordion>
+<Accordion title="How do I use different settings per project?">
+
+Put a `.claudio.json` in the project and run claudio from there. Any setting except the keys can go in it.
+
+</Accordion>
+<Accordion title="Why does it sometimes say 'Looking.' or 'Checking.'?">
+
+The persona asks the brain to say what it is about to do before any tool call. When it skips that, claudio says one word for it, so you never sit through silence while it reads.
+
+</Accordion>
+<Accordion title="How do I remove it?">
+
+```bash
+claudio uninstall          # removes the hooks
+uv tool uninstall claudio
+rm -rf ~/.config/claudio   # settings, keys, transcripts
+```
+
+</Accordion>
+</Accordions>

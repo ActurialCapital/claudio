@@ -1,0 +1,54 @@
+---
+title: Commands
+description: Every claudio shell command.
+---
+
+<Commands />
+
+This list is generated from the code, so it always matches the installed version.
+
+## Details
+
+### `claudio`
+
+Talks. Runs setup first if there is no `config.json` yet. Run it from the project you want to talk about.
+
+### `claudio setup`
+
+The first-run wizard, again. Each question defaults to your current value, so <kbd>Enter</kbd> keeps it. A stored Deepgram key is kept unless you type a new one.
+
+### `claudio doctor`
+
+Checks, in order: `claude` on your path and its version, cmux, the orchestrator, the Deepgram key, the three hooks, the echo canceller, the microphone, and the persona file. Then it runs one typed turn through the brain and the mouth.
+
+### `claudio install` · `claudio uninstall`
+
+Adds or removes the hooks in `~/.claude/settings.json`. Your other settings are kept, and the file behind a symlink is the one written. A backup goes to `settings.json.bak-claudio`. If the file is not valid JSON, or its hooks section is shaped differently from what Claude Code writes, nothing is changed and you are told why.
+
+### `claudio forget`
+
+Deletes the remembered conversation. The next start is fresh.
+
+### `claudio set <key> <value>`
+
+Checks and saves one global setting. A running claudio picks it up within a second. Keys cannot be set this way; use `claudio setup` or `secrets.json`.
+
+```bash
+claudio set narrate all
+claudio set eot_timeout_ms 2000
+```
+
+### `claudio hook <event>`
+
+What the Claude Code hooks call. It reads the hook's JSON on stdin and sends a short report to the running claudio over a local socket. When claudio is not running it exits at once.
+
+## Environment
+
+| Variable | Effect |
+|---|---|
+| `CLAUDIO_<KEY>` | overrides one setting for one run, e.g. `CLAUDIO_STYLE=brief` |
+| `DEEPGRAM_API_KEY` | the Deepgram key, over `secrets.json` |
+| `ELEVENLABS_API_KEY` | the ElevenLabs key, over `secrets.json` |
+| `XDG_CONFIG_HOME` | moves `~/.config/claudio` to `$XDG_CONFIG_HOME/claudio` |
+| `CLAUDIO_TEXT` | runs one typed turn with this text and exits, no mic; the doctor uses it |
+| `CMUX_BUNDLED_CLI_PATH` | the `cmux` binary to use, if not on your path |
