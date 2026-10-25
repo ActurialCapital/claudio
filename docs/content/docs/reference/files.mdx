@@ -1,37 +1,41 @@
 ---
 title: Files and paths
-description: Everything claudio reads and writes, and where.
+description: Everything claudio reads and writes, where it lives, and what the brain may run.
 ---
 
-All under `~/.config/claudio`, or `$XDG_CONFIG_HOME/claudio` when that is set.
+claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio` when `XDG_CONFIG_HOME` is set:
 
 | Path | What it is |
 |---|---|
 | `config.json` | your settings |
 | `secrets.json` | your API keys, mode 600 |
-| `prompt.md` | the persona, copied from the package on first run |
-| `transcripts/YYYY-MM-DD.md` | every conversation, one file a day |
-| `session` | the remembered brain session and when it was saved |
-| `brain.log` | the brain's errors, appended |
-| `helper.log` | the echo canceller's errors, rewritten each run |
-| `bin/claudio-audio` | the echo canceller, built from `audio.swift` |
+| `prompt.md` | the [persona](/docs/configure/persona), copied from the package on first run |
+| `transcripts/YYYY-MM-DD.md` | each day's conversation: your turns, its replies, session reports and setting changes, one line each with the time |
+| `session` | the remembered brain session id and when it started |
+| `brain.log` | the brain's error output, appended across runs |
+| `helper.log` | the echo canceller's error output, rewritten each run |
+| `bin/claudio-audio` | the echo canceller, built once from `audio.swift`, and rebuilt when that file is newer |
 
-Elsewhere:
+The `session` file is used only when `memory` is on and it is less than a week old. `claudio forget` and “slash clear” delete it. A key left in `config.json` by an older version is moved to `secrets.json` the next time the settings are read.
+
+claudio also uses these paths:
 
 | Path | What it is |
 |---|---|
-| `.claudio.json` in the current directory | per-project setting overrides |
-| `~/.claude/settings.json` | where the hooks are installed |
-| `~/.claude/settings.json.bak-claudio` | the backup taken before each install or uninstall |
-| `/tmp/claudio-<uid>.sock` | the socket the hooks report to, while claudio runs |
+| `.claudio.json` in the current directory | [per-project settings](/docs/configure/settings#per-project) |
+| `~/.claude/settings.json` | where `claudio install` adds the hooks |
+| `settings.json.bak-claudio` | the copy taken before each install or uninstall, next to the real `settings.json` behind any symlink |
+| `/tmp/claudio-<uid>.sock` | the socket the hooks report to, present only while claudio runs |
 
 ## What the brain may do
 
-The brain is a `claude -p` process with a short list of allowed tools. It runs with no settings sources, so your own Claude Code settings and hooks do not apply to it.
+The brain is one `claude -p` process, started in the directory you ran claudio from. It loads no Claude Code settings files, so the permissions, hooks and environment in your `settings.json` files do not apply to it. It does read `CLAUDE.md` files, both the project's and your own, like any Claude Code session. It may use only:
 
-- **Read** files, and search with **Grep** and **Glob**. It may not read `secrets.json`.
-- **git**: `status`, `log`, `diff`, `branch`.
-- **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface`.
-- **claudio set**, to change a setting when you ask.
+- **Read**, **Grep** and **Glob**, on any file except `secrets.json`
+- **git**: `status`, `log`, `diff` and `branch`
+- **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface` and `send-key`
+- **claudio set**, to change a setting when you ask
 
-Nothing else: no edits, no other shell commands. Work goes to your sessions.
+It cannot edit files or run other commands. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
+
+Its model and effort come from the `model` and `effort` settings. With `model` set to `default`, it uses your Claude Code default.

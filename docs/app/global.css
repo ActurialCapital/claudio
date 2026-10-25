@@ -188,6 +188,13 @@ h1, h2, h3 {
   backdrop-filter: none;
   background-color: var(--color-fd-card);
 }
+/* on a phone, long commands scroll sideways under the button: give the button its own column, so the code
+   stops short of it instead (blocks with a title carry the button in their title bar and need nothing) */
+@media (max-width: 767px) {
+  #nd-page figure.shiki > div.absolute + [role='region'] {
+    margin-right: calc(var(--spacing) * 10);
+  }
+}
 #nd-page [style*='--callout-color'] .text-fd-muted-foreground {
   color: var(--color-fd-foreground);
 }

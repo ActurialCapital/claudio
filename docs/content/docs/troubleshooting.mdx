@@ -1,102 +1,216 @@
 ---
 title: Troubleshooting
-description: Find the fix by what you notice.
+description: Find the fix by what you notice or the message you see.
 ---
 
-Start with `claudio doctor`. It checks every part in order, and each ✗ line says what to do. If that is all green, find what you notice below.
+Start with `claudio doctor`, from your project directory. It checks every part in order, and each ✗ line names the fix. [Commands](/docs/reference/cli#claudio-doctor) lists each check.
 
-The two logs are `~/.config/claudio/brain.log` and `~/.config/claudio/helper.log`.
+If every line is ✓, find what you notice below. Warnings start with `!` in the transcript, and notes with `·`. Two logs hold the details:
+
+```bash
+tail -n 20 ~/.config/claudio/brain.log
+cat ~/.config/claudio/helper.log
+```
+
+## Listening
 
 <Accordions type="multiple">
-<Accordion title="It doesn't hear me">
+<Accordion title="It doesn't hear me" id="it-doesnt-hear-me">
 
-Look at the state line.
+Look at the state line under the transcript:
 
-- **The level bar stays flat.** macOS has not given your terminal the microphone. Open System Settings → Privacy & Security → Microphone and turn it on for cmux, or the terminal you run claudio in. Then restart claudio.
-- **It reads `muted · say /unmute`.** Say "slash unmute" or type `/unmute`.
-- **It reads `push to talk · Enter opens the mic`.** Press <kbd>Enter</kbd> before you talk, or `claudio set push_to_talk false`.
-- **Your words show dim.** `address_me` is on, so only turns that start with "claudio" count.
-- **It reads `ears lost · reconnecting`.** Deepgram cannot be reached. It retries with growing waits, up to 15 seconds apart. Check your connection, then `claudio doctor` for the key.
+- **The level bar stays flat**: macOS has not given your terminal the microphone. Open System Settings, then Privacy & Security, then Microphone, and turn it on for cmux or the terminal you run claudio in. Restart claudio.
+- **It reads `muted · say /unmute`**: say “slash unmute”, or type `/unmute`.
+- **It reads `push to talk · Enter opens the mic`**: press <kbd>Enter</kbd> before you talk, or turn push to talk off with `claudio set push_to_talk false`.
+- **Your words show dim**: `address_me` is on, so only turns that start with “claudio” count. Turn it off with `claudio set address_me false`.
+- **It reads `ears lost · reconnecting`**: see [ears lost](#ears-lost).
 
 </Accordion>
-<Accordion title="It hears itself, or stops itself mid-reply">
+<Accordion title="· ears lost (…); reconnecting in 1s" id="ears-lost">
 
-The banner says `echo cancel off`, so the mic hears the speakers.
+claudio cannot reach Deepgram Flux. It retries after 1, 2, 4 and 8 seconds, then every 15 seconds, until it connects.
+
+Check your connection, then check the key with `claudio doctor`. If it never reconnects, check the `ears` setting: it must be a Flux model, such as `flux-general-en`.
+
+</Accordion>
+<Accordion title="It cuts me off before I finish" id="cuts-me-off">
+
+Your turn ends too early. Wait longer for it:
+
+```bash
+claudio set eot 0.8
+claudio set eot_timeout_ms 2500
+```
+
+[Listening and turns](/docs/configure/listening#tune-when-your-turn-ends) explains both settings.
+
+</Accordion>
+<Accordion title="It waits too long after I stop" id="waits-too-long">
+
+Your turn ends too late. End it sooner:
+
+```bash
+claudio set eot 0.6
+```
+
+If it still waits, lower `eot_timeout_ms` to `1000`.
+
+</Accordion>
+<Accordion title="It hears itself, or stops itself mid-reply" id="hears-itself">
+
+The banner reads `echo cancel off`, so the mic hears the speakers. Pick one fix:
 
 - Install the Xcode command line tools with `xcode-select --install`, then restart claudio. It builds the echo canceller once.
-- Or use headphones.
-- Or `claudio set barge_in false`, and cut replies with <kbd>Enter</kbd>.
+- Use headphones.
+- Turn barge-in off with `claudio set barge_in false`, and cut replies with <kbd>Enter</kbd>.
 
 </Accordion>
-<Accordion title="! echo canceller stopped">
+<Accordion title="! echo canceller did not build; using the plain mic (headphones for barge-in)" id="echo-canceller-did-not-build">
 
-The echo-cancelling helper exited, and claudio switched to the plain mic and speaker. The warning ends with the helper's reason, which is also the last line of `helper.log`. Barge-in needs headphones until you restart.
+`swiftc` failed to build the echo canceller. The warning ends with the compiler's last lines. claudio carries on with the plain mic, so barge-in needs headphones.
 
-If it says the build failed, the Xcode tools are missing or broken. Reinstall them, then delete `~/.config/claudio/bin/claudio-audio` so it is rebuilt.
-
-</Accordion>
-<Accordion title="It cuts me off before I finish">
-
-Your turn ends too early. Raise `eot`, say to 0.8, and `eot_timeout_ms`, say to 2500. [Listening and turns](/docs/configure/listening) explains both.
+Reinstall the Xcode command line tools with `xcode-select --install`, then restart claudio. It tries the build again on every start until it succeeds.
 
 </Accordion>
-<Accordion title="It waits too long after I stop">
+<Accordion title="! echo canceller stopped: …; using the plain mic (headphones for barge-in)" id="echo-canceller-stopped">
 
-Lower `eot` to 0.6, or `eot_timeout_ms` to 1000.
+The echo canceller exited while claudio ran, and claudio switched to the plain mic and speaker for the rest of the run. The text after `stopped:` is the last line of `helper.log`. Until you restart, barge-in needs headphones.
 
-</Accordion>
-<Accordion title="! slow: 3.4 s to first word">
+If it stops on every run, delete the built helper so it is rebuilt on the next start:
 
-The reply took more than three seconds to start speaking. In order of effect:
-
-- `claudio set effort low`, if it is higher.
-- `claudio set model haiku` or `sonnet`, for a faster brain.
-- Lower `eager_eot`, so the brain starts on your words earlier.
-- If it was reading a big file first, that is the time it took. Ask narrower questions.
+```bash
+rm ~/.config/claudio/bin/claudio-audio
+```
 
 </Accordion>
-<Accordion title="A session never reports back">
+</Accordions>
+
+## Replies
+
+<Accordions type="multiple">
+<Accordion title="! slow: 3.4 s to first word" id="slow">
+
+The reply took more than 3 seconds from the end of your turn to its first word. The state line shows this time for a few seconds after each reply. To speed it up, from most to least effect:
+
+- Lower the effort, if you raised it: `claudio set effort low`.
+- Pick a faster model: `claudio set model haiku` or `claudio set model sonnet`.
+- Let the brain start earlier: `claudio set eager_eot 0.2`.
+
+</Accordion>
+<Accordion title="! mouth lost" id="mouth-lost">
+
+You see one of these:
+
+- `! mouth lost: the speech service is unreachable; text only`
+- `! mouth lost mid-reply; the rest is text only`
+
+claudio could not connect to the speech service, twice, one second apart. The reply is shown as text, and the next reply tries again. Check, in order:
+
+1. Your connection.
+2. The voice name, which claudio does not check: `claudio set voice aura-2-orion-en` restores the default.
+3. For ElevenLabs, the `elevenlabs_api_key` in `secrets.json` and the `elevenlabs_voice` id. `claudio set mouth deepgram` switches back to Aura.
+
+</Accordion>
+<Accordion title="It still speaks with Aura after switching to ElevenLabs" id="still-aura">
+
+`mouth` is `elevenlabs`, but claudio has no ElevenLabs key, so Deepgram speaks instead. Add `elevenlabs_api_key` to `~/.config/claudio/secrets.json`, then run `claudio set mouth elevenlabs` again so claudio reloads it. If you exported `ELEVENLABS_API_KEY`, restart claudio from that shell.
+
+</Accordion>
+<Accordion title="! the brain died; restarting it" id="brain-died">
+
+The `claude` process exited. claudio restarts it, and the brain says it is back and asks you to repeat yourself if you were mid-request.
+
+If it keeps happening, the reason is at the end of `brain.log`:
+
+```bash
+tail -n 20 ~/.config/claudio/brain.log
+```
+
+Then check that Claude Code works and is signed in, outside claudio:
+
+```bash
+claude -p "say hi"
+```
+
+</Accordion>
+<Accordion title="· the remembered conversation is gone; starting fresh" id="conversation-gone">
+
+claudio tried to resume the last conversation, and `claude` could not resume it. claudio drops it, starts a fresh brain once, and the brain says it starts fresh. Nothing to fix. Earlier days stay in the transcripts.
+
+</Accordion>
+<Accordion title="It talks too much, or too little" id="too-much">
+
+Switch the style: `claudio set style brief` for one sentence a reply, `plain` for the persona as written. For lasting changes, edit the [persona](/docs/configure/persona).
+
+</Accordion>
+</Accordions>
+
+## Sessions
+
+<Accordions type="multiple">
+<Accordion title="A session never reports back" id="no-reports">
+
+Check, in order:
 
 1. **The hooks are not installed.** `claudio doctor` shows it. Run `claudio install`.
-2. **The session started before the hooks.** Sessions load hooks when they start. Restart it.
-3. **It is not in cmux.** claudio only hears from sessions it can find in a cmux workspace.
-4. **You did not hand it the work.** With `narrate` set to `handed-off`, only finishes of work handed over in the last 30 minutes are narrated. `claudio set narrate all` narrates every finish.
-5. **You are muted**, or `narrate` is `none`.
+2. **The session started before the hooks.** A session loads its hooks when it starts. Restart it.
+3. **It is not in cmux.** claudio only hears from sessions in a cmux workspace.
+4. **You did not hand it the work.** With `narrate` set to `handed-off`, the default, only finishes of work the brain handed over in the last 30 minutes are narrated. `claudio set narrate all` narrates every finish.
+5. **You are muted, or `narrate` is `none`.** Say “slash unmute”, or run `claudio set narrate handed-off`.
 
 </Accordion>
-<Accordion title="It sends work to the wrong session">
+<Accordion title="It sends work to the wrong session" id="wrong-session">
 
-Check the orchestrator with "slash status". Change it with "the orchestrator is Core now" or `claudio set orchestrator Core`. A `.claudio.json` in the project may be overriding it.
+Ask “slash status” to hear which orchestrator is set. Change it by saying “the orchestrator is Core now”, or from the shell:
 
-</Accordion>
-<Accordion title="! mouth lost">
+```bash
+claudio set orchestrator Core
+```
 
-The speech service could not be reached twice in a row. The reply is shown as text only, and the next reply tries again. Check your connection. For ElevenLabs, check `elevenlabs_api_key` and `elevenlabs_voice`.
-
-</Accordion>
-<Accordion title="! the brain died; restarting it">
-
-The `claude` process exited. claudio restarts it, says it is back, and asks you to repeat what you said. If it keeps happening, the reason is at the end of `brain.log`. A wrong model name or a signed-out Claude Code are the usual causes. Run `claude` once in a terminal to check.
+A change from the shell reaches the brain at its next restart, so tell it, or restart claudio. A `.claudio.json` in the project may also be setting `orchestrator`, and it wins over `claudio set`.
 
 </Accordion>
-<Accordion title="· the remembered conversation is gone; starting fresh">
+</Accordions>
 
-The brain session it tried to resume no longer exists. This is normal after a Claude Code update or cleanup. It starts fresh, once.
+## Settings and setup
+
+<Accordions type="multiple">
+<Accordion title="! …/config.json: eot must be between 0.0 and 1.0, not 1.5; keeping 0.7" id="a-setting-is-refused-or-skipped">
+
+A setting has a bad value. It is skipped, and the value before it is kept. The warning starts with where the value came from: the path of `config.json`, `.claudio.json`, or `environment`. Fix it there. `claudio set` refuses the same values with the same reason, and saves nothing.
+
+| Message | Fix |
+|---|---|
+| `barge_in must be true or false, not 'maybe'` | `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0` |
+| `eot_timeout_ms must be a whole number, not '1500.5'` | a whole number, such as `1500` |
+| `eot must be a number, not 'x'` | a number, such as `0.7` |
+| `eot must be between 0.0 and 1.0, not 1.5` | a number in that range |
+| `style must be one of plain, brief, caveman, not 'fast'` | one of the listed values, in lower case |
+| `voice cannot be empty` | any text; only `orchestrator` may be empty |
+| `voice must be text, not 5` | a quoted string in the JSON file |
 
 </Accordion>
-<Accordion title="! config.json: eot must be between 0.0 and 1.0">
+<Accordion title="No Deepgram key. Run `claudio setup`, or export DEEPGRAM_API_KEY." id="no-deepgram-key">
 
-A setting has a bad value. It is skipped, and the previous value is kept. The warning names the file it came from: `config.json`, `.claudio.json`, or `environment`. Fix it there.
+claudio has no Deepgram key, so it cannot listen. Run `claudio setup`, or export the key before you start claudio:
+
+```bash
+export DEEPGRAM_API_KEY=your_deepgram_key
+```
 
 </Accordion>
-<Accordion title="claudio install says settings.json could not be read">
+<Accordion title="that key was refused by Deepgram" id="key-refused">
 
-`~/.claude/settings.json` is not valid JSON, or its hooks section is not shaped the way Claude Code writes it. Nothing was changed. Fix the file, then run `claudio install` again.
+Deepgram rejected the key during setup. Copy a working key from console.deepgram.com and try again. After three refusals, setup stops with `no working Deepgram key; setup stopped`.
 
 </Accordion>
-<Accordion title="No Deepgram key">
+<Accordion title="claudio install says settings.json could not be read" id="install-refused">
 
-Run `claudio setup`, or export `DEEPGRAM_API_KEY` before you start claudio.
+`~/.claude/settings.json` is not valid JSON, is not a JSON object, or its `hooks` section is not shaped the way Claude Code writes it. Nothing was changed. Fix the file, then run:
+
+```bash
+claudio install
+```
 
 </Accordion>
 </Accordions>

@@ -169,7 +169,7 @@ def set_key(key, value):
     cfg = stored()
     cfg[key] = v
     save(cfg)
-    print(f"{key} = {v}")
+    return v
 
 
 def parse_surfaces(text):

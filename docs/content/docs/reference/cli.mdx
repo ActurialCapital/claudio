@@ -1,54 +1,104 @@
 ---
 title: Commands
-description: Every claudio shell command.
+description: Every claudio shell command, what it prints, and the environment variables it reads.
 ---
+
+Run `claudio` from the project you want to talk about. The other commands set it up, check it, and change it. This list is generated from the code:
 
 <Commands />
 
-This list is generated from the code, so it always matches the installed version.
+Any other arguments print this usage and exit with status 1. `claudio help`, `-h` and `--help` print it and exit with status 0.
 
-## Details
+## `claudio`
 
-### `claudio`
+Starts talking. If there is no `config.json` yet, it runs setup first. The directory you run it from is the project the brain reads, and the place it looks for a [`.claudio.json`](/docs/configure/settings#per-project).
 
-Talks. Runs setup first if there is no `config.json` yet. Run it from the project you want to talk about.
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to quit.
 
-### `claudio setup`
+## `claudio setup`
 
-The first-run wizard, again. Each question defaults to your current value, so <kbd>Enter</kbd> keeps it. A stored Deepgram key is kept unless you type a new one.
+Runs the first-run wizard again. Each question offers your current value, so <kbd>Enter</kbd> keeps it. In order, it:
 
-### `claudio doctor`
+1. shows whether `claude` and cmux are installed
+2. asks for the Deepgram key and tests it against Deepgram, three tries at most; a stored key is kept on <kbd>Enter</kbd>
+3. asks which cmux workspace is the orchestrator, from a numbered list, or by title when cmux is not running
+4. asks for one of six [Aura voices](/docs/configure/voice), the brain's model and effort, and whether talking over a reply interrupts it
+5. saves `config.json` and `secrets.json`, then offers to install the hooks
 
-Checks, in order: `claude` on your path and its version, cmux, the orchestrator, the Deepgram key, the three hooks, the echo canceller, the microphone, and the persona file. Then it runs one typed turn through the brain and the mouth.
+A refused key prints `that key was refused by Deepgram`. After three refusals, setup stops with `no working Deepgram key; setup stopped` and saves nothing.
 
-### `claudio install` · `claudio uninstall`
+Setup never asks about the other settings. Use [`claudio set`](#claudio-set-key-value) for those.
 
-Adds or removes the hooks in `~/.claude/settings.json`. Your other settings are kept, and the file behind a symlink is the one written. A backup goes to `settings.json.bak-claudio`. If the file is not valid JSON, or its hooks section is shaped differently from what Claude Code writes, nothing is changed and you are told why.
+## `claudio doctor`
 
-### `claudio forget`
+Checks every part in order, then runs one typed turn through the brain and the mouth. Run it from the project directory, so a `.claudio.json` there is taken into account.
 
-Deletes the remembered conversation. The next start is fresh.
+| Check | If it fails |
+|---|---|
+| `claude on PATH`, then `claude version …` | install Claude Code |
+| `cmux reachable` | is cmux running? |
+| `orchestrator '…' is a live workspace` | `claudio set orchestrator <title>` |
+| `Deepgram key set` | `claudio setup` |
+| `Deepgram key accepted` | get a working key at console.deepgram.com |
+| `the three Claude Code hooks installed` | `claudio install` |
+| `echo canceller built or buildable` | install the Xcode command line tools, or use headphones |
+| `microphone: …` | the error from the audio system |
+| `persona prompt present` | it is copied on first run |
 
-### `claudio set <key> <value>`
+The typed turn asks the brain to say “the doctor is in.” The last line is `all good`, or `fix the ✗ lines above`.
 
-Checks and saves one global setting. A running claudio picks it up within a second. Keys cannot be set this way; use `claudio setup` or `secrets.json`.
+## `claudio install` and `claudio uninstall`
+
+`claudio install` adds three hooks to `~/.claude/settings.json`, each calling `claudio hook`:
+
+<Hooks />
+
+Each hook command uses the full path of the `claudio` you ran, so run `claudio install` again if you reinstall claudio elsewhere. Install replaces any claudio hooks already there, so running it twice is safe. Only sessions started after the install report back.
+
+`claudio uninstall` removes every hook whose command contains `claudio hook`.
+
+Both keep the rest of the file and write it atomically. If `settings.json` is a symlink, they write the real file behind it. Before writing, they copy the old file to `settings.json.bak-claudio` next to it.
+
+Both refuse to touch a file they cannot safely rewrite, and change nothing:
+
+- `… could not be read as JSON (…); fix it first, nothing was changed`
+- `… is not a JSON object; nothing was changed`
+- `the hooks section of … is not shaped as Claude Code writes it; nothing was changed`
+
+## `claudio forget`
+
+Deletes the remembered brain session, so the next start is a fresh conversation. It prints `forgotten; the next start is a fresh conversation`.
+
+It does not delete the transcripts, which the brain can still read when you ask about past days. In a running claudio, say “slash clear” instead.
+
+## `claudio set <key> <value>`
+
+Checks one setting, saves it to the global `config.json`, and prints the result:
 
 ```bash
-claudio set narrate all
 claudio set eot_timeout_ms 2000
 ```
 
-### `claudio hook <event>`
+```text
+eot_timeout_ms = 2000
+```
 
-What the Claude Code hooks call. It reads the hook's JSON on stdin and sends a short report to the running claudio over a local socket. When claudio is not running it exits at once.
+A running claudio picks the change up within about a second. A bad value prints the reason, such as `eot_timeout_ms must be a whole number, not '2000.5'`, saves nothing, and exits with status 1. [Settings](/docs/configure/settings) explains the value formats and when each change takes effect.
 
-## Environment
+The API keys cannot be set this way: `claudio set deepgram_api_key …` prints the usage. Use `claudio setup` for the Deepgram key, and [`secrets.json`](/docs/configure/voice#add-the-elevenlabs-key) for the ElevenLabs key.
+
+## `claudio hook <event>`
+
+What the Claude Code hooks call; you do not run it yourself. When claudio is not running, it exits at once. Otherwise it reads the hook's JSON on stdin and sends a one-line report over the local socket. For `Stop`, the report includes the session's last message, up to its last 1,500 characters.
+
+## Environment variables
 
 | Variable | Effect |
 |---|---|
-| `CLAUDIO_<KEY>` | overrides one setting for one run, e.g. `CLAUDIO_STYLE=brief` |
+| `CLAUDIO_<KEY>` | overrides one setting for one run, such as `CLAUDIO_STYLE=brief` |
 | `DEEPGRAM_API_KEY` | the Deepgram key, over `secrets.json` |
 | `ELEVENLABS_API_KEY` | the ElevenLabs key, over `secrets.json` |
 | `XDG_CONFIG_HOME` | moves `~/.config/claudio` to `$XDG_CONFIG_HOME/claudio` |
-| `CLAUDIO_TEXT` | runs one typed turn with this text and exits, no mic; the doctor uses it |
-| `CMUX_BUNDLED_CLI_PATH` | the `cmux` binary to use, if not on your path |
+| `CLAUDIO_TEXT` | with `claudio`, runs one typed turn with this text and exits, without the mic; `claudio doctor` uses it |
+| `CMUX_BUNDLED_CLI_PATH` | the `cmux` binary to use, before the one on your `PATH`; the fallback is `/Applications/cmux.app/Contents/Resources/bin/cmux` |
+| `CMUX_SURFACE_ID` | set by cmux in each session; `claudio hook` reports it so claudio knows which session spoke |

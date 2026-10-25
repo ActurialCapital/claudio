@@ -1,52 +1,67 @@
 ---
 title: Spoken and typed commands
-description: Slash commands, keys, and the words that count as a backchannel.
+description: Slash commands, keys, the words that count as a backchannel, and the handover marker.
 ---
+
+Say “slash” and a command, such as “slash stop”, or type `/stop` and press <kbd>Enter</kbd>. claudio acts on a slash command itself; the brain never sees it.
 
 ## Slash commands
 
-Say "slash" and the command, or type `/` and the command.
-
 | Command | Argument | Effect |
 |---|---|---|
-| `clear` | | forgets the conversation and restarts the brain fresh |
 | `stop` | | cuts the current reply |
-| `mute` | | hears and narrates nothing until unmuted |
-| `unmute` | | listens again |
-| `status` | | says the orchestrator, model, effort, voice and memory |
+| `clear` | | forgets the conversation, restarts the brain fresh, and says “Fresh start.” |
+| `mute` | | says “Muted.”, then ignores everything you say except “slash unmute”, and narrates no session reports |
+| `unmute` | | says “I'm listening again.” |
+| `status` | | says the orchestrator, model, effort, Aura voice and memory |
 | `help` | | says the list of commands |
-| `model` | `default` `sonnet` `opus` `haiku` | changes the brain's model; it restarts |
-| `effort` | `low` `medium` `high` | changes the brain's effort; it restarts |
-| `style` | `plain` `brief` `caveman` | changes how it talks; it restarts |
-| `voice` | an Aura-2 name, e.g. `thalia` | changes the voice from this reply on |
+| `model` | `default`, `sonnet`, `opus` or `haiku` | saves the model; the brain restarts and says it is back |
+| `effort` | `low`, `medium` or `high` | saves the effort; the brain restarts and says it is back |
+| `style` | `plain`, `brief` or `caveman` | saves the [style](/docs/configure/persona#switch-the-style); the brain restarts and says it is back |
+| `voice` | an Aura-2 name, such as `thalia` | saves `aura-2-thalia-en` and confirms in the new voice: “Thalia from now on.” |
 
-Spoken, "slash" may follow up to two filler words, and must start the turn otherwise. An unknown command gets the help list read back. A model or effort it does not know gets the valid choices read back.
+The `model`, `effort`, `style` and `voice` changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
+
+While muted, typed lines still work as turns.
+
+### How a spoken command is recognised
+
+- “slash” must start the turn, after at most two other words: “okay, slash stop” works, “could you add a slash command” does not.
+- The command runs when your turn ends, never on an early start.
+- With `address_me` on, start with the name: “claudio, slash stop”.
+
+### When a command is not understood
+
+| You say | You hear |
+|---|---|
+| a model or effort it does not know | “I don't know model fast. Choose default, sonnet, opus, haiku.” |
+| an unknown command, or a style it does not know | “I don't know slash …”, then the help list |
 
 ## Keys
 
 | Key | Effect |
 |---|---|
-| <kbd>Enter</kbd> on an empty line | cuts the reply; with push-to-talk, opens the mic |
-| a typed line, then <kbd>Enter</kbd> | a turn |
+| <kbd>Enter</kbd> on an empty line | cuts the reply; with push to talk, opens the mic when it is closed |
+| a typed line, then <kbd>Enter</kbd> | a turn, as if you had said it |
 | `/` and a command, then <kbd>Enter</kbd> | a slash command |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> | quits |
 
 ## Backchannels
 
-While a reply is paused because you started talking, a turn is a **backchannel**, and the reply carries on, when it is fewer than two words or made only of these words:
+When you talk over a reply with `barge_in` on, the reply pauses. When your turn ends, it counts as a backchannel, and the reply carries on from the sentence it was on, if it is fewer than two words or made only of these words:
 
 ```text
 yeah yes yep ok okay mm mhm hmm uh huh um right sure oh ah no
 ```
 
-Anything else cuts the reply and becomes the next turn.
+Anything else cuts the reply and becomes your next turn. If you say nothing for 3 seconds after the pause, the reply carries on too.
 
-## The marker
+## The handover marker
 
-Work handed to a session starts with this, so the session knows the words are yours:
+Work the brain hands to a session starts with this marker, so the session knows the words are yours:
 
 ```text
 [spoken by the user, transcribed by claudio]
 ```
 
-The message is sent with `--from Voice`.
+The message goes through `cmux agent message` with `--from Voice`.

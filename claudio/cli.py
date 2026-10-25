@@ -194,7 +194,7 @@ def main():
     elif args[0] == "forget":
         forget()
     elif args[0] == "set" and len(args) == 3:
-        config.set_key(args[1], args[2])
+        print(f"{args[1]} = {config.set_key(args[1], args[2])}")
     elif args[0] == "hook" and len(args) == 2:
         from . import hook
         hook.run(args[1])

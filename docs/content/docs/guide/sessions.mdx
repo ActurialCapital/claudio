@@ -1,114 +1,126 @@
 ---
 title: Sessions and handoff
-description: How work reaches your Claude Code sessions, and how their results come back to you.
+description: Send work to your Claude Code sessions, open new ones, check on them, and hear what they report back.
 ---
 
-claudio talks; your sessions work. A session is an ordinary Claude Code session running in a cmux workspace. claudio knows them by their workspace titles.
+claudio talks and your sessions work. Use this page to send a task to a session, open new sessions, check what one is doing, and choose which of their reports you hear.
 
-## The orchestrator
+A session is an ordinary Claude Code session running in a cmux workspace. claudio knows each one by its workspace title.
 
-One workspace is the **orchestrator**: the session that gets your tasks unless you name another. You pick it during setup. Change it by saying "the orchestrator is Core now", or from the shell:
+## Choose the orchestrator
+
+The orchestrator is the session that gets your tasks unless you name another. You pick it during setup. To change it, say "the orchestrator is Core now", or run:
 
 ```bash
 claudio set orchestrator Core
 ```
 
-A `.claudio.json` in a project can set a different orchestrator for that project:
+To use a different orchestrator in one project, put a `.claudio.json` in that project:
 
 ```json title=".claudio.json"
 { "orchestrator": "Core" }
 ```
 
-## Handing work over
+## Hand work to a session
 
-When you ask for work, the brain sends it through cmux's agent inbox and tells you so:
+When you ask for work, the brain sends it to the orchestrator through cmux's agent inbox and tells you so:
 
-<Transcript>{`
+```transcript
 › rebase 44 on main and run the tests
 ◆ Sending that to Sequencer.
   → cmux agent message
-`}</Transcript>
+```
 
-The message carries a marker so the session knows the words are yours, not the brain's:
+The message starts with a marker, so the session knows the words are yours and not the brain's:
 
 ```text
 [spoken by the user, transcribed by claudio] rebase 44 on main and run the tests
 ```
 
-The brain keeps your words and any detail you gave. It never adds the marker to something you did not say.
+The brain passes on your words and any detail you gave. It never puts the marker on something you didn't say.
 
-To send work somewhere else, name the session: "ask Core to update the changelog".
+To send work elsewhere, name the session: "ask Core to update the changelog".
 
-## Opening sessions
+## Open a new session
 
-Ask for one and the brain opens it:
+Ask for one and the brain opens it with cmux:
 
-- "open a session called Core" makes a new cmux workspace running `claude` in the project directory.
-- "open a terminal beside Sequencer" splits that workspace.
-- "open a Claude session in a new tab of Core" adds a surface to that workspace.
+- "open a session called Core" creates a cmux workspace running `claude` in the project directory
+- "open a terminal beside Sequencer" splits that workspace and starts a shell
+- "open a Claude session in a new tab of Core" adds a surface running `claude` to that workspace
 
-A new session takes a few seconds to start. The brain waits before handing it work.
+A new session takes a few seconds to start, so the brain waits before handing it work.
 
-## Checking on a session
+## Check on a session
 
-"What's Sequencer doing?" makes the brain read the last lines of that session's screen and sum them up in a sentence or two.
+Ask "what's Sequencer doing?" and the brain reads the last 60 lines of that session's screen and sums them up in a sentence or two.
 
-The state line also shows the orchestrator at a glance, refreshed every five seconds:
+The [state line](/docs/guide/on-screen#read-the-state-line) also shows the orchestrator's state, checked every 5 seconds:
 
-| State | Means |
+| State | What its screen shows |
 |---|---|
-| `working` | the session is running (its screen shows "esc to interrupt") |
-| `waiting on you` | a permission prompt or a choice is on its screen |
+| `working` | "esc to interrupt": the session is running |
+| `waiting on you` | a permission prompt or a numbered choice |
 | `idle` | neither |
 
-If the orchestrator has been waiting on you for two minutes, claudio says so, once.
+If the orchestrator stays `waiting on you` for 2 minutes, claudio tells you once, unless you're muted or it's already speaking.
 
-## What comes back
+To stop a running session, press <kbd>Esc</kbd> in its pane. claudio can't stop it for you.
 
-The hooks installed by setup report three events from every Claude Code session. claudio exits them at once when it is not running, so they cost nothing the rest of the time.
+## Hear what sessions report back
+
+The hooks that setup installs report three events from every Claude Code session:
 
 <Hooks />
 
-### A session finished
+When claudio isn't running, each hook exits at once, so they cost nothing the rest of the time.
 
-When a session finishes a turn on work you handed it in the last 30 minutes, claudio narrates the result in plain words, under a header with the request it was for:
+### A session finished your task
 
-<Transcript>{`
+When a session finishes a turn on work you handed it in the last 30 minutes, claudio narrates the result under a header naming the request:
+
+```transcript
 ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
 ◆ Rebased, tests pass, nothing to fix.
-`}</Transcript>
-
-The `narrate` setting chooses which finishes you hear:
-
-| `narrate` | You hear |
-|---|---|
-| `handed-off` | finishes of work you handed over in the last 30 minutes (default) |
-| `all` | every session's finishes |
-| `none` | nothing at all from sessions, prompts and questions included |
+```
 
 ### A session needs permission
 
-When a session stops at a permission prompt, claudio reads its screen and tells you what it wants to run, and which session:
+When a session stops at a permission prompt, claudio reads its screen and tells you which session wants what:
 
-<Transcript>{`
+```transcript
 ▸ Sequencer  needs permission
 ◆ Sequencer wants to run git push origin feature-44. Answer it in its pane.
-`}</Transcript>
+```
 
-You answer on that session's keyboard. claudio never presses keys for a permission prompt.
+Answer the prompt in that session's pane. claudio never answers a permission prompt.
 
 ### A session asks you to choose
 
-When a session asks a multiple-choice question, claudio reads the question and the options aloud, numbered, and waits. Say which one you want. If your cmux has `send-key`, claudio selects it in that pane for you. Otherwise it tells you to pick it there.
+When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then selects that option in the session's pane: it presses `down` once per option before yours, then `enter`, with `cmux send-key`. You can always pick it in the pane yourself instead.
 
-### What is ignored
+```transcript
+▸ Sequencer  asks you to choose
+◆ Sequencer asks which branch to rebase onto.
+  One, main. Two, release.
+```
 
-- The brain's own Claude session.
-- Sessions outside cmux, since claudio cannot tell which workspace they are.
-- Everything, while you are muted.
+## Choose which reports you hear
+
+The `narrate` setting decides what you hear from sessions:
+
+| `narrate` | Finished tasks | Permission prompts and choices |
+|---|---|---|
+| `handed-off` (default) | from sessions you handed work to in the last 30 minutes | yes |
+| `all` | from every session | yes |
+| `none` | no | no |
+
+Change it with `claudio set narrate all`. claudio also ignores:
+
+- Its own brain's session
+- Sessions outside cmux, since it can't tell which workspace they belong to
+- Everything, while you're muted
 
 <Callout type="warn">
-A session only reports back if it started after the hooks were installed. If one stays silent, restart it, then check with `claudio doctor`.
+A session reports back only if it started after the hooks were installed. If one stays silent, restart it, then run `claudio doctor`.
 </Callout>
-
-To stop a running session, press <kbd>Esc</kbd> in its pane. The brain will tell you the same if you ask it to.

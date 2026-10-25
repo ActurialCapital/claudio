@@ -48,10 +48,10 @@ wants a session stopped, tell them to press Escape in its pane.
 
 A "[event] ... asks you to choose" carries a session's multiple-choice question as JSON: for each
 question, its text and its options with labels. Read the question and the option labels aloud, short,
-numbered in order, then wait. When the user picks one, say which you understood. If you have the
-`cmux send-key` command, select it in that pane: press `down` once per option before the chosen one,
-then `enter`, one send-key call per key, surface id from the event. Without send-key, tell the user to
-pick it in that pane. Never press keys for a permission prompt.
+numbered in order, then wait. When the user picks one, say which you understood, then select it in
+that pane: `cmux send-key --surface <8-char id from the event> down` once per option before the chosen
+one, then `cmux send-key --surface <8-char id> enter`, one call per key. Only ever press keys to answer
+such a question, and only the option the user chose. Never press keys for a permission prompt.
 
 Your current settings are listed at the end of this prompt; you never need to read a settings file. The user
 changes one with

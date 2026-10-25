@@ -1,13 +1,13 @@
 ---
 title: Introduction
-description: A voice in front of your Claude Code sessions.
+description: Talk to your Claude Code sessions instead of typing to them.
 ---
 
-You talk. claudio answers in a sentence or two, or hands the work to one of your Claude Code sessions and tells you when that session is done, asks something, or needs a permission.
+With claudio you talk to your Claude Code sessions instead of typing to them. Ask a question and it answers in a few short sentences. Ask for work and it hands the task to one of your sessions, then tells you when that session is done, needs a permission, or asks you to choose.
 
-It is not a bot that reads your terminal aloud. A separate small brain talks with you, decides whether you are discussing or asking for work, and narrates what your sessions report back in plain words.
+It doesn't read your terminal aloud. A separate brain listens to you, decides whether you're discussing or asking for work, and narrates what your sessions report back in plain words.
 
-<Transcript>{`
+```transcript
 › rebase 44 on main and run the tests
 ◆ Sending that to Sequencer.
   → cmux agent message
@@ -16,29 +16,31 @@ It is not a bot that reads your terminal aloud. A separate small brain talks wit
 ◆ Rebased, tests pass, nothing to fix.
 
 ▃ listening  ·  1.1 s to first word  ·  Sequencer idle
-`}</Transcript>
+```
 
-## The parts
+## How the parts fit together
 
-claudio has three parts, and your sessions sit beside them.
+claudio has three parts of its own, and it works with the Claude Code sessions you already run:
 
-- **Ears.** Deepgram Flux turns your speech into text as you talk and decides when your turn has ended.
-- **Brain.** One long-lived `claude -p` process with a short persona. It answers questions itself and hands work to a session. It never does the work.
-- **Mouth.** Deepgram Aura, or ElevenLabs, speaks the brain's reply one sentence at a time.
-- **Your sessions.** Ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox. They report back through three Claude Code hooks.
+- **Ears**: Deepgram Flux turns your speech into text as you talk and decides when your turn has ended
+- **Brain**: one long-lived `claude -p` process with a short [persona](/docs/configure/persona). It answers questions itself and hands work to a session, never doing the work itself
+- **Mouth**: Deepgram Aura or ElevenLabs speaks the brain's reply one sentence at a time
+- **Your sessions**: ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox, and they report back through three Claude Code hooks
+
+One session is the **orchestrator**: the one that gets your tasks unless you name another. Passing a task to a session is a **handoff**.
 
 ## What you need
 
-- macOS. The echo canceller is Apple's voice-processing unit, and cmux is a Mac app.
-- [cmux](https://cmux.dev), with the workspace you want to send work to.
-- [Claude Code](https://claude.com/claude-code), signed in. The brain runs on your Claude plan.
-- A [Deepgram](https://console.deepgram.com) API key, for the ears and the default mouth.
-- Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
-- Optional: the Xcode command line tools, so you can talk over it on speakers.
+- macOS, since the echo canceller is Apple's voice-processing unit and cmux is a Mac app
+- [cmux](https://cmux.dev), with the workspace you want to send work to
+- [Claude Code](https://claude.com/claude-code), signed in: the brain runs through your Claude Code login
+- A [Deepgram](https://console.deepgram.com) API key, for the ears and the default mouth
+- Python 3.11 or later and [uv](https://docs.astral.sh/uv/)
+- Optional: the Xcode command line tools, so you can talk over claudio on speakers instead of headphones
 
 <Cards>
-  <Card title="Getting started" href="/docs/guide/getting-started" description="Install, first-run setup, and the doctor." />
-  <Card title="Talking to claudio" href="/docs/guide/talking" description="Turns, interruptions, spoken commands." />
-  <Card title="Sessions and handoff" href="/docs/guide/sessions" description="How work goes out and results come back." />
+  <Card title="Getting started" href="/docs/guide/getting-started" description="Install, answer the setup questions, check everything with the doctor." />
+  <Card title="Talking to claudio" href="/docs/guide/talking" description="How a turn ends, interrupting, spoken commands, memory." />
+  <Card title="Sessions and handoff" href="/docs/guide/sessions" description="Send work to a session and hear what comes back." />
   <Card title="Troubleshooting" href="/docs/troubleshooting" description="Find the fix by what you notice." />
 </Cards>

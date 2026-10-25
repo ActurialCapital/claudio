@@ -1,51 +1,85 @@
 ---
 title: Listening and turns
-description: Tune when your turn ends, when it may be interrupted, and who it listens to.
+description: Tune when your turn ends, whether you can talk over a reply, and who claudio listens to.
 ---
 
-The defaults suit one person talking at a desk. Change them when it cuts you off, waits too long, or hears the wrong people.
+The defaults suit one person talking at a desk. Change them when claudio cuts you off, waits too long, keeps stopping itself, or answers other people in the room.
 
-## When your turn ends
+## Tune when your turn ends
 
-Deepgram Flux gives every moment of your speech a confidence that you have finished. Three settings act on it:
+The ears are Deepgram Flux. While you speak, Flux keeps a confidence that you have finished, from 0 to 1. Three settings act on it:
+
+- **`eager_eot`** (default `0.3`): the brain starts on your words early, before your turn is surely over
+- **`eot`** (default `0.7`): your turn counts as finished
+- **`eot_timeout_ms`** (default `1500`): after this much silence your turn ends, whatever the confidence
+
+Find what you notice, then make the change:
+
+| If | Run |
+|---|---|
+| It answers before you finish a thought | `claudio set eot 0.8` and `claudio set eot_timeout_ms 2500` |
+| It waits too long after you stop | `claudio set eot 0.6` or `claudio set eot_timeout_ms 1000` |
+| Replies are slow to start | `claudio set eager_eot 0.2`, so the brain starts earlier |
+| You often see `· resumed` or `· replaced` | `claudio set eager_eot 0.5`, closer to `eot` |
+
+An early start is silent until it counts. Its audio is held until your turn is final, and plays only if your final words match the ones it started on. If you carry on talking instead, the early reply is dropped and you see `· resumed`. If your final words differ, it is replaced and you see `· replaced`. A dropped start costs brain time and some speech synthesis, nothing you hear.
+
+Each change reconnects the ears at once, so you can tune while you talk: “set eot to 0.8”.
 
 <Settings only={['eager_eot', 'eot', 'eot_timeout_ms']} />
 
-| If | Try |
-|---|---|
-| It answers before you have finished a thought | raise `eot` (0.8) and `eot_timeout_ms` (2500) |
-| It waits too long after you stop | lower `eot` (0.6) or `eot_timeout_ms` (1000) |
-| Replies feel slow to start | lower `eager_eot` so the brain starts earlier |
-| Early starts are often wasted and you see `· resumed` | raise `eager_eot` closer to `eot` |
+## Talk in another language
 
-An early start costs nothing you hear: its audio is held until your turn is final and the words match. It only spends brain time.
-
-Changes reconnect the ears straight away, so you can tune by voice while you talk: "set eot to 0.8".
-
-## Other languages
+Switch the ears to Flux's multilingual model:
 
 ```bash
 claudio set ears flux-general-multi
 ```
 
-The persona is in English. Edit [`prompt.md`](/docs/configure/persona) to have it answer in your language, and pick a voice that speaks it.
+The persona is written in English. To have replies in your language, say so in [`prompt.md`](/docs/configure/persona), and pick a [voice](/docs/configure/voice) that speaks it.
 
-## Interrupting
+## Interrupt a reply by talking over it
+
+With `barge_in` on, the default, talking over a reply pauses it. What you say next decides what happens:
+
+- **A real sentence** cuts the reply and becomes your next turn.
+- **A backchannel**, such as “mm-hm” or “okay”, lets the reply carry on from the sentence it was on. The [spoken commands reference](/docs/reference/spoken#backchannels) lists the words.
+- **Nothing** for 3 seconds also lets it carry on.
+
+On speakers, this needs the echo canceller, or the mic hears the reply and pauses it. The banner shows `echo cancel on` when the echo canceller runs. Without it, use headphones.
+
+Turn barge-in off when a noisy room keeps pausing replies:
+
+```bash
+claudio set barge_in false
+```
+
+Replies then play through. The mic is silenced from the moment your turn ends until the reply ends, so nothing you say while it answers is heard; an early start never cuts you off mid-sentence. Press <kbd>Enter</kbd> to cut a reply.
 
 <Settings only={['barge_in']} />
 
-With `barge_in` on, talking over a reply pauses it, then cuts it or lets it go on. [Talking over it](/docs/guide/talking#talking-over-it) explains the rules. On speakers this needs the echo canceller, which is shown as `echo cancel on` in the banner.
+## Use push to talk
 
-Turn it off if a noisy room keeps pausing it. Replies then play through, and <kbd>Enter</kbd> cuts them.
+With push to talk on, the mic stays closed until you press <kbd>Enter</kbd>, and closes again when your turn ends:
 
-## Push to talk
+```bash
+claudio set push_to_talk true
+```
+
+The state line reads `push to talk · Enter opens the mic` while the mic is closed. Typed lines still work as turns. Turning it off opens the mic at once.
 
 <Settings only={['push_to_talk']} />
 
-The mic stays closed until you press <kbd>Enter</kbd>, then closes again when your turn ends. The state line reads `push to talk · Enter opens the mic` while it is closed.
+## Share a room with other people [#rooms-with-other-people]
 
-## Rooms with other people
+With `address_me` on, only turns that start with “claudio” count:
+
+```bash
+claudio set address_me true
+```
+
+“claudio, what's the sequencer doing?” works: the name is dropped before the brain sees the turn. Any other turn is shown dim and ignored. Slash commands need the name too: “claudio, slash mute”.
+
+Other voices still pause a reply while `barge_in` is on. The reply carries on about 3 seconds after they stop.
 
 <Settings only={['address_me']} />
-
-Only turns that start with "claudio" count. Everything else is shown dim and ignored. "claudio, what's the sequencer doing?" works; the name is dropped before the brain sees the turn.

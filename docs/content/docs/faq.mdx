@@ -1,66 +1,78 @@
 ---
 title: FAQ
-description: Short answers to the common questions.
+description: Short answers to common questions about platforms, cost, privacy and what the brain may do.
 ---
+
+Short answers, each with a link to the page that covers it in full. For something that isn't working, see [Troubleshooting](/docs/troubleshooting).
 
 <Accordions type="multiple">
 <Accordion title="Does it work on Linux or Windows?">
 
-Not today. The echo canceller is Apple's voice-processing unit, and the sessions live in cmux, which is a Mac app.
+No. The echo canceller is Apple's voice-processing unit, and your sessions live in cmux, which is a Mac app.
 
 </Accordion>
 <Accordion title="What does it cost?">
 
-The brain runs through your Claude Code login, so it uses your Claude plan like any other session. Deepgram bills the listening and the speaking. ElevenLabs bills the speaking if you use it.
+The brain runs through your Claude Code login, so it uses your Claude plan like any other session. Deepgram bills the listening and, with the default mouth, the speaking. ElevenLabs bills the speaking if you [switch the mouth](/docs/configure/voice#switch-the-mouth-to-elevenlabs) to it.
 
 </Accordion>
 <Accordion title="Can it change my code?">
 
-No. The brain can read files, search, and run a few read-only git commands. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+No. The brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
 
 </Accordion>
-<Accordion title="Can it approve a permission prompt for me?">
+<Accordion title="Can it answer a session's prompts for me?">
 
-No. It reads the prompt out and tells you which session asked. You answer on that session's keyboard. It can pick an option in a multiple-choice question, if you tell it which one.
+- **Permission prompts**: no. It reads the prompt out and tells you which session asked; you answer in that session's pane. The brain is told never to press keys for a permission prompt.
+- **Multiple-choice questions**: yes. It reads the options aloud, you say which one, it confirms, then selects it in the session's pane with `cmux send-key`.
 
 </Accordion>
 <Accordion title="Does the brain use my CLAUDE.md or my Claude Code settings?">
 
-No. It starts with no settings sources, so its behaviour comes only from the [persona](/docs/configure/persona) and claudio's own rules. Your sessions use your settings as usual.
+Your CLAUDE.md, yes. Your settings, no.
+
+- **CLAUDE.md**: the brain reads the CLAUDE.md files that Claude Code loads for the project you run claudio in, like any session. Keep instructions there that you are happy for the voice to follow too.
+- **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, and it can't read `~/.config/claudio/secrets.json`.
+
+Your sessions use your settings as usual.
 
 </Accordion>
-<Accordion title="Where does my audio go?">
+<Accordion title="Where do my voice and words go?">
 
-To Deepgram, to be transcribed, and the replies' text to Deepgram or ElevenLabs, to be spoken. The transcripts and logs stay on your Mac, under `~/.config/claudio`.
+Your audio goes to Deepgram to be transcribed. What you say goes to Claude, as the brain's turns. Replies go to Deepgram, or ElevenLabs, to be spoken. Transcripts and logs stay on your Mac, under `~/.config/claudio`.
 
 </Accordion>
 <Accordion title="Can I use it in another language?">
 
-Set `ears` to `flux-general-multi`, then edit the persona so it answers in your language, and pick a voice that speaks it.
+Set `ears` to `flux-general-multi`, edit the [persona](/docs/configure/persona) so the brain answers in your language, and pick a voice that speaks it. See [other languages](/docs/configure/listening#talk-in-another-language).
 
 </Accordion>
 <Accordion title="Can I use it with other people in the room?">
 
-Turn on `address_me`. Only turns that start with "claudio" count.
+Turn on `address_me` with `claudio set address_me true`. Then only turns that start with "claudio" count, and the rest show dim in the transcript.
 
 </Accordion>
 <Accordion title="How do I use different settings per project?">
 
-Put a `.claudio.json` in the project and run claudio from there. Any setting except the keys can go in it.
+Put a `.claudio.json` in the project and run claudio from there. Any setting except the API keys can go in it. See [per-project settings](/docs/configure/settings#change-a-setting).
 
 </Accordion>
 <Accordion title="Why does it sometimes say 'Looking.' or 'Checking.'?">
 
-The persona asks the brain to say what it is about to do before any tool call. When it skips that, claudio says one word for it, so you never sit through silence while it reads.
+The persona asks the brain to say what it's about to do before each tool call. When the brain skips that, claudio fills in one word, "Looking." before it reads or searches files and "Checking." before anything else, so you don't sit through silence.
 
 </Accordion>
 <Accordion title="How do I remove it?">
 
+Remove the hooks first, then the tool, then its files:
+
 ```bash
-claudio uninstall          # removes the hooks
+claudio uninstall
 uv tool uninstall claudio
-rm -rf ~/.config/claudio   # settings, keys, transcripts
+rm -rf ~/.config/claudio
 ```
+
+The last line deletes your settings, keys, persona and transcripts.
 
 </Accordion>
 </Accordions>

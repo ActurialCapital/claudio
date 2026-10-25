@@ -1,36 +1,28 @@
 ---
 title: Settings
-description: Where settings live, the four ways to change them, and which one wins.
+description: Change a setting by voice, from the shell, per project or for one run, and know which one wins.
 ---
 
-Every setting has a default, and you only change the ones you care about. Each value is checked for type, choice and range wherever it comes from. A bad value is skipped with a warning that says why, and the previous value is kept.
+Every setting has a default, so you only change the ones you care about. The quickest way is to ask: “use Sonnet” or “set eot to 0.8”. Every value is checked for type, choice and range before it is used, wherever it comes from.
 
-## Where they live
+## Change a setting
 
-| File | Holds |
-|---|---|
-| `~/.config/claudio/config.json` | the settings, written by setup and by `claudio set` |
-| `~/.config/claudio/secrets.json` | the API keys, readable only by you (mode 600) |
-| `~/.config/claudio/prompt.md` | the [persona](/docs/configure/persona) |
-
-If `XDG_CONFIG_HOME` is set, claudio uses `$XDG_CONFIG_HOME/claudio` instead.
-
-The brain is not allowed to read `secrets.json`, and its settings list never shows the keys.
-
-## Four ways to change one
+Pick the way that matches how long the change should last:
 
 <Tabs items={['By voice', 'claudio set', 'Per project', 'One run']}>
 <Tab value="By voice">
 
-Ask in plain words, or use a slash command:
+Ask in plain words. The brain runs `claudio set` for you:
 
-<Transcript>{`
+```transcript
 › use Sonnet
-◆ Switching to Sonnet; I'll restart for that.
+◆ Switching to Sonnet. I'll restart for that.
+  → claudio set model
 ⚙ model → sonnet  ·  brain restarting
-`}</Transcript>
+◆ Back, on Sonnet.
+```
 
-The change is saved to `config.json`, so it is kept for next time.
+For `model`, `effort`, `style` and `voice` there are also [slash commands](/docs/reference/spoken#slash-commands): “slash model sonnet”. Either way the change is saved to `config.json` and kept for next time.
 
 </Tab>
 <Tab value="claudio set">
@@ -39,62 +31,98 @@ The change is saved to `config.json`, so it is kept for next time.
 claudio set eot 0.8
 ```
 
-Writes one global setting, after checking it. A running claudio picks up the change within a second.
+This checks the value, saves it to `config.json` and prints `eot = 0.8`. A running claudio picks it up within about a second. A bad value is refused with the reason, and nothing is saved.
 
 </Tab>
 <Tab value="Per project" id="per-project">
 
-A `.claudio.json` in the directory you run claudio from overrides any setting for that project:
+Put a `.claudio.json` in the directory you run claudio from. Its values override the global ones whenever you run claudio there:
 
 ```json title=".claudio.json"
 { "orchestrator": "Core", "style": "brief" }
 ```
 
-Keys cannot go in a project file. They are ignored there.
+Any setting may go in it except the two API keys, which are ignored there. Unknown names are ignored too. claudio reads the file when it starts, so restart claudio after you edit it.
 
 </Tab>
 <Tab value="One run">
 
-An environment variable overrides one setting for one run:
+Set an environment variable for one run:
 
 ```bash
 CLAUDIO_STYLE=caveman CLAUDIO_BARGE_IN=false claudio
 ```
 
-Each setting's variable is `CLAUDIO_` and its name in capitals. The keys use `DEEPGRAM_API_KEY` and `ELEVENLABS_API_KEY`.
+Each variable is `CLAUDIO_` followed by the setting name in capitals. The keys are the exception: they use `DEEPGRAM_API_KEY` and `ELEVENLABS_API_KEY`.
 
 </Tab>
 </Tabs>
 
-## Which one wins
+## Which value wins
 
-Later sources override earlier ones:
+Each source overrides the ones before it:
 
 1. the defaults
-2. `config.json` and `secrets.json`
+2. the global files, `config.json` and `secrets.json`
 3. `.claudio.json` in the current directory
 4. environment variables
 
-`claudio set`, setup and voice changes only ever write the global files. A project's or the environment's override is never saved as your default.
+Setup, `claudio set` and changes by voice only ever write the global files. A project's or the environment's value is never saved as your default.
 
-## Value formats
+The catch: while a project file or an environment variable sets a value, a `claudio set` of the same setting is saved but has no effect in that run.
 
-- **Booleans** take `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0`.
-- **Whole numbers** must be whole: `1500` or `1500.0`, not `1500.5`.
-- **Text** is trimmed and cannot be empty, except `orchestrator`.
+## Common changes
 
-## What a change does
+Each group links to the page that explains it:
+
+| To change | Run |
+|---|---|
+| The brain's speed and depth | `claudio set model sonnet`, `claudio set effort medium` |
+| How it talks, see [persona and style](/docs/configure/persona) | `claudio set style brief` |
+| The voice, see [voices and mouths](/docs/configure/voice) | `claudio set voice aura-2-thalia-en` |
+| When your turn ends, see [listening and turns](/docs/configure/listening) | `claudio set eot 0.8` |
+| Who gets your tasks | `claudio set orchestrator Core` |
+| Which session reports you hear | `claudio set narrate all` |
+| Whether it resumes the last conversation | `claudio set memory false` |
+
+`model` takes `default`, `sonnet`, `opus` or `haiku`, through your Claude Code login. `effort` takes `low`, `medium` or `high`. `narrate` takes `handed-off` (finishes of work it handed over in the last 30 minutes), `all` or `none`. The [settings reference](/docs/reference/settings) lists every setting with its default.
+
+## When a change takes effect
+
+claudio watches `config.json` and reloads it about once a second. The line `⚙ <setting> → <value>` confirms each change:
 
 | Changed | Takes effect |
 |---|---|
-| `model`, `effort`, `style` | the brain restarts, memory kept |
-| `voice` | from the next reply |
+| `model`, `effort`, `style` | the brain restarts; with `memory` on, it keeps the conversation |
+| `voice`, `mouth`, `elevenlabs_voice` | from the next reply |
 | `ears`, `eot`, `eager_eot`, `eot_timeout_ms` | the ears reconnect |
-| `push_to_talk` off | the mic opens again |
-| anything else | at once |
+| `push_to_talk` off | the mic opens at once |
+| `push_to_talk` on | the mic closes when your current turn ends |
+| `orchestrator` | the state line at once; the brain's own copy at its next restart |
+| `barge_in`, `address_me`, `narrate`, `memory` | at once |
 
-## All settings
+Edits to `.claudio.json`, to `secrets.json` on its own, or to environment variables need a restart of claudio. Editing the [persona](/docs/configure/persona) restarts the brain by itself.
 
-<Settings />
+## Value formats
 
-The [settings reference](/docs/reference/settings) also lists the two keys.
+`claudio set`, `.claudio.json` and environment variables all accept:
+
+- **Booleans**: `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0`, in any case
+- **Whole numbers**: `1500` or `1500.0`, but not `1500.5`
+- **Numbers**: any number inside the setting's range, such as `0.8`
+- **Text**: trimmed, and never empty, except `orchestrator`
+- **Choices**: exactly as listed, in lower case
+
+A bad value is skipped and the previous one kept. [Troubleshooting](/docs/troubleshooting#a-setting-is-refused-or-skipped) lists each message.
+
+## Where settings are stored
+
+All three files are in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio` when `XDG_CONFIG_HOME` is set:
+
+| File | Holds |
+|---|---|
+| `config.json` | the settings |
+| `secrets.json` | the API keys, readable only by you (mode 600) |
+| `prompt.md` | the [persona](/docs/configure/persona) |
+
+The brain may not read `secrets.json`, and the settings it is shown leave the keys out. [Files and paths](/docs/reference/files) lists everything else claudio writes.
