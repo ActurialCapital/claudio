@@ -576,7 +576,9 @@ async def main():
     aec = None if typed else helper()
     rate = {"in": OUT_RATE if aec else IN_RATE}
     ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
-                     "voice": ui.short_voice(cfg["voice"]), "echo cancel": "on" if aec else "off",
+                     "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
+                               else ui.short_voice(cfg["voice"])),
+                     "echo cancel": "on" if aec else "off",
                      "memory": "on" if remembered_session() else "fresh"},
               hints="Enter cuts · Ctrl-C quits · claudio setup")
     await brain.start()
@@ -596,6 +598,7 @@ async def main():
     loop = asyncio.get_running_loop()
     mic = asyncio.Queue()
     helper_holder = {"proc": None}  # the echo-cancelling helper, when it runs
+    fallback_streams = {"streams": None}   # the plain mic and speaker, if the helper died
     ears = {"ws": None}            # the Flux socket, when connected
     later = {"resume": None}       # the timer that resumes a paused reply nobody interrupted after all
 
@@ -991,7 +994,7 @@ async def main():
             helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                                                                stderr=open(helper_log, "wb"))
             helper_holder["proc"] = helper_proc
-            plain = {"streams": None}
+            plain = fallback_streams
 
             def fall_back():
                 """The helper died: say why, and carry on with the plain mic and speaker."""
@@ -1051,6 +1054,9 @@ async def main():
     finally:
         status["live"].stop()
         server.close()
+        for st in fallback_streams["streams"] or ():
+            with contextlib.suppress(Exception):
+                st.stop(); st.close()          # or the mic callback fires after the loop is gone
         brain.expected_exit = True
         for proc in (brain.proc, helper_holder["proc"]):
             if proc and proc.returncode is None:
