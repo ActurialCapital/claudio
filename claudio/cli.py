@@ -14,9 +14,9 @@ claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
 claudio uninstall   remove them
 claudio forget      drop the brain's memory of past conversations
-claudio set <key> <value>   change one setting (orchestrator, model, effort, voice, ears, eager_eot, eot,
-                            eot_timeout_ms, barge_in, memory)
-claudio hook <event>        what the hooks call"""
+claudio set <key> <value>   change one setting:
+                            KEYS
+claudio hook <event>        what the hooks call""".replace("KEYS", ", ".join(k for k in config.DEFAULTS if k not in config.SECRETS))
 
 
 workspaces = config.workspaces
@@ -81,18 +81,26 @@ def _settings():
         raise SystemExit(f"  {SETTINGS} could not be read as JSON ({e}); fix it first, nothing was changed")
     if not isinstance(data, dict):
         raise SystemExit(f"  {SETTINGS} is not a JSON object; nothing was changed")
+    hooks = data.get("hooks", {})
+    shape_ok = isinstance(hooks, dict) and all(
+        isinstance(entries, list) and all(isinstance(e, dict) and isinstance(e.get("hooks", []), list)
+                                          and all(isinstance(h, dict) for h in e.get("hooks", [])) for e in entries)
+        for entries in hooks.values())
+    if not shape_ok:
+        raise SystemExit(f"  the hooks section of {SETTINGS} is not shaped as Claude Code writes it; nothing was changed")
     return data
 
 
 def _write_settings(s):
-    """Atomic, with a backup of what was there."""
-    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
-    if os.path.exists(SETTINGS):
-        shutil.copy(SETTINGS, SETTINGS + ".bak-claudio")
-    tmp = SETTINGS + ".claudio-tmp"
+    """Atomic, into the real file behind any symlink (dotfiles setups), with a backup of what was there."""
+    target = os.path.realpath(SETTINGS)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if os.path.exists(target):
+        shutil.copy(target, target + ".bak-claudio")
+    tmp = target + ".claudio-tmp"
     with open(tmp, "w") as f:
         json.dump(s, f, indent=2)
-    os.replace(tmp, SETTINGS)
+    os.replace(tmp, target)
 
 
 def install():

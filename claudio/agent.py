@@ -17,6 +17,33 @@ CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
 current = {"task": None, "text": "", "commit": None, "ctl": None}   # the reply that holds the mouth, set by reply()
 out = bytearray()             # audio waiting for the speaker
+audio = {"fed": 0, "played": 0, "marks": []}   # bytes in and out of `out`, and (offset, sentences, k, shown) still to show
+
+
+def feed(m):
+    out.extend(m)
+    audio["fed"] += len(m)
+    status["last_audio"] = time.monotonic()
+
+
+def drained(n):
+    """n bytes left `out` for the speaker: show every sentence whose audio has now started playing."""
+    audio["played"] += n
+    while audio["marks"] and audio["marks"][0][0] <= audio["played"]:
+        _, sentences, k, shown = audio["marks"].pop(0)
+        show(sentences, k, shown)
+
+
+def mark(sentences, k, shown):
+    """Sentence k's audio starts at the current end of `out`."""
+    audio["marks"].append((audio["fed"], sentences, k, shown))
+
+
+def clear_audio():
+    """A cut: drop what is queued, and the sentences that would have shown with it."""
+    out.clear()
+    audio["fed"] = audio["played"]
+    audio["marks"].clear()
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
           "level": 0, "latency": None}
@@ -32,7 +59,7 @@ STYLES = {
                "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
                "Want Sales started?\" Never a full polite sentence.",
 }
-SLASH = re.compile(r"\bslash\s+(\w+)\s*(.*)$")       # "slash effort low", also "um, slash mute"
+SLASH = re.compile(r"^(?:\w+\s+){0,2}slash\s+(\w+)\s*(.*)$")   # "slash effort low", "um slash mute"; not "add a slash command"
 
 
 def state_text():
@@ -195,8 +222,11 @@ class Brain:
                     yield d
             finally:
                 if not task.done():
-                    await self.interrupt()      # a cut: stop Claude, then drain to its result
-                await task
+                    with contextlib.suppress(Exception):
+                        await asyncio.shield(self.interrupt())   # a cut: stop Claude, then drain to its result
+                while not task.done():         # whatever cancels us again, the drain finishes: the stream stays in step
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await asyncio.shield(task)
                 self.busy = False
 
 
@@ -296,6 +326,10 @@ class ElevenMouth:
         await self.ws.send(json.dumps({"text": text if text.endswith(" ") else text + " ", "flush": True}))
         self.sent += 1
 
+    @property
+    def got(self):
+        return max(0, self.sent - 1)           # no per-sentence marker: audio arriving now belongs to the last sentence sent
+
     def done(self):
         return self.final
 
@@ -329,33 +363,42 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         for k in range(i, len(sentences)):
             show(sentences, k, shown)
         return len(sentences), True
-    first = i                     # the sentence whose audio is arriving: first + mouth.got (Deepgram) or in order
+    first = i                     # the sentence whose audio is arriving: first + mouth.got
     held = bytearray()
-    spoken = {"n": 0}
+    held_marks = []               # (offset within held, k): sentence starts inside the held audio
+    marked = set()
+
+    def release():
+        """Held audio (synthesized before the final transcript) goes to the speaker, marks and all."""
+        for off, k in held_marks:
+            audio["marks"].append((audio["fed"] + off, sentences, k, shown))
+        held_marks.clear()
+        feed(bytes(held)); held.clear()
+        r = status["reply"]
+        if r and r.get("committed_at") and not r.get("first_word"):
+            r["first_word"] = time.monotonic() - r["committed_at"]
 
     def on_audio(m):
+        k = first + mouth.got
         if commit.is_set():
             if held:
-                out.extend(held); held.clear()
-            out.extend(m)
-            status["last_audio"] = time.monotonic()
+                release()
+            if k not in marked:
+                marked.add(k); mark(sentences, k, shown)
+            feed(m)
             r = status["reply"]
             if r and r.get("committed_at") and not r.get("first_word"):
                 r["first_word"] = time.monotonic() - r["committed_at"]
-            show(sentences, first + getattr(mouth, "got", spoken["n"]), shown)
         else:
+            if k not in marked:
+                marked.add(k); held_marks.append((len(held), k))
             held.extend(m)
     player = asyncio.create_task(mouth.receive(on_audio))
 
     async def on_commit():                     # an eager start: release what was synthesized before the final transcript
         await commit.wait()
         if held:
-            out.extend(held); held.clear()
-            status["last_audio"] = time.monotonic()
-            r = status["reply"]
-            if r and r.get("committed_at") and not r.get("first_word"):
-                r["first_word"] = time.monotonic() - r["committed_at"]
-            show(sentences, first, shown)
+            release()
     committer = asyncio.create_task(on_commit())
     try:
         while True:
@@ -375,9 +418,10 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
             return i, False
         await commit.wait()
         if held:
-            out.extend(held); held.clear()
+            release()
         for k in range(first, i):
-            show(sentences, k, shown)
+            if k not in marked:                # no audio came for it (an empty sentence): show it anyway
+                show(sentences, k, shown)
         return i, True
     finally:
         player.cancel()
@@ -441,16 +485,20 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                     ctl["paused"].clear()
                     i = max(0, i - 2)      # ponytail: no playback position; say the last sentence or two again
                 i, finished = await speak_from(sentences, i, new, gen_done, ctl, commit, shown)
-                if finished:
-                    break
-            while out and not ctl["paused"].is_set():
-                await asyncio.sleep(0.05)
+                if not finished:
+                    continue
+                while out and not ctl["paused"].is_set():     # the tail: audio still playing after the last sentence was sent
+                    await asyncio.sleep(0.05)
+                if ctl["paused"].is_set():
+                    continue                   # paused during the tail: wait, then say the end again
+                break
         finally:
             if not gen.done():
                 gen.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await gen
-            out.clear()
+            while not gen.done():              # a second cut must not cancel the drain: the stream would go off by one
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await asyncio.shield(gen)
+            clear_audio()
             r = status["reply"]
             if r and r.get("first_word") and not fixed:
                 status["latency"] = (f"{r['first_word']:.1f} s", time.monotonic() + 6)
@@ -465,6 +513,8 @@ def on_out(outdata, frames, t, status_):
     b = bytes(out[:n]); del out[:n]
     outdata[:len(b)] = b
     outdata[len(b):] = b"\x00" * (n - len(b))
+    if b:
+        audio["played"] += len(b)              # the callback thread: the showing happens on the loop (see shower)
 
 
 def norm(s):
@@ -476,9 +526,17 @@ def backchannel(said):
     return len(words) < 2 or all(w in BACKCHANNEL for w in words)
 
 
+async def shower_typed():
+    while True:
+        await asyncio.sleep(0.05)
+        drained(0)
+
+
 async def main():
     global cfg, surfaces
     cfg = config.load()
+    for w in config.WARNINGS:
+        ui.warn(w)
     if not cfg["deepgram_api_key"]:
         raise SystemExit("No Deepgram key. Run `claudio setup`, or export DEEPGRAM_API_KEY.")
     surfaces = sessions()
@@ -498,12 +556,14 @@ async def main():
         with sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
             ui.you(typed)
             ev = asyncio.Event(); ev.set()
+            showing = asyncio.create_task(shower_typed())
             await reply(typed, ev, new_ctl())
+            showing.cancel()
         return brain.proc.terminate()
 
     loop = asyncio.get_running_loop()
     mic = asyncio.Queue()
-    audio = {"proc": None}         # the echo-cancelling helper, when it runs
+    helper_holder = {"proc": None}  # the echo-cancelling helper, when it runs
     ears = {"ws": None}            # the Flux socket, when connected
     later = {"resume": None}       # the timer that resumes a paused reply nobody interrupted after all
 
@@ -518,9 +578,9 @@ async def main():
         return live() and current["ctl"]["paused"].is_set()
 
     def drop_audio():
-        out.clear()
-        if audio["proc"]:
-            audio["proc"].send_signal(signal.SIGUSR1)     # drop what the helper has queued
+        clear_audio()
+        if helper_holder["proc"]:
+            helper_holder["proc"].send_signal(signal.SIGUSR1)     # drop what the helper has queued
 
     def cut(why="cut"):
         if later["resume"]:
@@ -679,6 +739,8 @@ async def main():
                 continue
             stamp = now
             new = config.load()
+            for w in config.WARNINGS:
+                ui.warn(w)
             restart = (new["model"], new["effort"], new["style"]) != (cfg["model"], cfg["effort"], cfg["style"])
             re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms"))
             diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
@@ -703,12 +765,14 @@ async def main():
                 with contextlib.suppress(OSError):
                     os.unlink(SESSION)             # the remembered session would not resume: start fresh, once
                 ui.note("the remembered conversation is gone; starting fresh")
+                why = "The conversation you were resuming is gone, so you start fresh. Say so in a few words."
             else:
                 ui.warn("the brain died; restarting it")
+                why = ("You just crashed and were restarted. Say in a few words that you are back, "
+                       "and ask the user to repeat what they said last if they were mid-request.")
             async with brain.lock:
                 await brain.start()
-            start("[event] You just crashed and were restarted. Say in a few words that you are back, "
-                  "and ask the user to repeat what they said last if they were mid-request.", committed=True, event=True)
+            start(f"[event] {why}", committed=True, event=True)
 
     status["gate_open"] = not cfg["push_to_talk"]   # push to talk: Enter opens the mic until your turn ends
 
@@ -827,6 +891,11 @@ async def main():
             await asyncio.sleep(0.25)
             refresh()
 
+    async def shower():                    # the plain audio path: sentences show as the callback thread plays them
+        while True:
+            await asyncio.sleep(0.05)
+            drained(0)
+
     def pane(sid, lines):
         """The last lines of a surface's screen, or ''."""
         try:
@@ -868,13 +937,15 @@ async def main():
     status["live"] = console.status("[dim]listening[/]")
     status["live"].start()
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
+    if not aec:
+        tasks.append(shower())
     work = {"task": None}
     loop.add_signal_handler(signal.SIGINT, lambda: work["task"] and work["task"].cancel())
     try:
         if aec:
             helper_proc = await asyncio.create_subprocess_exec(aec, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                                                                stderr=asyncio.subprocess.DEVNULL)
-            audio["proc"] = helper_proc
+            helper_holder["proc"] = helper_proc
 
             async def mic_pump():
                 while chunk := await helper_proc.stdout.read(OUT_RATE // 50 * 2):
@@ -892,6 +963,7 @@ async def main():
                         sent = played
                     while out and sent - played < lead:
                         chunk = bytes(out[:chunk_size]); del out[:chunk_size]
+                        drained(len(chunk))
                         helper_proc.stdin.write(chunk)
                         sent += len(chunk)
                     await helper_proc.stdin.drain()
@@ -908,7 +980,7 @@ async def main():
         status["live"].stop()
         server.close()
         brain.expected_exit = True
-        for proc in (brain.proc, audio["proc"]):
+        for proc in (brain.proc, helper_holder["proc"]):
             if proc and proc.returncode is None:
                 proc.terminate()
                 with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError):

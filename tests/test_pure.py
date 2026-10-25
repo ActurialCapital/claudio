@@ -133,3 +133,58 @@ def test_legacy_key_in_config_json_moves_to_secrets(tmp_path, monkeypatch):
     assert c["deepgram_api_key"] == "old-key"
     assert "deepgram_api_key" not in json.load(open(config.CONF))
     assert json.load(open(config.SECRETS_FILE))["deepgram_api_key"] == "old-key"
+
+
+def test_slash_only_at_the_start_of_a_turn():
+    from claudio.agent import SLASH
+    assert SLASH.search("slash mute")
+    assert SLASH.search("um slash effort low").groups() == ("effort", "low")
+    assert SLASH.search("mute slash mute")
+    assert not SLASH.search("ask the orchestrator to add a slash command for deploy")
+    assert not SLASH.search("the path has a slash in it")
+
+
+def test_check_rejects_bad_types_choices_and_ranges():
+    assert config.check("eot", "abc")[1].startswith("eot must be a number")
+    assert config.check("eot_timeout_ms", "1.5")[1].startswith("eot_timeout_ms must be a number")
+    assert config.check("eot", "7")[1].startswith("eot must be between")
+    assert config.check("model", "opus-four")[1].startswith("model must be one of")
+    assert config.check("model", 123)[1]
+    assert config.check("effort", None)[1]
+    assert config.check("barge_in", "false") == (False, None)
+    assert config.check("eot", "0.6") == (0.6, None)
+
+
+def test_load_skips_bad_project_values_with_a_warning(tmp_path, monkeypatch):
+    _scratch(tmp_path, monkeypatch)
+    (tmp_path / ".claudio.json").write_text('{"model": 123, "effort": null, "eot": "x", "voice": 7, "orchestrator": "Core"}')
+    c = config.load()
+    assert (c["model"], c["effort"], c["eot"], c["orchestrator"]) == ("default", "low", 0.7, "Core")
+    assert c["voice"] == "7"                                   # a number for a string key is just a string
+    assert len(config.WARNINGS) == 3
+
+
+def test_tool_line_survives_markup_characters(capsys):
+    from claudio import ui
+    ui.tool("Grep", {"pattern": "[/]"})
+    ui.tool("Bash", {"command": "git log --grep=[/x] --oneline"})
+    ui.tool("Read", {"file_path": "/app/[id].tsx"})
+    out = capsys.readouterr().out
+    assert "[/]" in out and "[/x]" in out and "[id].tsx" in out
+
+
+def test_settings_write_follows_a_symlink_and_refuses_odd_hook_shapes(tmp_path, monkeypatch):
+    import json, pytest
+    from claudio import cli
+    real = tmp_path / "real.json"
+    real.write_text(json.dumps({"permissions": {"allow": ["Bash(ls:*)"]}}))
+    link = tmp_path / "settings.json"
+    link.symlink_to(real)
+    monkeypatch.setattr(cli, "SETTINGS", str(link))
+    cli.install()
+    assert link.is_symlink() and "hooks" in json.load(open(real)) and "permissions" in json.load(open(real))
+    for bad in ('{"hooks": []}', '{"hooks": {"Stop": ["x"]}}', '{"permissions": {}, }'):
+        real.write_text(bad)
+        with pytest.raises(SystemExit):
+            cli.install()
+        assert real.read_text() == bad

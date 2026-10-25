@@ -127,7 +127,7 @@ def tool(name, inp):
         what = " ".join(inp.get("command", "").split()[:3])
     else:
         what = name.lower()
-    console.print(f"  [dim]→ {what[:70]}[/]", width=width())
+    console.print(Text(f"  → {what[:70]}", style="dim"), width=width())
 
 
 def setting(text):

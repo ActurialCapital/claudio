@@ -14,6 +14,10 @@ CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
 MODELS = ("default", "sonnet", "opus", "haiku")
 EFFORTS = ("low", "medium", "high")
+RANGES = {"eot": (0.0, 1.0), "eager_eot": (0.0, 1.0), "eot_timeout_ms": (100, 10000)}
+CHOICES = {"model": MODELS, "effort": EFFORTS, "style": ("plain", "brief", "caveman"),
+           "narrate": ("handed-off", "all", "none"), "mouth": ("deepgram", "elevenlabs")}
+WARNINGS = []                      # bad values seen while loading, for the caller to show
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
@@ -46,21 +50,53 @@ def stored():
     return c
 
 
+def check(key, value):
+    """The value as its proper type, or a message saying why it cannot be."""
+    try:
+        if isinstance(DEFAULTS[key], bool):
+            v = value if isinstance(value, bool) else KINDS[key](str(value))
+        elif isinstance(value, bool) or value is None:
+            raise TypeError
+        else:
+            v = KINDS[key](value)
+    except (TypeError, ValueError):
+        return None, f"{key} must be a {'number' if KINDS[key] in (float, int) else 'string'}, not {value!r}"
+    if key in CHOICES and v not in CHOICES[key]:
+        return None, f"{key} must be one of {', '.join(CHOICES[key])}, not {v!r}"
+    if key in RANGES and not RANGES[key][0] <= v <= RANGES[key][1]:
+        return None, f"{key} must be between {RANGES[key][0]} and {RANGES[key][1]}, not {v!r}"
+    return v, None
+
+
+def _merge(c, values, source):
+    """Fold values in, keeping only the ones that check out; the rest become warnings."""
+    for k, v in values.items():
+        if k not in DEFAULTS or k in SECRETS:
+            continue
+        good, why = check(k, v)
+        if why:
+            WARNINGS.append(f"{source}: {why}; keeping {c[k]!r}")
+        else:
+            c[k] = good
+
+
 def load():
     """The settings for this run: global, then the project's .claudio.json, then CLAUDIO_<KEY> env.
-    Creates the persona file on first use."""
+    Creates the persona file on first use. Bad values are skipped and listed in WARNINGS."""
     os.makedirs(DIR, exist_ok=True)
     if not os.path.exists(PROMPT):
         shutil.copy(PACKAGED_PROMPT, PROMPT)
-    c = stored()
-    c.update({k: v for k, v in _read(PROJECT_FILE).items() if k in DEFAULTS and k not in SECRETS})
+    WARNINGS.clear()
+    c = dict(DEFAULTS)
+    saved = stored()
+    _merge(c, {k: saved[k] for k in DEFAULTS if k not in SECRETS}, CONF)
+    for k in SECRETS:
+        c[k] = saved[k]
+    _merge(c, _read(PROJECT_FILE), PROJECT_FILE)
     for secret in SECRETS:
         if os.environ.get(secret.upper()):
             c[secret] = os.environ[secret.upper()]
-    for k in DEFAULTS:
-        v = os.environ.get("CLAUDIO_" + k.upper())
-        if v is not None:
-            c[k] = KINDS[k](v)
+    _merge(c, {k: os.environ["CLAUDIO_" + k.upper()] for k in DEFAULTS if "CLAUDIO_" + k.upper() in os.environ}, "environment")
     return c
 
 
@@ -83,11 +119,9 @@ def _write(path, data, mode):
 def set_key(key, value):
     if key not in KINDS or key in SECRETS:
         raise SystemExit(f"usage: claudio set <{'|'.join(k for k in KINDS if k not in SECRETS)}> <value>")
-    v = KINDS[key](value)
-    if key == "model" and v not in MODELS:
-        raise SystemExit(f"model must be one of {', '.join(MODELS)}")
-    if key == "effort" and v not in EFFORTS:
-        raise SystemExit(f"effort must be one of {', '.join(EFFORTS)}")
+    v, why = check(key, value)
+    if why:
+        raise SystemExit(why)
     cfg = stored()
     cfg[key] = v
     save(cfg)
