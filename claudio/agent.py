@@ -62,7 +62,8 @@ STYLES = {
                "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
                "Want Sales started?\" Never a full polite sentence.",
 }
-SLASH = re.compile(r"^(?:\w+\s+){0,2}slash\s+(\w+)\s*(.*)$")   # "slash effort low", "um slash mute"; not "add a slash command"
+LEAD = "|".join(["um", "uh", "ok", "okay", "so", "hey", "and", "well", "please", "slash", *COMMANDS])   # what may come before "slash"
+SLASH = re.compile(rf"^(?:(?:{LEAD})\s+){{0,2}}slash\s+(\w+)\s*(.*)$")   # "um slash mute", an echoed "mute slash mute"; not "add a slash command"
 
 
 def parse_slash(words):
