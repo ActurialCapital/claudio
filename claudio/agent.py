@@ -77,8 +77,12 @@ SLASH_HELP = ("Slash commands:\n- clear starts a fresh conversation.\n- model, e
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours"}
 STYLES = {
     "plain": "",
-    "brief": "\n\nSTYLE OVERRIDE, brief: one sentence per reply, two at most when the answer has two parts. "
-             "No lead-in before a tool, no question back unless the next step is truly the user's call.",
+    "brief": "\n\nSTYLE OVERRIDE, brief: this replaces every rule above about length and format. Speak one sentence "
+             "per reply, two at most when the answer has two parts. No lead-in before a tool, no question back unless "
+             "the next step is truly the user's call. Whenever the answer names several things, sums up or compares, "
+             "the screen carries it: a Markdown table when the things have two or more factors (shown, never read), "
+             "else bullets of a few words each. Order: one short spoken sentence saying what it is, then the table "
+             "or bullets, then at most one sentence on what stands out. Never open a reply with a table or bullets.",
     "caveman": "\n\nSTYLE OVERRIDE, caveman: this replaces every rule above about sentences. Speak like a caveman: "
                "at most six words per sentence, drop articles, auxiliaries and connectors, fragments are the norm. "
                "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
