@@ -246,6 +246,17 @@
       "may_be_empty": false
     },
     {
+      "key": "code_colors",
+      "type": "boolean",
+      "default": true,
+      "choices": [],
+      "range": null,
+      "help": "highlight code blocks in colour; off shows them as plain text",
+      "secret": false,
+      "env": "CLAUDIO_CODE_COLORS",
+      "may_be_empty": false
+    },
+    {
       "key": "deepgram_api_key",
       "type": "text",
       "default": "",

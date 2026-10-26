@@ -66,8 +66,8 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n- clear starts a fresh conversation.\n- model, effort and voice change the brain or the voice.\n"
-              "- style plain, brief or caveman.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.")
-COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help"}
+              "- style plain, brief or caveman.\n- colors on or off for code.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.")
+COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours"}
 STYLES = {
     "plain": "",
     "brief": "\n\nSTYLE OVERRIDE, brief: one sentence per reply, two at most when the answer has two parts. "
@@ -587,7 +587,7 @@ def show(sentences, k, shown, secs=None):
         shown.add(k)
         text, first_of_block, blocks = sentences[k]
         for b in blocks:
-            ui.block(b)
+            ui.block(b, colors=cfg.get("code_colors", True))
         if text:
             ui.me_line(text, first_of_block, live=bool(status["live"]), secs=secs)
 
@@ -876,6 +876,11 @@ async def main():
             if cmd == "voice":
                 cfg["voice"] = value               # so the confirmation already speaks in it
                 start(f"{arg.capitalize()} from now on.", committed=True, fixed=True)
+        elif cmd in ("colors", "colours"):     # "slash code colors off"; alone, it flips them
+            on = arg in config.TRUE if arg in config.TRUE + config.FALSE else not cfg["code_colors"]
+            config.set_key("code_colors", on)
+            cfg["code_colors"] = on
+            start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "status":
             start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "
                   f"Voice {ui.short_voice(cfg['voice'])}. Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)

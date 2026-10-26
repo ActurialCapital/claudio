@@ -24,7 +24,7 @@ DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "a
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
-            "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed",
+            "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed", "code_colors": True,
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 HELP = {"orchestrator": "cmux workspace that gets tasks by default",
@@ -46,6 +46,7 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "local_voice": "Kokoro voice, when mouth is local: am_michael, af_heart, bm_george…",
         "local_speed": "how fast the local voice speaks, 0.5 to 2.0",
         "local_model": "Kokoro model: compressed (88 MB, about twice as fast) or full (325 MB, a little cleaner)",
+        "code_colors": "highlight code blocks in colour; off shows them as plain text",
         "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
         "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there

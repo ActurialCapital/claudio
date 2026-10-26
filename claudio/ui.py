@@ -282,9 +282,12 @@ def me_line(sentence, first, live=False, secs=None):
     log(("◆ " if first else "  ") + sentence.strip())
 
 
-def block(md):
-    """A table or code block from the brain: shown whole, in place, never spoken."""
-    lines = console.render_lines(Constrain(Padding(Markdown(md.strip()), (0, 0, 0, 2)), width()), console.options, pad=False)
+def block(md, colors=True):
+    """A table or code block from the brain: shown whole, in place, never spoken. colors off: code as plain text."""
+    shown = Markdown(md.strip())
+    if not colors and md.startswith("```"):
+        shown = Text(md.split("\n", 1)[-1].rstrip().removesuffix("```").rstrip("\n"))
+    lines = console.render_lines(Constrain(Padding(shown, (0, 0, 0, 2)), width()), console.options, pad=False)
     blank = lambda line: not "".join(seg.text for seg in line).strip()
     while lines and blank(lines[0]):                 # a table's box leaves empty rows around it
         lines.pop(0)
