@@ -62,6 +62,7 @@ flowchart LR
 | "what did we do today?" | reads today's transcript and tells you |
 | "write a note: call Michael" | asks Desktop or Documents, then adds it to `notes.md` there, dated |
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
+| "open issue 727 in the browser" | opens it, or a Google search, and says only "Opening it." |
 | "yes", when it asks to allow a command | adds it to `allow`; the brain restarts and retries your request |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |

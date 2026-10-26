@@ -114,11 +114,17 @@ def check(key, value):
         v = value.strip()
         if not v and key not in MAY_BE_EMPTY:
             return None, f"{key} cannot be empty"
-    if key == "voice" and not v.lower().startswith("aura-"):   # "Zeus", "ELECTRA", a misheard "Elektra": Deepgram's model name
-        near = difflib.get_close_matches(v.lower(), AURA, 1, 0.8)
-        if not near:
-            return None, f"voice must be an Aura-2 voice, one of {', '.join(AURA)}, not {v!r}"
-        v = f"aura-2-{near[0]}-en"
+    if key == "voice":                         # "Zeus", "ELECTRA", a misheard "Elektra", "aura-2-zues-en": the model name
+        low = v.lower()
+        if low.startswith("aura-") and not re.fullmatch(r"aura-2-[a-z]+-en|aura-2-\w+", low):
+            v = low                            # an Aura-1 voice, kept as given
+        elif re.fullmatch(r"aura-2-[a-z]+-[a-z]{2}", low) and not low.endswith("-en"):
+            v = low                            # Aura-2 in another language: not in the English list
+        else:
+            near = difflib.get_close_matches(low.removeprefix("aura-2-").removesuffix("-en"), AURA, 1, 0.7)
+            if not near:
+                return None, f"voice must be an Aura-2 voice, one of {', '.join(AURA)}, not {v!r}"
+            v = f"aura-2-{near[0]}-en"
     if key in CHOICES and v not in CHOICES[key]:
         return None, f"{key} must be one of {', '.join(CHOICES[key])}, not {v!r}"
     if key in RANGES and not RANGES[key][0] <= v <= RANGES[key][1]:
@@ -199,11 +205,28 @@ def allowed():
         return []
 
 
+NOTES = ("~/Desktop", "~/Documents")   # where the brain may write a note: .md and .txt files only
+WRAPPERS = {"env", "sh", "bash", "zsh", "dash", "fish", "python", "python3", "node", "ruby", "perl", "xargs", "sudo",
+            "eval", "exec", "nohup", "time", "command", "nice", "timeout", "watch", "osascript", "open", "npx", "uvx"}
+
+
+def openable(target):
+    """What `claudio open` may open, as open takes it, or None: a web link, or a .md/.txt note in a notes folder.
+    Never an app, a script or open's own flags: the brain may open these unasked."""
+    if re.fullmatch(r"https?://[^\s\"'`]+", target):
+        return target
+    path = os.path.realpath(os.path.expanduser(target))
+    ok = path.endswith((".md", ".txt")) and os.path.isfile(path) and any(
+        path.startswith(os.path.realpath(os.path.expanduser(d)) + "/") for d in NOTES)
+    return path if ok else None
+
+
 def outside(tool_input, cwd, dirs):
     """The folder a refused tool use reaches outside the working one and the allowed ones, or None: its git
     repo when it is in one, else the nearest folder that exists. claude -p refuses those whatever the rules."""
     import subprocess
-    text = " ".join(str(v) for v in tool_input.values())
+    values = {**tool_input, "command": " ".join(str(tool_input["command"]).split()[1:])} if "command" in tool_input else tool_input
+    text = re.sub(r"'[^']*\s[^']*'|\"[^\"]*\s[^\"]*\"", " ", " ".join(str(v) for v in values.values()))   # not the program, not a quoted message
     for p in re.findall(r"(?:^|(?<=[\s\"'=]))(~?/[^\s\"';|&*?{}]+)", text):
         path = os.path.expanduser(p).rstrip("/")
         while path and not os.path.isdir(path):
@@ -224,9 +247,11 @@ def rule_for(tool, tool_input, cwd=None):
     """The rule that allows a refused tool use, and how to say what was refused. A folder outside the working one
     is the rule when it is the reason; else for Bash, its leading plain words up to three, so "gh issue view 727
     -R x" gives Bash(gh issue view:*) and a yes allows that kind of command, not all of gh."""
-    folder = outside(tool_input, cwd or os.getcwd(), allowed_dirs())
+    folder = outside(tool_input, cwd or os.getcwd(), [*allowed_dirs(), *map(os.path.expanduser, NOTES)])
     if folder:
         return folder, "into " + folder.replace(os.path.expanduser("~"), "~", 1)
+    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        return None, ""                        # a bare Write would allow any file anywhere: add a narrow rule by hand
     if tool != "Bash":
         return tool, f"to use {tool}"
     words = []
@@ -234,7 +259,9 @@ def rule_for(tool, tool_input, cwd=None):
         if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
             break
         words.append(w)
-    prefix = " ".join(words) or str(tool_input.get("command", "")).split(" ")[0]
+    if not words or words[0] in WRAPPERS:      # VAR=x, env, sh -c, python -c…: a yes would allow any command
+        return None, ""
+    prefix = " ".join(words)
     return f"Bash({prefix}:*)", f"to run `{prefix}`"
 
 

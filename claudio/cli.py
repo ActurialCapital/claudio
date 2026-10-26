@@ -15,6 +15,7 @@ claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
 claudio uninstall   remove them
 claudio forget      drop the brain's memory of past conversations
+claudio open <link or note>  open a web link, or a .md/.txt note in ~/Desktop or ~/Documents
 claudio set <key> <value>   change one setting:
                             KEYS
 claudio hook <event>        what the hooks call""".replace("KEYS", ", ".join(k for k in config.DEFAULTS if k not in config.SECRETS))
@@ -200,6 +201,12 @@ def main():
         doctor()
     elif args[0] == "forget":
         forget()
+    elif args[0] == "open" and len(args) == 2:   # the brain's only way to open something: a link or a note
+        target = config.openable(args[1])
+        if not target:
+            raise SystemExit(f"claudio open takes a web link or a .md/.txt note in {' or '.join(config.NOTES)}, "
+                             f"not {args[1]!r}")
+        subprocess.run(["open", target])
     elif args[0] == "set" and len(args) == 3:
         print(f"{args[1]} = {config.set_key(args[1], args[2])}")
     elif args[0] == "hook" and len(args) == 2:

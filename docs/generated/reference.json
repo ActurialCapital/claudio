@@ -285,6 +285,10 @@
       "help": "talk (runs setup the first time)"
     },
     {
+      "usage": "claudio --dangerously-skip-permissions",
+      "help": "talk, with the brain's permission checks off until you quit"
+    },
+    {
       "usage": "claudio setup",
       "help": "the wizard again"
     },
@@ -303,6 +307,10 @@
     {
       "usage": "claudio forget",
       "help": "drop the brain's memory of past conversations"
+    },
+    {
+      "usage": "claudio open <link or note>",
+      "help": "open a web link, or a .md/.txt note in ~/Desktop or ~/Documents"
     },
     {
       "usage": "claudio set <key> <value>",

@@ -32,7 +32,6 @@ def shown_block(buf, final=False):
     return 0
 
 
-NOTES = ("~/Desktop", "~/Documents")   # where the brain may write a note: .md and .txt files only
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 YES, NO = ("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"), ("no", "nope", "n", "dont", "deny", "never")
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
@@ -69,7 +68,8 @@ def clear_audio():
     audio["marks"].clear()
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
-          "level": 0, "latency": None, "skip": False}   # skip: no permission checks, this run only, never saved
+          "level": 0, "latency": None, "skip": False}
+pending = {"rule": None, "text": "", "retry": None, "ask": "", "ready": False}   # an allow question: answerable once shown   # skip: no permission checks, this run only, never saved
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n"
@@ -188,7 +188,8 @@ def system_prompt():
                f"gh ... -R {owner}/<name>.\n" if owner else "")
             + (f"- The voice is {cfg['mouth']}: local_voice, local_speed and local_model do nothing, and it has no speed "
                "setting. Say so rather than suggest them.\n" if cfg["mouth"] != "local" else "")
-            + "- Notes and looking things up are your own jobs: never hand them to a session.\n"
+            + "- Notes, lookups and opening the browser are your own jobs: never hand them to a session. "
+              "\"In the browser\" means open it there and say only \"Opening it.\", no answer.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
             + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
                "work to sessions, and run nothing that deletes, overwrites or pushes without the user's plain yes."
@@ -222,7 +223,7 @@ class Brain:
         env["PATH"] = f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}"
         resume = remembered_session()
         mcp = config.mcp_servers()
-        notes = [d for d in map(os.path.expanduser, NOTES) if os.path.isdir(d)]
+        notes = [d for d in map(os.path.expanduser, config.NOTES) if os.path.isdir(d)]
         self.resumed, self.started_at = bool(resume), time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
@@ -242,7 +243,7 @@ class Brain:
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
             *(f"mcp__{name}" for name in mcp),
-            "WebSearch", "WebFetch", "Bash(open:*)", "Bash(test:*)",   # looking things up; opening a note or a link
+            "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(test:*)",   # looking things up; opening a link or a note
             *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt")),   # notes only
             *(r for r in config.allowed() if not r.startswith(("/", "~"))),   # the user's own: ~/.config/claudio/allow
             *(["--add-dir", *notes, *config.allowed_dirs()] if notes or config.allowed_dirs() else []),   # and folders
@@ -290,7 +291,7 @@ class Brain:
                     if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
                         asked = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
                         to = m.group(1) or m.group(2)        # a surface id: the workspace it is in, which events carry
-                        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to)
+                        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to.upper())
                         self.handoffs[to] = (time.time(), asked[-1] if asked else "")
                     if "claudio set" in cmd:
                         self.changed.set()
@@ -688,6 +689,8 @@ def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block, blocks = sentences[k]
+        if pending["rule"] and text.strip() == pending["ask"]:
+            pending["ready"] = True            # the allow question is being asked: now a yes answers it
         for b in blocks:
             ui.block(b, colors=cfg.get("code_colors", True))
         if text:
@@ -944,15 +947,15 @@ async def main():
             status["reply"] = handle
         refresh()
 
-    pending = {"rule": None, "text": "", "retry": None}   # a rule asked about, the request it was for, one to retry
 
     def denied(denials, text):
         """The brain was refused a tool: claudio, not the brain, asks the user, so nothing it reads can say yes."""
         rule, what = config.rule_for(denials[0].get("tool_name", ""), denials[0].get("tool_input") or {})
-        if rule in config.allowed():
-            return
-        pending.update(rule=rule, text=text, left=1)     # it survives one turn in between: "what is wc?"
-        start(f"I'm not allowed {what}. Allow it from now on? Say yes or no.", committed=True, fixed=True, event=True)
+        if not rule or rule in config.allowed():
+            return                             # nothing a yes may safely allow (sh -c, a bare Write…), or already is
+        ask = f"I'm not allowed {what}. Allow it from now on? Say yes or no."
+        pending.update(rule=rule, text=text, left=1, ask=ask, ready=False)   # answerable once it is on screen
+        start(ask, committed=True, fixed=True, event=True)
 
     brain.on_denied = denied
 
@@ -960,7 +963,7 @@ async def main():
         """The turn after an allow question: yes adds the rule and retries the request; no drops it. The note to
         show when it was the answer; None for anything else, which drops the question and is an ordinary turn."""
         rule, words = pending["rule"], norm(said)
-        if not rule:
+        if not rule or not pending["ready"]:   # not yet asked: an "okay" to the reply before it is no yes
             return None
         if words and len(words) <= 3 and words[0] in YES + NO:
             pending["rule"] = None
@@ -1022,15 +1025,16 @@ async def main():
             said = f"I don't know style {arg}. " if arg else "Style is "     # "slash style" alone: just the choices
             start(f"{said}{', '.join(STYLES)}.", committed=True, fixed=True)
         elif cmd == "voice":
-            name = arg.replace(" ", "-").removeprefix("aura-2-").removesuffix("-en")
-            if name not in config.AURA:        # "banana", "can you list the voices", or nothing: all of them, nothing saved
+            value, why = config.check("voice", arg.replace(" ", "-")) if arg else (None, "none")   # "elektra" is electra
+            name = ui.short_voice(value or "")
+            if why:                            # "banana", "can you list the voices", or nothing: all of them, nothing saved
                 said = f"{arg.capitalize()} is not recognised as a voice. " if len(arg.split()) == 1 else ""   # a sentence: just the list
                 start(f"{said}The voices are as follows:", committed=True, fixed=True,
                       screen="\n".join(f"- {n}" for n in config.AURA))    # on screen only: 41 names read aloud is too long
                 return True
-            config.set_key("voice", f"aura-2-{name}-en")
+            config.set_key("voice", value)
             brain.changed.set()
-            cfg["voice"] = f"aura-2-{name}-en"     # so the confirmation already speaks in it
+            cfg["voice"] = value               # so the confirmation already speaks in it
             start(f"{name.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd in ("model", "effort") and not arg:   # "slash effort" alone: the choices
             start(f"{cmd.capitalize()} is {', '.join(config.MODELS if cmd == 'model' else config.EFFORTS)}.",
@@ -1049,9 +1053,9 @@ async def main():
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
-            pending.update(rule=SKIP, text="", left=0)   # only a yes right after this turns them off
-            start("Skip every permission check until you quit? The brain could then run anything, unasked. "
-                  "Say yes or no.", committed=True, fixed=True)
+            ask = "Skip every permission check until you quit? The brain could then run anything, unasked. Say yes or no."
+            pending.update(rule=SKIP, text="", left=0, ask=ask, ready=False)   # only a yes right after it turns them off
+            start(ask, committed=True, fixed=True)
         elif cmd == "permissions":
             if status["skip"]:
                 asyncio.create_task(skipping(False))
@@ -1086,7 +1090,8 @@ async def main():
             return
         if status["muted"]:
             return                         # muted: nothing spoken, not even the sessions
-        when, asked = brain.handoffs.get(ws, (0, ""))
+        when, asked = (brain.handoffs.get(ws) or brain.handoffs.get(str(ev.get("surface") or "").upper())
+                       or (0, ""))           # by title, or by the surface id of a session newer than the list
         if cfg["narrate"] == "none":
             return
         handed = when > time.time() - 1800
@@ -1216,7 +1221,7 @@ async def main():
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
             return
-        if ev["event"] == "EndOfTurn" and said and (note := answer(said)):
+        if ev["event"] == "EndOfTurn" and said and not paused() and (note := answer(said)):   # paused: a backchannel
             ui.you(said)
             ui.note(note)
             cut(None)                          # the question, if it was still being asked: answered
@@ -1348,21 +1353,17 @@ async def main():
         if not me:
             return
 
-        def queued(mark=0):
-            args = [CMUX, "agent", "inbox", "--surface", me, "--state", "queued", "--json"]
+        def take():
+            """The queued messages, marked read by the same call that lists them: none can slip in between."""
             try:
-                out = subprocess.run(args + (["--limit", str(mark), "--mark-read"] if mark else []),
-                                     capture_output=True, text=True, timeout=5).stdout
+                out = subprocess.run([CMUX, "agent", "inbox", "--surface", me, "--state", "queued", "--mark-read",
+                                      "--json"], capture_output=True, text=True, timeout=5).stdout
                 return json.loads(out).get("messages", [])
             except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
                 return []
         while True:
             await asyncio.sleep(3)
-            new = config.replies(await loop.run_in_executor(None, queued), me, since)
-            if not new:
-                continue
-            await loop.run_in_executor(None, queued, len(new))   # newest first: exactly these, now read
-            for m in reversed(new):
+            for m in reversed(config.replies(await loop.run_in_executor(None, take), me, since)):   # oldest first
                 if status["muted"] or cfg["narrate"] == "none":
                     continue
                 ui.event(m.get("sender_name") or "a session", "Reply")

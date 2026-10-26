@@ -35,10 +35,11 @@ The brain is one `claude -p` process, started in the directory you ran claudio f
 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch`
-- **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view` and `search`, with your `gh` login
+- **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
 - **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface` and `send-key`
 - **claudio set**, to change a setting when you ask
-- **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and `open` a file or a link
+- **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and check that a file exists with `test`
+- **`claudio open`**: a web link, or a `.md` or `.txt` note in those folders, never an app, a script or anything else
 - **the web**: WebSearch and WebFetch
 - **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
 
@@ -58,7 +59,7 @@ Your Claude Code permission settings don't apply to it, and `claude -p` has no a
 
 When it's a folder outside the one you started in that was refused, claudio asks about the folder instead, the whole repo when it's in one: “I'm not allowed into ~/GitHub/ActurialCapital/claudio. Allow it from now on?”
 
-The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio asks, not the brain, so nothing the brain reads can approve itself.
+The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio doesn't ask at all when a yes would allow far more than the request: a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, or writing a file (a bare `Write` rule would allow any file). Add a narrow rule to `allow` yourself for those. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
 To drop every check instead, for this run only, start `claudio --dangerously-skip-permissions` or say “slash permissions skip” and then yes. The brain can then run anything without asking; it is still told to hand work to sessions and to get your yes before deleting, overwriting or pushing.
 

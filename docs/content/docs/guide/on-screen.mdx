@@ -85,13 +85,14 @@ claudio saves every conversation as Markdown, one file a day:
 ~/.config/claudio/transcripts/2026-10-25.md
 ```
 
-Each line has the time and the same glyphs as the screen. Your turns, claudio's sentences, session reports and setting changes are saved. Notes, warnings and `→` lines aren't.
+Each line has the time to the second and the same glyphs as the screen: your turns, claudio's sentences and what it showed, session reports, setting changes, notes, warnings, and each `→` command in full.
 
 ```text title="2026-10-25.md"
-14:02  › rebase 44 on main and run the tests
-14:02  ◆ Sending that to Sequencer.
-14:05  ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
-14:05  ◆ Rebased, tests pass, nothing to fix.
+14:02:11  › rebase 44 on main and run the tests
+14:02:13  ◆ Sending that to Sequencer.
+14:02:13    → cmux agent message 12BA24EB-6732-4999-BB16-7EE5AF2D35EE --from Voice "[spoken by the user, transcribed by claudio] rebase 44 on main and run the tests"
+14:05:40  ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
+14:05:42  ◆ Rebased, tests pass, nothing to fix.
 ```
 
 Ask "what did we do today?" or "what did I ask yesterday?" and the brain reads that day's file and answers from it, in order.

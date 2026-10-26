@@ -34,7 +34,10 @@ def fake_load():
 config.load = fake_load
 config.SOCK = os.path.join(tempfile.mkdtemp(), "s")     # a unix socket path must stay under 104 characters
 os.makedirs(config.DIR, exist_ok=True)
-agent.sessions = lambda: {"abcd1234": ("ws1", None, None, "abcd1234")}
+NEW = "9F8E7D6C-1111-2222-3333-444455556666"     # a session opened after claudio started: listed from the 2nd look on
+listed = []
+agent.sessions = lambda: listed.append(1) or {"abcd1234": ("ws1", None, None, "abcd1234"),
+                                              **({NEW[:8]: ("Login", None, None, NEW)} if len(listed) > 1 else {})}
 agent.helper = lambda: None
 
 
@@ -102,6 +105,9 @@ class FakeProc:
 
     async def answer(self, text):
         await asyncio.sleep(0.3)
+        if SC == "handoff-new" and "fix the login" in text:    # hand it over by surface id, as the persona says
+            self.emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {
+                "command": f'cmux agent message {NEW} --from Voice "[spoken by the user, transcribed by claudio] fix the login"'}}]}})
         words = REPLIES.get(SC, "It is noon. Have a nice day.")
         for i in range(0, len(words), 4):        # in 4-character pieces: a block or a style split anywhere
             self.emit({"type": "stream_event", "event": {"type": "content_block_delta",
@@ -168,6 +174,9 @@ SCENARIOS = {   # name: (seconds to run, script)
     "markdown": (11, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "compare the engines"))]),
     "allow-yes": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                       (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "yes"))]),
+    "allow-early": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
+                        (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
+    "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),
     "allow-no": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                      (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
@@ -192,7 +201,8 @@ class FakeEars:
             if at == "sock":
                 await asyncio.sleep(max(0, base + what - time.monotonic()))
                 r, w = await asyncio.open_unix_connection(config.SOCK)
-                w.write((json.dumps({"event": "Stop", "session": "other", "surface": "abcd1234", "text": "done"}) + "\n").encode())
+                surface = NEW if SC == "handoff-new" else "abcd1234"
+                w.write((json.dumps({"event": "Stop", "session": "other", "surface": surface, "text": "done"}) + "\n").encode())
                 await w.drain()
                 w.close()
                 continue

@@ -338,6 +338,35 @@ def test_rule_for_allows_the_kind_of_command_not_the_whole_tool(tmp_path, monkey
     assert config.rule_for("WebFetch", {"url": "https://x"}, here) == ("WebFetch", "to use WebFetch")
 
 
+def test_rule_for_never_offers_what_a_yes_should_not_allow(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    here = str(tmp_path)
+    for cmd in ("GH_PAGER=cat gh pr view 3", "env FOO=1 rm x", 'sh -c "gh pr create"', "python3 -c 'x'",
+                "open -na Ghostty --args -e sh", "/usr/bin/curl x"):
+        assert config.rule_for("Bash", {"command": cmd}, here)[0] is None, cmd     # any of these would allow anything
+    assert config.rule_for("Write", {"file_path": f"{here}/run.py"}, here)[0] is None   # a bare Write: any file
+    assert config.rule_for("Bash", {"command": "gh pr create --body 'see /tmp/x for it'"}, here)[0] == "Bash(gh pr create:*)"
+
+
+def test_a_notes_folder_is_never_offered_as_a_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    monkeypatch.setattr(config, "NOTES", (str(tmp_path / "Desktop"),))
+    (tmp_path / "Desktop").mkdir()
+    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/Desktop/notes.md"}, str(tmp_path / "w"))[0] == "Bash(wc:*)"
+
+
+def test_claudio_open_takes_a_link_or_a_note_only(tmp_path, monkeypatch):
+    desk = tmp_path / "Desktop"
+    desk.mkdir()
+    (desk / "notes.md").write_text("hi")
+    (desk / "run.command").write_text("rm -rf ~")
+    monkeypatch.setattr(config, "NOTES", (str(desk),))
+    assert config.openable("https://github.com/x/y/issues/1") == "https://github.com/x/y/issues/1"
+    assert config.openable(str(desk / "notes.md")) == str((desk / "notes.md").resolve())
+    for bad in (str(desk / "run.command"), "-a Terminal", "/Applications/Ghostty.app", f"{desk}/../x.md", "file:///etc/passwd"):
+        assert config.openable(bad) is None, bad
+
+
 def test_rule_for_offers_the_folder_when_it_is_outside(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
     (tmp_path / "repo" / "src").mkdir(parents=True)
@@ -355,6 +384,9 @@ def test_voice_names_become_deepgram_models():
     assert config.check("voice", "Elektra") == ("aura-2-electra-en", None)     # as heard
     assert config.check("voice", "aura-asteria-en") == ("aura-asteria-en", None)
     assert config.check("voice", "banana")[0] is None
+    assert config.check("voice", "aura-2-zues-en") == ("aura-2-zeus-en", None)      # a full name, misspelt
+    assert config.check("voice", "Aura-2-Zeus") == ("aura-2-zeus-en", None)
+    assert config.check("voice", "aura-2-agathe-fr") == ("aura-2-agathe-fr", None)  # another language: kept
 
 
 def test_replies_are_new_messages_from_others():

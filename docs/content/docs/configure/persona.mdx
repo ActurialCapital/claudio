@@ -23,7 +23,8 @@ These are claudio's own rules, from the package. Know them before you add to the
 - **Let the screen carry more when the shape fits**: bullets for three or more parallel things (each read aloud), a Markdown table for a comparison on two or more factors and a fenced block for code (both shown, never read, with a spoken line on what they show), **bold** and `backticks` for key words and names
 - **Lead with the answer**: end with a question only when the next step is your call
 - **Say the next step before a tool call**, in two to five words, so you hear something while it runs: “Checking the roadmap.”
-- **Discuss or hand over**: answer questions itself, hand work to a session, and never do the work itself
+- **Discuss or hand over**: answer questions itself, hand work to a session, and never do the work itself, except three jobs of its own: a note (it asks where to save it), a web lookup, and opening a page or a search in the browser
+- **Stay quiet when it isn't meant for it**: a turn plainly for someone else in the room, or cut off mid-thought, gets `[skip]`, and claudio says nothing
 - **Read the transcripts** for “what did we do today”, rather than trust its memory of past days
 - **Use cmux**: hand over through the agent inbox with the marker, list sessions, read a session's screen, open workspaces, splits and tabs
 - **Narrate events**: finishes in plain words, permission prompts read out but never answered, multiple-choice questions read out numbered
@@ -45,7 +46,7 @@ Two placeholders in the file are replaced each time the brain starts:
 claudio also adds text you do not need to write:
 
 - **Before the persona**: the style's instructions, when `style` is not `plain`
-- **After the persona**: the orchestrator, the current settings, and the open sessions with their surface ids and directories, as they were when the brain started
+- **After the persona**: claudio's slash commands, the orchestrator, the current settings, this directory's GitHub repo, the open sessions with their surface ids and directories as they were when the brain started (not claudio's own pane), and the rules that matter most, repeated last so they hold: `[skip]`, the brain's own jobs, never claiming a setting changed unless `claudio set` succeeded, never sending work after a no, and, when permission checks are off, asking before anything that deletes, overwrites or pushes
 
 The brain also reads `CLAUDE.md` files, the project's and your own, like any Claude Code session.
 

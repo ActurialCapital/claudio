@@ -4,7 +4,8 @@ import os, re, subprocess, sys
 
 import pytest
 
-SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana", "skip")
+SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana", "skip",
+             "allow-early", "handoff-new")
 
 
 @pytest.fixture(scope="module")
@@ -90,3 +91,15 @@ def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
     asked, said_yes = first(lines, "SAY 'Skip every permission check"), first(lines, "YOU 'yes'")
     assert asked < said_yes < lines.index("START no permission checks")
     assert not (home / "config.json").exists()           # never saved
+
+
+def test_an_okay_to_the_reply_before_the_question_allows_nothing(runs):
+    lines, home = runs["allow-early"]
+    assert not any(line.startswith("NOTE allowed") for line in lines)
+    assert not (home / "allow").exists()
+
+
+def test_a_session_opened_after_start_is_still_heard_when_it_finishes(runs):
+    lines, _ = runs["handoff-new"]
+    assert "EVENT Login Stop" in lines
+    assert any(line.startswith("BRAIN '[event] Login finished a turn on your request") for line in lines)

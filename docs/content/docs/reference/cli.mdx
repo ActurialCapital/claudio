@@ -19,6 +19,10 @@ Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to quit.
 
 Starts talking with the brain's permission checks off until you quit: it can run any command and reach any folder without asking, as `claude --dangerously-skip-permissions` does. The banner shows `permissions SKIPPED` and the state line `· no permission checks`. It is never saved; the next plain `claudio` has the checks back. To switch mid-session instead, say “slash permissions skip”.
 
+## `claudio open <link or note>`
+
+Opens a web link (`http` or `https`), or a `.md` or `.txt` note in `~/Desktop` or `~/Documents`, with macOS `open`. It refuses anything else, such as an app, a script or `open`'s own flags. It is how the brain opens a note or a page: it may run it without asking, unlike `open` itself.
+
 ## `claudio setup`
 
 Runs the first-run wizard again. Each question offers your current value, so <kbd>Enter</kbd> keeps it. In order, it:
