@@ -631,9 +631,10 @@ def show(sentences, k, shown, secs=None):
             ui.me_line(text, first_of_block, live=bool(status["live"]), secs=secs)
 
 
-async def reply(text, commit, ctl, fixed=False, handle=None):
+async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
     """One spoken reply. Text streams from the brain into sentences; the mouth follows, and can be
-    paused (a possible interruption) and resumed a sentence or two back."""
+    paused (a possible interruption) and resumed a sentence or two back. screen: Markdown for the screen
+    only, after a fixed reply's words."""
     async with speaking:
         if handle:                             # now it is the one speaking: cut, pause and the state line follow it
             current.update(handle)
@@ -683,6 +684,9 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                 if fixed:
                     for line in text.split("\n"):    # a list: one line, one sentence, each its own bullet
                         emit(line + "\n")
+                    if screen:
+                        pre.append(screen)
+                        flush()
                     return
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
@@ -853,7 +857,7 @@ async def main():
 
     latest = {"handle": None}      # the newest reply asked for, speaking or queued; what a final transcript commits
 
-    def start(text, committed, event=False, fixed=False):
+    def start(text, committed, event=False, fixed=False, screen=None):
         if not event:
             if live():
                 cut("replaced" if current["commit"].is_set() else None)    # an unheard early guess goes quietly
@@ -866,7 +870,7 @@ async def main():
         ctl = new_ctl()
         handle = {"text": text, "commit": ev, "ctl": ctl, "paused": ctl["paused"],
                   "committed_at": time.monotonic() if committed else None}
-        handle["task"] = asyncio.create_task(reply(text, ev, ctl, fixed=fixed, handle=handle))
+        handle["task"] = asyncio.create_task(reply(text, ev, ctl, fixed=fixed, handle=handle, screen=screen))
         if not event:
             latest["handle"] = handle
         if not live():                         # otherwise it queues behind the speaking reply and claims `current` on its turn
@@ -915,8 +919,8 @@ async def main():
             name = arg.replace(" ", "-").removeprefix("aura-2-").removesuffix("-en")
             if name not in config.AURA:        # "banana", "can you list the voices", or nothing: all of them, nothing saved
                 said = f"{arg.capitalize()} is not recognised as a voice. " if len(arg.split()) == 1 else ""   # a sentence: just the list
-                start(f"{said}The voices are:\n" + "\n".join(f"- {n}" for n in config.AURA)
-                      + "\nSay slash voice and one of them.", committed=True, fixed=True)
+                start(f"{said}The voices are as follows:", committed=True, fixed=True,
+                      screen="\n".join(f"- {n}" for n in config.AURA))    # on screen only: 41 names read aloud is too long
                 return True
             config.set_key("voice", f"aura-2-{name}-en")
             brain.changed.set()
