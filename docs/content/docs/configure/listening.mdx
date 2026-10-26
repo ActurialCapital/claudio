@@ -20,9 +20,8 @@ Find what you notice, then make the change:
 | It answers before you finish a thought | `claudio set eot 0.8` and `claudio set eot_timeout_ms 2500` |
 | It waits too long after you stop | `claudio set eot 0.6` or `claudio set eot_timeout_ms 1000` |
 | Replies are slow to start | `claudio set eager_eot 0.2`, so the brain starts earlier |
-| You often see `· resumed` or `· replaced` | `claudio set eager_eot 0.5`, closer to `eot` |
 
-An early start is silent until it counts. Its audio is held until your turn is final, and plays only if your final words match the ones it started on. If you carry on talking instead, the early reply is dropped and you see `· resumed`. If your final words differ, it is replaced and you see `· replaced`. A dropped start costs brain time and some speech synthesis, nothing you hear.
+An early start is silent until it counts. Its audio is held until your turn is final, and plays only if your final words match the ones it started on. If you carry on talking instead, or your final words differ, the early reply is dropped without a note. Your line prints once your turn is final. A dropped start costs brain time and some speech synthesis, nothing you hear.
 
 Each change reconnects the ears at once, so you can tune while you talk: “set eot to 0.8”.
 

@@ -538,7 +538,7 @@ def show(sentences, k, shown):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block = sentences[k]
-        ui.me_line(text.strip(), first_of_block)
+        ui.me_line(text.strip(), first_of_block, live=bool(status["live"]))
 
 
 async def reply(text, commit, ctl, fixed=False, handle=None):
@@ -732,7 +732,7 @@ async def main():
 
     def start(text, committed, event=False, fixed=False):
         if live() and not event:
-            cut("replaced")
+            cut("replaced" if current["commit"].is_set() else None)    # an unheard early guess goes quietly
             queued = latest["handle"]
             if queued and not queued["task"].done() and queued["task"] is not current["task"]:
                 queued["task"].cancel()        # an eager reply still waiting behind the drain: gone too
@@ -959,11 +959,10 @@ async def main():
             case "EagerEndOfTurn" if said and not paused():
                 if SLASH.search(words):
                     return                      # a command: wait for the final transcript, no brain
-                ui.you(said)                    # the eager text is the real one nearly always; a change prints again
-                start(said, committed=False)
+                start(said, committed=False)    # quiet: your line prints at EndOfTurn, the reply waits for it
             case "TurnResumed":
                 if live() and not current["commit"].is_set():
-                    cut("resumed")
+                    cut(None)                   # you kept talking: drop the guess quietly
             case "EndOfTurn":
                 if cfg["push_to_talk"]:
                     status["gate_open"] = False
@@ -979,6 +978,7 @@ async def main():
                 elif said:
                     L = latest["handle"]
                     if L and not L["task"].done() and not L["commit"].is_set() and norm(L["text"]) == norm(said):
+                        ui.you(said)
                         L["commit"].set()      # the eager reply for these words, speaking or still queued
                         L["committed_at"] = time.monotonic()
                     else:
@@ -1076,6 +1076,7 @@ async def main():
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     status["live"] = console.status("[dim]listening[/]")
+    ui.attach(status["live"])
     status["live"].start()
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
     if not aec:
@@ -1146,6 +1147,7 @@ async def main():
     except asyncio.CancelledError:
         pass                                   # Ctrl-C
     finally:
+        console.print(end="")                  # settle any fading line before the live area goes
         status["live"].stop()
         server.close()
         for st in fallback_streams["streams"] or ():

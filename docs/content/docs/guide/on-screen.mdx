@@ -36,7 +36,7 @@ Each line starts with a glyph that says who it's from:
 | `▸` | a session reporting back, with the request it was for |
 | `→` | what the brain is reading or running |
 | `⚙` | a setting that changed |
-| `·` | a note: cut, replaced, resumed, muted, reconnecting |
+| `·` | a note: cut, replaced, muted, reconnecting |
 | `!` | a warning |
 
 Here you say "mm-hm" mid-reply, so the reply carries on, then a spoken command changes the voice. The `voice = …` line is `claudio set` confirming the change:
@@ -58,7 +58,7 @@ Here you say "mm-hm" mid-reply, so the reply carries on, then a spoken command c
 
 Backchannels show dim, as do turns that don't start with "claudio" when `address_me` is on. Three more rules keep the transcript readable:
 
-- **Sentences appear as they're spoken**: each sentence prints when its audio starts playing, so the text never runs ahead of the voice
+- **Sentences appear as they're spoken**: each sentence starts when its audio starts playing, and its words fade in from dim at about speaking pace
 - **Lines wrap at 90 columns**, however wide the pane
 - **A dim rule with the time** marks a gap of more than 5 minutes between your turns
 

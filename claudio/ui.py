@@ -1,6 +1,7 @@
 """The look: one wordmark, one status strip, one glyph per voice in the transcript."""
-import datetime, os
-from rich.console import Console
+import datetime, os, time
+from rich.console import Console, Group, RenderHook
+from rich.constrain import Constrain
 from rich.text import Text
 from . import config
 
@@ -93,11 +94,62 @@ def you(text, tentative=False):
         log(f"› {text}")
 
 
-def me_line(sentence, first):
-    """One sentence of claudio's, as a whole line: the glyph on the first of an utterance, indented after."""
-    line = Text.assemble(("◆ ", "bold #2dd4bf")) if first else Text("  ")
-    line.append(sentence)
-    console.print(line, width=width())
+CHARS_PER_SEC = 15              # ponytail: a guess at speaking pace, not the audio's own timing; tune if words run ahead
+FADE = 0.35                     # seconds for one word to go from dim to full
+SHADES = ["grey30", "grey50", "grey70", ""]
+fading = []                     # claudio's lines still fading in, drawn above the status line until the next print
+
+
+class Fade:
+    """One sentence whose words appear at speaking pace, each brightening from dim to full."""
+    def __init__(self, sentence, first):
+        self.head = Text.assemble(("◆ ", "bold #2dd4bf")) if first else Text("  ")
+        self.words, self.t0 = sentence.split(" "), time.monotonic()
+        self.secs = max(0.3, len(sentence) / CHARS_PER_SEC)
+
+    def final(self):
+        return Text.assemble(self.head, " ".join(self.words))
+
+    def __rich__(self):
+        line, age = self.head.copy(), time.monotonic() - self.t0
+        for i, w in enumerate(self.words):
+            t = age - i * self.secs / len(self.words)
+            if t < 0:
+                break
+            line.append(("" if i == 0 else " ") + w, style=SHADES[min(len(SHADES) - 1, int(t / FADE * len(SHADES)))])
+        return line
+
+
+class _Settle(RenderHook):
+    """Anything printed first settles the fading lines into the transcript above it, whole."""
+    def process_renderables(self, renderables):
+        if not fading:
+            return renderables
+        done = [Constrain(f.final(), width()) for f in fading]
+        fading.clear()
+        return done + renderables
+
+
+def attach(status):
+    """Draw fading lines above the status spinner. Call before status.start(), so this hook runs before Live's."""
+    console.push_render_hook(_Settle())
+    status._live.update(_Above(status))     # ponytail: rich's private Live inside Status; own Live if rich moves it
+
+
+class _Above:
+    def __init__(self, status):
+        self.status = status
+
+    def __rich__(self):
+        return Group(*(Constrain(f, width()) for f in list(fading)), self.status.renderable)
+
+
+def me_line(sentence, first, live=False):
+    """One sentence of claudio's: the glyph on the first of an utterance, indented after. Live, it fades in word by word."""
+    if live:
+        fading.append(Fade(sentence, first))
+    else:
+        console.print(Fade(sentence, first).final(), width=width())
     log(("◆ " if first else "  ") + sentence)
 
 
