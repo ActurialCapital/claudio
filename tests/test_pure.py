@@ -354,6 +354,14 @@ def test_voice_names_become_deepgram_models():
     assert config.check("voice", "banana")[0] is None
 
 
+def test_replies_are_new_messages_from_others():
+    me = "136B82D3-8ACD"
+    msgs = [{"id": "a", "sender_surface_id": "34E60333", "created_at": 200},
+            {"id": "b", "sender_surface_id": me.lower(), "created_at": 200},     # a handoff that came back to its own pane
+            {"id": "c", "sender_surface_id": "34E60333", "created_at": 50}]      # from before claudio started
+    assert [m["id"] for m in config.replies(msgs, me, 100)] == ["a"]
+
+
 def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
     f = tmp_path / "allow"
     f.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n")

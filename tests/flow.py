@@ -7,6 +7,7 @@ from claudio import agent, config, ui
 import websockets.exceptions, websockets.asyncio.client   # what the real connect() would have imported
 
 SC = sys.argv[1]
+os.environ.pop("CMUX_SURFACE_ID", None)    # run from a cmux pane, it would read that pane's real inbox
 T0 = time.monotonic()
 LOG = []
 

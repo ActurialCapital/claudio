@@ -276,7 +276,9 @@ class Brain:
                     cmd = c["input"].get("command", "")
                     if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
                         asked = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
-                        self.handoffs[m.group(1) or m.group(2)] = (time.time(), asked[-1] if asked else "")
+                        to = m.group(1) or m.group(2)        # a surface id: the workspace it is in, which events carry
+                        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to)
+                        self.handoffs[to] = (time.time(), asked[-1] if asked else "")
                     if "claudio set" in cmd:
                         self.changed.set()
 
@@ -1306,6 +1308,33 @@ async def main():
             return "waiting on you"
         return "idle"
 
+    async def inbox_watch():
+        """Replies to claudio's messages land in its own pane's cmux inbox: read them out, like a session's report."""
+        me, since = os.environ.get("CMUX_SURFACE_ID"), time.time()
+        if not me:
+            return
+
+        def queued(mark=0):
+            args = [CMUX, "agent", "inbox", "--surface", me, "--state", "queued", "--json"]
+            try:
+                out = subprocess.run(args + (["--limit", str(mark), "--mark-read"] if mark else []),
+                                     capture_output=True, text=True, timeout=5).stdout
+                return json.loads(out).get("messages", [])
+            except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+                return []
+        while True:
+            await asyncio.sleep(3)
+            new = config.replies(await loop.run_in_executor(None, queued), me, since)
+            if not new:
+                continue
+            await loop.run_in_executor(None, queued, len(new))   # newest first: exactly these, now read
+            for m in reversed(new):
+                if status["muted"] or cfg["narrate"] == "none":
+                    continue
+                ui.event(m.get("sender_name") or "a session", "Reply")
+                start(f"[event] {m.get('sender_name') or 'A session'} replied to your message:\n{m.get('body', '')}",
+                      committed=True, event=True)
+
     async def orchestrator_watch():        # every 5 s, a glance at the orchestrator's pane; a nudge when it waits
         waiting_since, nudged = None, False
         while True:
@@ -1327,7 +1356,7 @@ async def main():
     status["live"].start()
     if not typed:
         start("Hi, how can I help you?", committed=True, fixed=True)    # so you hear it's up, and the voice works
-    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
+    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch()]
     if not aec:
         tasks.append(shower())
     work = {"task": None}

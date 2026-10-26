@@ -269,7 +269,7 @@ def _persona_file():
         mine = open(PROMPT, "rb").read()
     except OSError:
         mine = None
-    if mine is None or hashlib.sha256(mine).hexdigest()[:16] in PACKAGED:
+    if mine is None or hashlib.sha256(mine).hexdigest()[:16] in PACKAGED or mine == open(PACKAGED_PROMPT, "rb").read():
         with open(PROMPT, "w") as f:
             f.write(ADDITIONS)
     elif mine.decode(errors="replace").lstrip().startswith(FULL):
@@ -321,12 +321,21 @@ def parse_surfaces(text):
     return found
 
 
+def replies(messages, me, since):
+    """From claudio's queued inbox, newest first: the messages to read out. Not its own (a handoff that came back
+    to its pane), not ones from before it started."""
+    return [m for m in messages if str(m.get("sender_surface_id", "")).upper() != me.upper()
+            and m.get("created_at", 0) >= since]
+
+
 def surfaces():
     import subprocess
     try:
-        return parse_surfaces(subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout)
+        found = parse_surfaces(subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout)
     except (OSError, subprocess.TimeoutExpired):
         return {}
+    me = os.environ.get("CMUX_SURFACE_ID", "").upper()        # claudio's own pane is no session to hand work to
+    return {sid: v for sid, v in found.items() if v[3].upper() != me}
 
 
 def workspaces():

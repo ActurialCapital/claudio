@@ -39,7 +39,9 @@ The message starts with a marker, so the session knows the words are yours and n
 
 The brain passes on your words and any detail you gave. It never puts the marker on something you didn't say.
 
-To send work elsewhere, name the session: "ask Core to update the changelog".
+To send work elsewhere, name the session: "ask Core to update the changelog". The brain addresses the session's own pane, not its workspace, so a handoff never lands in claudio's pane when claudio runs in the orchestrator's workspace.
+
+A session can answer back with `cmux agent message --reply-to`. The reply lands in claudio's own cmux inbox; claudio checks it every few seconds and reads it to you, with a `▸ <session>  replied` line, unless it's muted or `narrate` is `none`.
 
 ## Open a new session
 

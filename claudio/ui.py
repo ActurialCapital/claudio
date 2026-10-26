@@ -311,7 +311,7 @@ def block(md, colors=True):
     log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())   # one entry, indented like the rest
 
 
-KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose"}
+KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose", "Reply": "replied"}
 
 
 def event(workspace, kind, asked=""):
