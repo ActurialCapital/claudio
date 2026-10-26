@@ -82,12 +82,17 @@ def test_shown_block_takes_a_whole_table_or_fence_and_waits_while_unsure():
     assert shown_block(loose + "That's it", final=True) == len(loose)
     assert shown_block("Change | Type\nclaudio") is None                 # the second line isn't finished
     assert shown_block("Use a | b, then stop.\nNext sentence.\n") == 0   # one line with a bar is a sentence
+    assert shown_block("- Option A | fast\n- Option B | slow\n") == 0    # bullets with bars are spoken
+    assert shown_block("Run `ls | grep x` to list them.\nThen `cat f | wc -l`.\n") == 0
+    assert shown_block("Run ls | grep foo to find it. That lists them") == 0   # a sentence ended: speak, don't wait
 
 
 def test_a_loose_table_renders_as_a_table():
     from claudio.ui import table
     assert table("Change | Type\nclaudio open | Feature") == "| Change | Type |\n|---|---|\n| claudio open | Feature |"
     assert table("| a | b |\n|---|---|\n| 1 | 2 |") == "| a | b |\n|---|---|\n| 1 | 2 |"
+    assert table("a | b |\nc | d |") == "| a | b |\n|---|---|\n| c | d |"        # a trailing bar only
+    assert table("Pattern a \\| b | Use\nx | y").split("\n")[1] == "|---|---|"   # an escaped bar is no cell
 
 
 def test_spoken_drops_bullets_and_markup():

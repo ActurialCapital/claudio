@@ -299,9 +299,11 @@ def me_line(sentence, first, live=False, secs=None):
 
 def table(md):
     """A loose table ("Change | Type" rows, no outer bars, no --- row) as Markdown renders one."""
-    rows = [r if r.startswith("|") else f"| {r} |" for r in md.splitlines() if r.strip()]
+    rows = [r.strip() if r.strip().startswith("|") else f"| {r.strip().rstrip('|').strip()} |"
+            for r in md.splitlines() if r.strip()]                     # bars at both ends, once
     if len(rows) > 1 and not re.fullmatch(r"\|?[\s:|-]+\|?", rows[1]):
-        rows.insert(1, "|" + "---|" * rows[0].strip("|").count("|") + "---|")
+        cells = len(re.findall(r"(?<!\\)\|", rows[0])) - 1                # an escaped \| is no cell boundary
+        rows.insert(1, "|" + "---|" * cells)
     return "\n".join(rows)
 
 

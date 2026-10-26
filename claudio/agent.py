@@ -29,16 +29,31 @@ def shown_block(buf, final=False):
     if buf.startswith("|"):
         m = re.search(r"\n[^|]", buf)
         return m.start() + 1 if m else (len(buf) if final else None)
-    if " | " in buf.split("\n", 1)[0]:          # a loose table, "Change | Type": two such lines in a row are one
+    head = buf.split("\n", 1)[0]
+    if bars(head) and loose_row(head):         # maybe a loose table, "Change | Type": decided by the lines after it
         lines, at = buf.split("\n"), 0
         for i, line in enumerate(lines):
-            if i == len(lines) - 1 and not final:
-                return None                    # this line isn't finished: can't tell yet
-            if not (line.startswith("|") or " | " in line):
+            if i == len(lines) - 1 and not final:     # unfinished: wait while it could still be a row
+                if not re.match(r"\s*[-*•]\s", line) and not re.search(r"[.!?]\s", line):
+                    return None
+                return at if i > 1 else 0
+            delimiter = i == 1 and re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?", line)
+            if not (delimiter or (loose_row(line) and bars(line) == bars(head))):
                 return at if i > 1 else 0      # one line alone is a sentence with a bar in it
             at += len(line) + 1
         return min(at, len(buf)) if len(lines) > 1 else 0
     return 0
+
+
+def bars(line):
+    """The cell bars in a line: " | " outside `code`, where "ls | grep" is a pipe, not a cell boundary."""
+    return re.sub(r"`[^`]*`", "", line).count(" | ")
+
+
+def loose_row(line):
+    """Could be a row of a table written without its outer bars: a bar outside code, not a bullet, no sentence
+    ending inside it. "- Option A | fast" and "Run `ls | grep x` to list them." are spoken, not shown."""
+    return bars(line) > 0 and not re.match(r"\s*[-*•]\s", line) and not re.search(r"[.!?]\s", line)
 
 
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
