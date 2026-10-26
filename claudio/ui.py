@@ -112,7 +112,8 @@ settling = {"now": False}       # settle() is printing: the hook must not flush 
 
 def spoken(text):
     """What the voice says: the sentence without its bullet or markup."""
-    return INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), BULLET.sub("", text))
+    said = INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), BULLET.sub("", text))
+    return re.sub(r"(?<![\w/])/(?=[a-z])", "slash ", said)   # "/clear" is said "slash clear", as the user says it
 
 
 def sayable(text):

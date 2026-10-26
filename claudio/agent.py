@@ -71,9 +71,17 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
           "level": 0, "latency": None}
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
-SLASH_HELP = ("Slash commands:\n- clear starts a fresh conversation.\n- model, effort and voice change the brain or the voice.\n"
-              "- style plain, brief or caveman.\n- colors on or off for code.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.\n"
-              "- help says this list.")
+SLASH_HELP = ("Slash commands:\n"
+              "- `/clear` starts a fresh conversation.\n"
+              "- `/model` default, sonnet, opus or haiku.\n"
+              "- `/effort` low, medium or high.\n"
+              "- `/voice` and a name, such as zeus; alone, it lists them.\n"
+              "- `/style` plain, brief or caveman.\n"
+              "- `/colors` on or off, for code.\n"
+              "- `/status` says the settings.\n"
+              "- `/mute` and `/unmute`.\n"
+              "- `/stop` cuts a reply.\n"
+              "- `/help` says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours"}
 STYLES = {
     "plain": "",
