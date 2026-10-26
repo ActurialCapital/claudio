@@ -1,9 +1,9 @@
 ---
 title: Voices and mouths
-description: Pick an Aura voice, or switch the mouth to ElevenLabs.
+description: Pick an Aura voice, or switch the mouth to ElevenLabs or to Kokoro on your Mac.
 ---
 
-To change the voice, say “slash voice asteria”. The mouth is the part that speaks: it turns each sentence of a reply into speech as soon as the brain has written it. Deepgram Aura is the default mouth, and ElevenLabs is the alternative.
+To change the voice, say “slash voice asteria”. The mouth is the part that speaks: it turns each sentence of a reply into speech as soon as the brain has written it. Deepgram Aura is the default mouth. ElevenLabs is the paid alternative, and Kokoro runs on your Mac with no key.
 
 ## Pick a Deepgram Aura voice
 
@@ -95,6 +95,66 @@ To go back to Aura:
 claudio set mouth deepgram
 ```
 
+## Speak with Kokoro, on your Mac
+
+The local mouth runs [Kokoro](https://github.com/hexgrad/kokoro), an open voice model, on your Mac's CPU. It needs no key, and what claudio says never leaves the machine. The ears are still Deepgram, so you still need a Deepgram key.
+
+<Steps>
+<Step>
+
+### Install Kokoro and espeak-ng
+
+```bash
+brew install espeak-ng
+uv tool install --reinstall 'claudio[local] @ git+https://github.com/ActurialCapital/claudio'
+```
+
+</Step>
+<Step>
+
+### Switch the mouth
+
+```bash
+claudio set mouth local
+```
+
+The next start downloads the compressed voice model to `~/.config/claudio/models`, about 115 MB, once.
+
+</Step>
+<Step>
+
+### Pick a voice and a speed
+
+```bash
+claudio set local_voice af_heart
+claudio set local_speed 1.1
+```
+
+`local_voice` is a Kokoro voice name: the first letter is the accent (`a` American, `b` British), the second is female or male. `am_michael` is the default; `af_heart`, `am_fenrir`, `bf_emma` and `bm_george` are others worth trying. A name Kokoro does not know stops the start with the full list. `local_speed` runs from `0.5` to `2.0`.
+
+</Step>
+<Step>
+
+### Pick the compressed or the full model
+
+```bash
+claudio set local_model full
+```
+
+`compressed` is the default: 88 MB and about twice as fast. `full` is 325 MB and sounds a little cleaner. The first reply after a switch downloads the model if it is not there yet, then loads it; both stay on disk, so switching back is instant.
+
+</Step>
+</Steps>
+
+Synthesis time on an M4, per sentence:
+
+| Model | Short sentence | 70 characters |
+|---|---|---|
+| `compressed` | 0.2 s | 0.5 s |
+| `full` | 0.5 s | 1.0 s |
+
+Either way the first word comes a little later than with Aura. The banner shows `voice local am_michael`.
+
 ## What happens when the mouth fails
 
 A reply is never lost. You read it as text instead:
@@ -106,4 +166,4 @@ Each new reply tries the mouth again. [Troubleshooting](/docs/troubleshooting#mo
 
 ## Settings
 
-<Settings only={['mouth', 'voice', 'elevenlabs_voice']} />
+<Settings only={['mouth', 'voice', 'elevenlabs_voice', 'local_voice', 'local_speed', 'local_model']} />

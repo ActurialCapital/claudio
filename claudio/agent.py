@@ -357,7 +357,79 @@ class ElevenMouth:
             await self.ws.close()
 
 
+KOKORO_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
+KOKORO_MODELS = {"compressed": "kokoro-v1.0.int8.onnx", "full": "kokoro-v1.0.onnx"}   # 88 MB, 325 MB
+KOKORO_VOICES = "voices-v1.0.bin"                                                         # 27 MB, shared
+ESPEAK = ("/opt/homebrew/lib/libespeak-ng.dylib", "/usr/local/lib/libespeak-ng.dylib")
+_kokoro = {}                   # local_model → loaded Kokoro
+
+
+def kokoro(model):
+    """Kokoro-82M on the CPU, `model` being a local_model value, loaded once, its files downloaded on first use. OSError says what is missing.
+    Phonemes come from Homebrew's espeak-ng: the copy bundled with kokoro-onnx ignores its data path on macOS."""
+    if model not in _kokoro:
+        if not os.environ.get("PHONEMIZER_ESPEAK_LIBRARY"):
+            lib = next((p for p in ESPEAK if os.path.exists(p)), None)
+            if not lib:
+                raise OSError("the local mouth needs espeak-ng: brew install espeak-ng")
+            os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = lib
+        try:
+            from kokoro_onnx import Kokoro
+        except ImportError:
+            raise OSError("the local mouth needs Kokoro: uv tool install --reinstall "
+                          "'claudio[local] @ git+https://github.com/ActurialCapital/claudio'") from None
+        import urllib.request
+        os.makedirs(config.VOICE_MODELS, exist_ok=True)
+        names = (KOKORO_MODELS[model], KOKORO_VOICES)
+        paths = [os.path.join(config.VOICE_MODELS, f) for f in names]
+        for name, path in zip(names, paths):
+            if not os.path.exists(path):
+                with console.status(f"[dim]downloading the local voice, {name}, once…[/]"):
+                    urllib.request.urlretrieve(KOKORO_URL + name, path + ".part")
+                os.replace(path + ".part", path)
+        _kokoro[model] = Kokoro(*paths)
+    return _kokoro[model]
+
+
+class LocalMouth:
+    """Kokoro on this Mac, no key and no network: one sentence at a time, synthesized in a thread.
+    Measured on an M4 (2026-10-26), short sentence / 70 characters: compressed 0.2 s / 0.5 s, full 0.5 s / 1.0 s."""
+    def __init__(self):
+        self.queue, self.sent, self.got = asyncio.Queue(), 0, 0
+
+    async def open(self):
+        self.tts = await asyncio.to_thread(kokoro, cfg["local_model"])
+
+    async def receive(self, on_audio):
+        while True:
+            text = (await self.queue.get()).strip()
+            if text:
+                try:
+                    samples, _ = await asyncio.to_thread(self.tts.create, text, voice=cfg["local_voice"],
+                                                         speed=cfg["local_speed"])
+                except Exception as e:          # a voice name Kokoro does not know, say: the rest is text only
+                    ui.warn(f"local mouth: {e}")
+                    return
+                on_audio((samples.clip(-1, 1) * 32767).astype("<i2").tobytes())
+            self.got += 1
+
+    async def say(self, text):
+        self.queue.put_nowait(text)
+        self.sent += 1
+
+    def done(self):
+        return self.got >= self.sent
+
+    async def finish(self):
+        pass
+
+    async def close(self):
+        pass
+
+
 def new_mouth():
+    if cfg["mouth"] == "local":
+        return LocalMouth()
     return ElevenMouth() if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"] else DeepgramMouth()
 
 
@@ -573,6 +645,13 @@ async def main():
         ui.warn(w)
     if not cfg["deepgram_api_key"]:
         raise SystemExit("No Deepgram key. Run `claudio setup`, or export DEEPGRAM_API_KEY.")
+    if cfg["mouth"] == "local":
+        try:
+            voices = kokoro(cfg["local_model"]).get_voices()
+        except OSError as e:
+            raise SystemExit(str(e))
+        if cfg["local_voice"] not in voices:
+            raise SystemExit(f"local_voice {cfg['local_voice']!r} is not a Kokoro voice; one of: {', '.join(sorted(voices))}")
     surfaces = sessions()
     typed = os.environ.get("CLAUDIO_TEXT")
     aec = None if typed else helper()
@@ -580,6 +659,7 @@ async def main():
     if not typed:                # a typed turn runs under the doctor's own banner; redrawing would clear its checks
         ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
                          "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
+                                   else f"local {cfg['local_voice']}" if cfg["mouth"] == "local"
                                    else ui.short_voice(cfg["voice"])),
                          "echo cancel": "on" if aec else "off",
                          "memory": "on" if remembered_session() else "fresh"},

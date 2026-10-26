@@ -123,7 +123,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 | `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
-| `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id |
+| `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 

@@ -157,6 +157,12 @@ def doctor():
     hooks = json.dumps(_settings().get("hooks", {}))
     row(hooks.count("claudio hook") >= 3, "the three Claude Code hooks installed", "claudio install")
     from . import agent
+    if cfg["mouth"] == "local":
+        try:
+            row(cfg["local_voice"] in agent.kokoro(cfg["local_model"]).get_voices(), f"local voice {cfg['local_voice']} loads",
+                "claudio set local_voice am_michael")
+        except OSError as e:
+            row(False, "local voice (Kokoro)", str(e))
     row(os.path.exists(config.HELPER) or shutil.which("swiftc"), "echo canceller built or buildable", "Xcode command line tools; headphones otherwise")
     try:
         import sounddevice as sd

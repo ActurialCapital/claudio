@@ -15,12 +15,15 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = ["websockets>=13", "sounddevice>=0.5", "rich>=13"]
 
+[project.optional-dependencies]
+local = ["kokoro-onnx>=0.6"]     # mouth = local: Kokoro on this Mac, plus `brew install espeak-ng`
+
 [project.urls]
 Homepage = "https://github.com/ActurialCapital/claudio"
 Issues = "https://github.com/ActurialCapital/claudio/issues"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "numpy>=2"]
 
 [project.scripts]
 claudio = "claudio.cli:main"

@@ -171,10 +171,11 @@
       "default": "deepgram",
       "choices": [
         "deepgram",
-        "elevenlabs"
+        "elevenlabs",
+        "local"
       ],
       "range": null,
-      "help": "who speaks: Deepgram Aura or ElevenLabs",
+      "help": "who speaks: Deepgram Aura, ElevenLabs, or local (Kokoro on this Mac, no key)",
       "secret": false,
       "env": "CLAUDIO_MOUTH",
       "may_be_empty": false
@@ -203,6 +204,45 @@
       "help": "ElevenLabs voice id, when mouth is elevenlabs",
       "secret": false,
       "env": "CLAUDIO_ELEVENLABS_VOICE",
+      "may_be_empty": false
+    },
+    {
+      "key": "local_voice",
+      "type": "text",
+      "default": "am_michael",
+      "choices": [],
+      "range": null,
+      "help": "Kokoro voice, when mouth is local: am_michael, af_heart, bm_george\u2026",
+      "secret": false,
+      "env": "CLAUDIO_LOCAL_VOICE",
+      "may_be_empty": false
+    },
+    {
+      "key": "local_speed",
+      "type": "number",
+      "default": 1.0,
+      "choices": [],
+      "range": [
+        0.5,
+        2.0
+      ],
+      "help": "how fast the local voice speaks, 0.5 to 2.0",
+      "secret": false,
+      "env": "CLAUDIO_LOCAL_SPEED",
+      "may_be_empty": false
+    },
+    {
+      "key": "local_model",
+      "type": "text",
+      "default": "compressed",
+      "choices": [
+        "compressed",
+        "full"
+      ],
+      "range": null,
+      "help": "Kokoro model: compressed (88 MB, about twice as fast) or full (325 MB, a little cleaner)",
+      "secret": false,
+      "env": "CLAUDIO_LOCAL_MODEL",
       "may_be_empty": false
     },
     {

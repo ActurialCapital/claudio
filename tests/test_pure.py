@@ -240,3 +240,23 @@ def test_set_key_returns_the_value_and_prints_nothing(tmp_path, monkeypatch, cap
     _scratch(tmp_path, monkeypatch)
     assert config.set_key("voice", "aura-2-thalia-en") == "aura-2-thalia-en"
     assert capsys.readouterr().out == ""      # claudio's own transcript is on screen when the brain changes a setting
+
+
+def test_local_mouth_counts_a_sentence_only_after_its_audio(monkeypatch):
+    import asyncio, numpy as np
+    from claudio import agent
+    monkeypatch.setattr(agent, "cfg", {"local_voice": "am_michael", "local_speed": 1.0}, raising=False)
+    m = agent.LocalMouth()
+    m.tts = types.SimpleNamespace(create=lambda text, voice, speed: (np.array([0.5, -2.0], np.float32), 24000))
+    seen = []
+
+    async def go():
+        for t in ("One.", "  ", "Two."):
+            await m.say(t)
+        task = asyncio.create_task(m.receive(lambda b: seen.append((m.got, b))))
+        while not m.done():
+            await asyncio.sleep(0)
+        task.cancel()
+    asyncio.run(go())
+    pcm = np.array([16383, -32767], "<i2").tobytes()          # 0.5 and a clipped -2.0 as int16
+    assert seen == [(0, pcm), (2, pcm)]                         # the blank sentence counts, but plays nothing

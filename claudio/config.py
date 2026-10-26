@@ -9,19 +9,22 @@ PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SECRETS_FILE = os.path.join(DIR, "secrets.json")
 SESSION = os.path.join(DIR, "session")
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
+VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
 CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
 MODELS = ("default", "sonnet", "opus", "haiku")
 EFFORTS = ("low", "medium", "high")
-RANGES = {"eot": (0.0, 1.0), "eager_eot": (0.0, 1.0), "eot_timeout_ms": (100, 10000)}
+RANGES = {"eot": (0.0, 1.0), "eager_eot": (0.0, 1.0), "eot_timeout_ms": (100, 10000), "local_speed": (0.5, 2.0)}
 CHOICES = {"model": MODELS, "effort": EFFORTS, "style": ("plain", "brief", "caveman"),
-           "narrate": ("handed-off", "all", "none"), "mouth": ("deepgram", "elevenlabs")}
+           "narrate": ("handed-off", "all", "none"), "mouth": ("deepgram", "elevenlabs", "local"),
+           "local_model": ("compressed", "full")}
 WARNINGS = []                      # bad values seen while loading, for the caller to show
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
+            "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 HELP = {"orchestrator": "cmux workspace that gets tasks by default",
@@ -37,9 +40,12 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "push_to_talk": "the mic stays closed until you press Enter, for one turn",
         "address_me": "only turns that start with \"claudio\" count, for a room with other people",
         "narrate": "which sessions' finishes to narrate",
-        "mouth": "who speaks: Deepgram Aura or ElevenLabs",
+        "mouth": "who speaks: Deepgram Aura, ElevenLabs, or local (Kokoro on this Mac, no key)",
         "style": "how it talks: plain, brief (one sentence) or caveman",
         "elevenlabs_voice": "ElevenLabs voice id, when mouth is elevenlabs",
+        "local_voice": "Kokoro voice, when mouth is local: am_michael, af_heart, bm_george…",
+        "local_speed": "how fast the local voice speaks, 0.5 to 2.0",
+        "local_model": "Kokoro model: compressed (88 MB, about twice as fast) or full (325 MB, a little cleaner)",
         "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
         "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
