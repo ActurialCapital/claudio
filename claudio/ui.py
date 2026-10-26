@@ -24,7 +24,7 @@ def log(line):
         pass
 
 SUN = "#DF3F00"                  # the website's dithered sun
-TAGLINE = "a voice in front of your Claude Code sessions"
+TAGLINE = "[not dim not italic]Talk, and your sessions [bold #fff383]work[/].[/]"   # the site's headline, "work" in its yellow
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
 
@@ -54,7 +54,7 @@ def wordmark(subtitle=TAGLINE):
         if i == mid - 1:
             t.append("   claudio", style="bold")
         elif i == mid:
-            t.append(f"   {subtitle}", style="dim italic")
+            t.append_text(Text.from_markup(f"   {subtitle}", style="dim italic"))
         if i < len(rows) - 1:
             t.append("\n")
     return t
@@ -65,26 +65,14 @@ def short_voice(v):
 
 
 def banner(subtitle=None, facts=None, hints=None):
-    """The header: wordmark, tagline (or a subtitle like 'setup'), a strip of facts, a line of hints."""
+    """The header: wordmark, tagline (or a subtitle like 'setup'), one fact per line, a line of hints."""
     console.clear()
     console.print()
     console.print(wordmark(subtitle or TAGLINE))
     if facts:
         console.print()
-        row, width = Text("  "), 2
-        for k, v in facts.items():
-            fact = Text()
-            fact.append(f"{k} ", style="dim")
-            fact.append(str(v), style="bold cyan")
-            sep = 5 if width > 2 else 0
-            if width + sep + len(fact) > console.width - 2 and width > 2:   # next row, never inside a fact
-                console.print(row)
-                row, width, sep = Text("  "), 2, 0
-            if sep:
-                row.append("  ·  ", style="dim")
-            row.append_text(fact)
-            width += sep + len(fact)
-        console.print(row)
+        for k, v in facts.items():   # one fact per line
+            console.print(Text.assemble("  ", (f"{k} ", "dim"), (str(v), "bold cyan")))
     if hints:
         console.print(f"  [dim]{hints}[/]")
     console.print()
