@@ -8,6 +8,7 @@ PROMPT = os.path.join(DIR, "prompt.md")
 PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SECRETS_FILE = os.path.join(DIR, "secrets.json")
 SESSION = os.path.join(DIR, "session")
+MCP = os.path.join(DIR, "mcp.json")      # MCP servers for the brain, as in a .mcp.json; none when it is absent
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
 VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
@@ -165,6 +166,12 @@ def _write(path, data, mode):
         json.dump(data, f, indent=2)
     os.chmod(tmp, mode)
     os.replace(tmp, path)
+
+
+def mcp_servers():
+    """The names of the servers in MCP, [] when there is no such file or it can't be read."""
+    servers = _read(MCP).get("mcpServers")
+    return list(servers) if isinstance(servers, dict) else []
 
 
 def set_key(key, value):

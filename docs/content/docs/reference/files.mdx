@@ -12,6 +12,7 @@ claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio`
 | `prompt.md` | the [persona](/docs/configure/persona), copied from the package on first run |
 | `transcripts/YYYY-MM-DD.md` | each day's conversation: your turns, its replies, session reports and setting changes, one line each with the time |
 | `session` | the remembered brain session id and when it started |
+| `mcp.json` | optional: MCP servers for the brain, in the same format as a project's `.mcp.json` |
 | `brain.log` | the brain's error output, appended across runs |
 | `helper.log` | the echo canceller's error output, rewritten each run |
 | `bin/claudio-audio` | the echo canceller, built once from `audio.swift`, and rebuilt when that file is newer |
@@ -35,6 +36,13 @@ The brain is one `claude -p` process, started in the directory you ran claudio f
 - **git**: `status`, `log`, `diff` and `branch`
 - **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface` and `send-key`
 - **claudio set**, to change a setting when you ask
+- **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
+
+It never gets the MCP servers of your own Claude Code setup: a desktop tool that disconnects would otherwise confuse it into thinking it can't check a session. To give it a server, list it in `mcp.json` and restart claudio:
+
+```json title="~/.config/claudio/mcp.json"
+{"mcpServers": {"notes": {"command": "npx", "args": ["-y", "some-notes-mcp"]}}}
+```
 
 It cannot edit files or run other commands. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
 

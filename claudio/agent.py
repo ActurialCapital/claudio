@@ -171,10 +171,13 @@ class Brain:
         env = {k: v for k, v in os.environ.items() if k.lower() not in config.SECRETS}   # the brain never needs the keys
         env["PATH"] = f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}"
         resume = remembered_session()
+        mcp = config.mcp_servers()
         self.resumed, self.started_at = bool(resume), time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose", "--setting-sources", "",
+            "--strict-mcp-config",            # never the desktop's MCP servers: only those in mcp.json, if any
+            *(["--mcp-config", config.MCP] if mcp else []),
             "--append-system-prompt", system_prompt(),
             "--disallowedTools", f"Read(//{config.SECRETS_FILE.lstrip('/')})",
             "--allowedTools", "Read", "Grep", "Glob",
@@ -183,6 +186,7 @@ class Brain:
             "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
+            *(f"mcp__{name}" for name in mcp),
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             *(["--resume", resume] if resume else []),
