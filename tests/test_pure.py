@@ -8,9 +8,17 @@ sys.modules["websockets"].exceptions = sys.modules["websockets.exceptions"]
 sys.modules["websockets.exceptions"].WebSocketException = Exception
 sys.modules["websockets"].ConnectionClosed = Exception
 
+import pytest
 from claudio import config
 from claudio.agent import SENTENCE, backchannel, norm, parse_slash, shown_block
 from claudio.ui import spoken
+
+
+@pytest.fixture(autouse=True)
+def no_real_transcripts(tmp_path, monkeypatch):
+    """No test writes to the user's transcripts: they feed "what did we do today"."""
+    from claudio import ui
+    monkeypatch.setattr(ui, "TRANSCRIPTS", str(tmp_path / "transcripts"))
 from claudio.config import parse_surfaces
 
 
