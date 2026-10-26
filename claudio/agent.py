@@ -1011,8 +1011,8 @@ async def main():
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "status":
-            start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "
-                  f"Voice {ui.short_voice(cfg['voice'])}. Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
+            start(f"Status:\n- Orchestrator {cfg['orchestrator'] or 'none'}.\n- Brain {cfg['model']} at {cfg['effort']} effort.\n"
+                  f"- Voice {ui.short_voice(cfg['voice'])}.\n- Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
         elif cmd == "help":
             start(SLASH_HELP, committed=True, fixed=True)
         else:
