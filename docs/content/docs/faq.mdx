@@ -18,7 +18,7 @@ The brain runs through your Claude Code login, so it uses your Claude plan like 
 </Accordion>
 <Accordion title="Can it change my code?">
 
-No. The brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+Not unless you allow it. Out of the box the brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, read GitHub with `gh` (issues, pull requests, search), use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. Anything more is up to you: say yes when it asks, or list it in `allow`. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
 
 </Accordion>
 <Accordion title="Can it answer a session's prompts for me?">
@@ -32,7 +32,8 @@ No. The brain can read and search files, run `git status`, `git log`, `git diff`
 Your CLAUDE.md, yes. Your settings, no.
 
 - **CLAUDE.md**: the brain reads the CLAUDE.md files that Claude Code loads for the project you run claudio in, like any session. Keep instructions there that you are happy for the voice to follow too.
-- **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, and it can't read `~/.config/claudio/secrets.json`.
+- **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, plus what you allow in `~/.config/claudio/allow`, and it can't read `~/.config/claudio/secrets.json`.
+- **MCP servers**: none of yours, only those you list in `~/.config/claudio/mcp.json`.
 
 Your sessions use your settings as usual.
 
@@ -60,6 +61,13 @@ Put a `.claudio.json` in the project and run claudio from there. Any setting exc
 <Accordion title="Why does it sometimes say 'Looking.' or 'Checking.'?">
 
 The persona asks the brain to say what it's about to do before each tool call. When the brain skips that, claudio fills in one word, "Looking." before it reads or searches files and "Checking." before anything else, so you don't sit through silence.
+
+</Accordion>
+<Accordion title="It says it isn't allowed to run something. How do I allow it?">
+
+Say yes. When the brain is refused a command, claudio asks “I'm not allowed to run `gh pr create`. Allow it from now on? Say yes or no.” A yes, spoken or typed, adds the rule to `~/.config/claudio/allow`, restarts the brain with it and runs your request again. No adds nothing.
+
+You can also edit that file yourself, one [Claude Code permission rule](https://code.claude.com/docs/en/settings#permission-settings) per line, such as `Bash(gh:*)` or `WebFetch`; saving it restarts the brain. Telling the brain “I approve” does nothing on its own, since `claude -p` has no approval prompt. See [allow more](/docs/reference/files#allow-more).
 
 </Accordion>
 <Accordion title="Does quitting claudio clear the conversation?">
