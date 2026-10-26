@@ -71,6 +71,7 @@ REPLIES = {
                 "It downloads once.\n- Check the speed.\nHere is the call:\n```python\nkokoro.create(text, voice)\n```\n"
                 "It turns text into audio.",
     "race-event": "Once upon a time there was a fox. It ran. It jumped. It slept. The end.",
+    "loose-table": "Here it is.\nChange | Type\n`claudio open` for links and notes | Feature\nSkip mode for one run | Feature\n",
 }
 INTERRUPT = 1.5            # how long a cut brain takes to drain to its result
 
@@ -177,6 +178,7 @@ SCENARIOS = {   # name: (seconds to run, script)
     "allow-early": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
                         (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
     "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),
+    "loose-table": (5, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "give me a table of what changed"))]),
     "allow-no": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                      (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),

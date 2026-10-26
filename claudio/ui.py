@@ -297,9 +297,17 @@ def me_line(sentence, first, live=False, secs=None):
     log(("◆ " if first else "  ") + sentence.strip())
 
 
+def table(md):
+    """A loose table ("Change | Type" rows, no outer bars, no --- row) as Markdown renders one."""
+    rows = [r if r.startswith("|") else f"| {r} |" for r in md.splitlines() if r.strip()]
+    if len(rows) > 1 and not re.fullmatch(r"\|?[\s:|-]+\|?", rows[1]):
+        rows.insert(1, "|" + "---|" * rows[0].strip("|").count("|") + "---|")
+    return "\n".join(rows)
+
+
 def block(md, colors=True):
     """A table or code block from the brain: shown whole, in place, never spoken. colors off: code as plain text."""
-    shown = Markdown(md.strip())
+    shown = Markdown(table(md.strip()) if not md.startswith("```") else md.strip())
     if not colors and md.startswith("```"):
         shown = Text(md.split("\n", 1)[-1].rstrip().removesuffix("```").rstrip("\n"))
     lines = console.render_lines(Constrain(Padding(shown, (0, 0, 0, 2)), width()), console.options, pad=False)

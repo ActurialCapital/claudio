@@ -77,6 +77,17 @@ def test_shown_block_takes_a_whole_table_or_fence_and_waits_while_unsure():
     assert shown_block(fence + "That sets x.") == len(fence)
     assert shown_block("```py\nx = 1") is None
     assert shown_block("``") is None and shown_block("Hello") == 0
+    loose = "Change | Type\nclaudio open | Feature\nskip mode | Feature\n"
+    assert shown_block(loose + "That's it.\n") == len(loose)            # no outer bars, no --- row: still a table
+    assert shown_block(loose + "That's it", final=True) == len(loose)
+    assert shown_block("Change | Type\nclaudio") is None                 # the second line isn't finished
+    assert shown_block("Use a | b, then stop.\nNext sentence.\n") == 0   # one line with a bar is a sentence
+
+
+def test_a_loose_table_renders_as_a_table():
+    from claudio.ui import table
+    assert table("Change | Type\nclaudio open | Feature") == "| Change | Type |\n|---|---|\n| claudio open | Feature |"
+    assert table("| a | b |\n|---|---|\n| 1 | 2 |") == "| a | b |\n|---|---|\n| 1 | 2 |"
 
 
 def test_spoken_drops_bullets_and_markup():

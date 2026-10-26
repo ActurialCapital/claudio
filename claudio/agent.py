@@ -29,6 +29,15 @@ def shown_block(buf, final=False):
     if buf.startswith("|"):
         m = re.search(r"\n[^|]", buf)
         return m.start() + 1 if m else (len(buf) if final else None)
+    if " | " in buf.split("\n", 1)[0]:          # a loose table, "Change | Type": two such lines in a row are one
+        lines, at = buf.split("\n"), 0
+        for i, line in enumerate(lines):
+            if i == len(lines) - 1 and not final:
+                return None                    # this line isn't finished: can't tell yet
+            if not (line.startswith("|") or " | " in line):
+                return at if i > 1 else 0      # one line alone is a sentence with a bar in it
+            at += len(line) + 1
+        return min(at, len(buf)) if len(lines) > 1 else 0
     return 0
 
 
@@ -94,7 +103,8 @@ STYLES = {
              "the next step is truly the user's call. Whenever the answer names several things, sums up or compares, "
              "the screen carries it: a Markdown table when the things have two or more factors (shown, never read), "
              "else bullets of a few words each. Order: one short spoken sentence saying what it is, then the table "
-             "or bullets, then at most one sentence on what stands out. Never open a reply with a table or bullets.",
+             "or bullets, then at most one sentence on what stands out, and nothing at all after a table the user asked "
+             "for. Never open a reply with a table or bullets.",
     "caveman": "\n\nSTYLE OVERRIDE, caveman: this replaces every rule above about sentences. Speak like a caveman: "
                "at most six words per sentence, drop articles, auxiliaries and connectors, fragments are the norm. "
                "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
@@ -188,6 +198,7 @@ def system_prompt():
                f"gh ... -R {owner}/<name>.\n" if owner else "")
             + (f"- The voice is {cfg['mouth']}: local_voice, local_speed and local_model do nothing, and it has no speed "
                "setting. Say so rather than suggest them.\n" if cfg["mouth"] != "local" else "")
+            + "- Asked for a table: \"Here it is.\", then the table, and nothing after it: no summary, no take.\n"
             + "- Notes, lookups and opening the browser are your own jobs: never hand them to a session. "
               "\"In the browser\" means open it there and say only \"Opening it.\", no answer.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."

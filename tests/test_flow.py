@@ -5,7 +5,7 @@ import os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana", "skip",
-             "allow-early", "handoff-new")
+             "allow-early", "handoff-new", "loose-table")
 
 
 @pytest.fixture(scope="module")
@@ -107,3 +107,10 @@ def test_a_session_opened_after_start_is_still_heard_when_it_finishes(runs):
     lines, _ = runs["handoff-new"]
     assert "EVENT Login Stop" in lines
     assert any(line.startswith("BRAIN '[event] Login finished a turn on your request") for line in lines)
+
+
+def test_a_table_without_outer_bars_is_shown_not_read(runs):
+    lines, _ = runs["loose-table"]
+    said = [line for line in lines if line.startswith("SAY") and "Hi, how can" not in line]
+    assert said == ["SAY 'Here it is.\\n'"]
+    assert first(lines, "BLOCK 'Change | Type") > first(lines, "ME 'Here it is.")
