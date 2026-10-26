@@ -69,6 +69,7 @@ def test_shown_block_takes_a_whole_table_or_fence_and_waits_while_unsure():
 def test_spoken_drops_bullets_and_markup():
     assert spoken("- Use **Kokoro** with `claudio set` and *care*.") == "Use Kokoro with claudio set and care."
     assert spoken("2 * 3 * 4 is 24.") == "2 * 3 * 4 is 24."
+    assert spoken("Glob **/*.py and `rm **/*.pyc`.") == "Glob **/*.py and rm **/*.pyc."
 
 
 def test_backchannel_is_short_or_only_filler():

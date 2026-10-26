@@ -5,7 +5,7 @@ from rich.constrain import Constrain
 from rich.control import Control
 from rich.markdown import Markdown
 from rich.padding import Padding
-from rich.segment import Segment, Segments
+from rich.segment import SegmentLines
 from rich.table import Table
 from rich.text import Text
 from . import config
@@ -105,7 +105,7 @@ SHADES = ["grey30", "grey50", "grey70", ""]
 LIVE_LINES = 4                  # a long block keeps only its last lines live; the spoken lines above go to the transcript
 fading = []                     # claudio's blocks still fading in, drawn above the status line until they settle
 BULLET = re.compile(r"^\s*[-*•]\s+")   # a list item from the brain: "- Silero starts turns"
-INLINE = re.compile(r"\*\*(.+?)\*\*|`([^`]+)`|(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*")   # **bold**, `code`, *italic*
+INLINE = re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*|`([^`]+)`|(?<![*\w])\*(?=[A-Za-z0-9])([^*\n]*?[A-Za-z0-9.!?])\*(?![*\w])")   # **bold**, `code`, *italic*; not **/*.py
 INLINE_STYLE = ("bold", "cyan", "italic")
 settling = {"now": False}       # settle() is printing: the hook must not flush the blocks still fading
 
@@ -113,6 +113,11 @@ settling = {"now": False}       # settle() is printing: the hook must not flush 
 def spoken(text):
     """What the voice says: the sentence without its bullet or markup."""
     return INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), BULLET.sub("", text))
+
+
+def sayable(text):
+    """Anything for the voice at all: a blank line or a stray "`" is not."""
+    return bool(re.search(r"\w", spoken(text)))
 
 
 def styled(text):
@@ -127,11 +132,8 @@ def styled(text):
     return t
 
 
-def segments(lines):
-    out = []
-    for line in lines:
-        out += [*line, Segment.line()]
-    return Segments(out)
+def words_in(lines):
+    return len(re.findall(r"\S+", " ".join("".join(seg.text for seg in line) for line in lines)))
 
 
 def hang(head, body):
@@ -149,7 +151,8 @@ class Fade:
         self.head = Text("◆ ", style="bold #2dd4bf") if first else Text("  ")
         self.words = []          # (word as Text, share of its sentence's audio before it, sentence); "\n" breaks the line
         self.listing, self.bol = False, True     # in a list; the last sentence ended its line
-        self.printed = 0         # lines already in the transcript (settle)
+        self.printed = 0         # lines of render(base=self.base) already in the transcript (settle), at self.width
+        self.base = self.done = self.width = 0     # words left out of the render; words in the transcript
 
     def add(self, sentence, secs=None):
         """secs(): the sentence's audio length once all of it has arrived, else None (the pace estimate stands in)."""
@@ -181,9 +184,12 @@ class Fade:
     def done(self):
         return not self.words or time.monotonic() - self.at(*self.words[-1][1:]) > FADE
 
-    def body(self, final=False):
-        line, now = Text(), time.monotonic()
+    def body(self, final=False, base=0):
+        line, now, n = Text(), time.monotonic(), 0
         for w, frac, part in self.words:
+            if n < base:                         # already in the transcript
+                n += w != "\n"
+                continue
             at = self.at(frac, part)
             if not final and now < at:
                 break
@@ -199,22 +205,25 @@ class Fade:
             line.append_text(w)
         return line
 
-    def render(self, final=False):
+    def render(self, final=False, base=0):
         grid = Table.grid()      # the glyph in its own column: wrapped lines hang under the text, not under it
         grid.add_column(width=2, no_wrap=True)
         grid.add_column()
-        for i, line in enumerate(self.body(final).split("\n")):
+        for i, line in enumerate(self.body(final, base).split("\n")):
             if line.plain.startswith("• "):    # a list item hangs under its own text too
                 line = hang(line[:2], line[2:])
-            grid.add_row(self.head if i == 0 else "", line)
+            grid.add_row(self.head if i == 0 and not base else "", line)
         return Constrain(grid, width())
 
-    def lines(self, final=False):
-        return console.render_lines(self.render(final), console.options, pad=False)
+    def lines(self, final=False, base=None):
+        return console.render_lines(self.render(final, self.base if base is None else base), console.options, pad=False)
 
     def rest(self, final=False):
-        """What isn't in the transcript yet."""
-        return segments(self.lines(final)[self.printed:])
+        """What isn't in the transcript yet. After a resize the old line count means nothing at the new width:
+        go on from the first word not printed, on a fresh line."""
+        if self.printed and console.width != self.width:
+            return SegmentLines(self.lines(final, base=self.done), new_lines=True)
+        return SegmentLines(self.lines(final)[self.printed:], new_lines=True)
 
     def __rich__(self):
         return self.rest()
@@ -240,10 +249,14 @@ def settle():
         done.append(fading.pop(0).rest(final=True))
     if fading:
         f = fading[-1]
+        if f.printed and console.width != f.width:   # resized: start over from the first word not printed
+            f.base, f.printed = f.done, 0
         n = len(f.lines()) - LIVE_LINES
         if n > f.printed:
-            done.append(segments(f.lines(final=True)[f.printed:n]))
-            f.printed = n
+            lines = f.lines(final=True)
+            done.append(SegmentLines(lines[f.printed:n], new_lines=True))
+            f.printed, f.width = n, console.width
+            f.done = f.base + words_in(lines[:n]) - (1 if not f.base and f.head.plain.strip() else 0)   # not the ◆
     if done:
         settling["now"] = True
         try:
@@ -293,7 +306,7 @@ def block(md, colors=True):
         lines.pop(0)
     while lines and blank(lines[-1]):
         lines.pop()
-    console.print(segments(lines))
+    console.print(SegmentLines(lines, new_lines=True))
     log(md.rstrip())
 
 

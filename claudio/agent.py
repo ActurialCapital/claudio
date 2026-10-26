@@ -12,6 +12,11 @@ from . import config, ui
 from .ui import console
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s|\n")   # a newline ends one too: list items often have no full stop
+def closed(text):
+    """No **bold** or `code` left open: a sentence may end here. (A stray marker gives up after 400 characters.)"""
+    return text.count("**") % 2 == 0 and text.replace("```", "").count("`") % 2 == 0
+
+
 def shown_block(buf, final=False):
     """Length of the table or code fence that buf starts with, once it is complete; 0 when buf starts no such block;
     None while it can't tell yet. These are shown, never spoken."""
@@ -491,15 +496,37 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         for k in range(i, len(sentences)):
             show(sentences, k, shown)
         return len(sentences), True
-    first = i                     # the sentence whose audio is arriving: first + mouth.got
+    first = i
+    order = []                    # the sentences this mouth was given, in order: its nth audio is sentence order[n]
     held = bytearray()
     held_marks = []               # (offset within held, k): sentence starts inside the held audio
     marked = set()
     sizes = {}                    # k: bytes of sentence k's audio so far, from this mouth
+    rx = {"at": 0.0}              # when audio last came in
+    waiters = []
 
     def secs(k):
-        """Sentence k's audio length, once all of it is in (the next one has started, or the mouth is done)."""
-        return sizes[k] / (OUT_RATE * 2) if k in sizes and (k + 1 in sizes or mouth.done()) else None
+        """Sentence k's audio length, once all of it is in (a later one has started, or the mouth is done)."""
+        return sizes[k] / (OUT_RATE * 2) if k in sizes and (any(j > k for j in sizes) or mouth.done()) else None
+
+    def place(k):
+        """Sentence k (blocks only, nothing to say) shows where the audio queued so far ends."""
+        if k in marked:
+            return
+        marked.add(k)
+        if not commit.is_set():
+            held_marks.append((len(held), k))
+        elif audio["fed"] <= audio["played"]:
+            show(sentences, k, shown)          # nothing left to play: now
+        else:
+            mark(sentences, k, shown)
+
+    async def place_when_quiet(k):
+        """A table or code with nothing said after it yet (a tool runs next, or the reply ends): it shows once the
+        sentence before it has all its audio, rather than with the next sentence, which may be far off."""
+        while not all(j in sizes for j in order) or time.monotonic() - rx["at"] < 0.3:
+            await asyncio.sleep(0.05)
+        place(k)
 
     def release():
         """Held audio (synthesized before the final transcript) goes to the speaker, marks and all."""
@@ -512,8 +539,12 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
             r["first_word"] = time.monotonic() - r["committed_at"]
 
     def on_audio(m):
-        k = first + mouth.got
+        k = order[min(mouth.got, len(order) - 1)]
         sizes[k] = sizes.get(k, 0) + len(m)
+        rx["at"] = time.monotonic()
+        for j in range(first, k):              # blocks-only sentences before this one show first
+            if j not in marked and j not in order:
+                place(j)
         if commit.is_set():
             if held:
                 release()
@@ -545,9 +576,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
                 break
             try:
                 said = ui.spoken(sentences[i][0])
-                if not said.strip():           # only blocks to show, at the very end: nothing for the mouth
+                if not ui.sayable(said):       # only blocks to show: nothing for the mouth
+                    waiters.append(asyncio.create_task(place_when_quiet(i)))
                     i += 1
                     continue
+                order.append(i)
                 await mouth.say(said)
             except (websockets.ConnectionClosed, OSError):      # the socket dropped mid-reply: one new mouth, carry on
                 player.cancel()
@@ -559,7 +592,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
                     for k in range(i, len(sentences)):
                         show(sentences, k, shown)
                     return len(sentences), True
-                first = i                      # the new mouth counts from here
+                first, order = i, []           # the new mouth counts from here
                 player = asyncio.create_task(mouth.receive(on_audio))
                 continue
             i += 1
@@ -573,12 +606,14 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         if held:
             release()
         for k in range(first, i):
-            if k not in marked:                # no audio came for it (an empty sentence): show it anyway
-                show(sentences, k, shown)
+            if k not in marked:                # no audio came for it (blocks only, or an empty sentence): at the end
+                place(k)
         return i, True
     finally:
         player.cancel()
         committer.cancel()
+        for w in waiters:
+            w.cancel()
         await mouth.close()
 
 
@@ -608,12 +643,19 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
             def emit(sentence):
                 nonlocal first, bol
                 bol = sentence.endswith("\n")
-                if not ui.spoken(sentence).strip():   # a blank line, or markup alone: nothing to say
+                if not ui.sayable(sentence):   # a blank line, or markup alone: nothing to say
                     return
                 sentences.append((sentence, first, pre[:]))
                 pre.clear()
                 new.set()
                 first = False
+
+            def flush():
+                """Blocks with nothing said after them: an item of their own, shown once the voice before them ends."""
+                if pre:
+                    sentences.append(("", first, pre[:]))
+                    pre.clear()
+                    new.set()
 
             def split(final=False):
                 nonlocal buf, bol
@@ -625,7 +667,7 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                         pre.append(buf[:n])
                         buf, bol = buf[n:], True
                         continue
-                    m = SENTENCE.search(buf)
+                    m = next((m for m in SENTENCE.finditer(buf) if closed(buf[:m.end()]) or len(buf) > 400), None)
                     if not m:
                         break
                     emit(buf[:m.end()])
@@ -641,14 +683,13 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
                         split(final=True)
+                        flush()                # a tool runs next: its table or code shouldn't wait for it
                         buf, first, bol = "", True, True
                         continue
                     buf += d
                     split()
                 split(final=True)
-                if pre:                        # a block with nothing said after it: shown when the reply ends
-                    sentences.append(("", first, pre[:]))
-                    new.set()
+                flush()
             finally:
                 gen_done.set()
                 new.set()
@@ -664,6 +705,8 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                     ctl["paused"].clear()
                     at = ctl.pop("resume_at", None)
                     i = at if at is not None else max(0, i - 1)    # from the sentence that was playing, or the last one
+                    while i > 0 and not ui.sayable(sentences[i][0]):
+                        i -= 1                 # a blocks-only sentence has nothing to say again: the one before it
                 i, finished = await speak_from(sentences, i, new, gen_done, ctl, commit, shown)
                 if not finished:
                     continue
@@ -671,6 +714,7 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
                     await asyncio.sleep(0.05)
                 if ctl["paused"].is_set():
                     continue                   # paused during the tail: wait, then say the end again
+                drained(0)                     # a mark at the very end (a closing table) shows before the marks are cleared
                 break
         finally:
             if not gen.done():
@@ -877,9 +921,9 @@ async def main():
                 cfg["voice"] = value               # so the confirmation already speaks in it
                 start(f"{arg.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd in ("colors", "colours"):     # "slash code colors off"; alone, it flips them
-            on = arg in config.TRUE if arg in config.TRUE + config.FALSE else not cfg["code_colors"]
-            config.set_key("code_colors", on)
-            cfg["code_colors"] = on
+            said = next((w for w in arg.split() if w in config.TRUE + config.FALSE), None)    # "off please" is off
+            on = said in config.TRUE if said else not cfg["code_colors"]
+            config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "status":
             start(f"Orchestrator {cfg['orchestrator'] or 'none'}. Brain {cfg['model']} at {cfg['effort']} effort. "

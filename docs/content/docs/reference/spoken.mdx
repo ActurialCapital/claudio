@@ -19,8 +19,9 @@ Say “slash” and a command, such as “slash stop”, or type `/stop` and pre
 | `effort` | `low`, `medium` or `high` | saves the effort; the brain restarts and says it is back |
 | `style` | `plain`, `brief` or `caveman` | saves the [style](/docs/configure/persona#switch-the-style); the brain restarts and says it is back |
 | `voice` | an Aura-2 name, such as `thalia` | saves `aura-2-thalia-en` and confirms in the new voice: “Thalia from now on.” |
+| `colors` (or `colours`, “code colors”) | `on`, `off`, or none to flip | saves `code_colors`: code blocks highlighted, or as plain text; says “Code colours off.” |
 
-The `model`, `effort`, `style` and `voice` changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
+The `model`, `effort`, `style`, `voice` and `colors` changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
 
 While muted, typed lines still work as turns.
 
