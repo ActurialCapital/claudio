@@ -11,6 +11,10 @@ SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "al
 @pytest.fixture(scope="module")
 def runs(tmp_path_factory):
     """{scenario: (its log lines, its config dir)}, every scenario run in parallel."""
+    try:
+        import sounddevice  # noqa: F401  (claudio imports it; on a runner without PortAudio it can't load)
+    except (ImportError, OSError) as e:
+        pytest.skip(f"no audio library here: {e}")
     here = os.path.dirname(os.path.abspath(__file__))
     started = {}
     for sc in SCENARIOS:
