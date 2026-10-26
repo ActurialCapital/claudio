@@ -3,17 +3,21 @@ title: Persona and style
 description: Edit what the brain is told, or switch how it talks with one setting.
 ---
 
-To change how claudio talks for a while, set a style: “slash style brief”. To change what it is told for good, edit the persona, a plain Markdown file:
+To change how claudio talks for a while, set a style: “slash style brief”. To change what it is told for good, add to the persona in a plain Markdown file:
 
 ```text
 ~/.config/claudio/prompt.md
 ```
 
-claudio copies it from the package the first time it runs. After that the file is yours. When you save it, the brain restarts with the new persona, keeps the conversation when `memory` is on, and says it is back. You see `· persona changed; brain restarting`.
+claudio's own rules come from the package, so every update reaches you. This file holds only your additions: they are added after claudio's rules and win where the two disagree. It starts empty but for a comment explaining that. When you save it, the brain restarts with it, keeps the conversation when `memory` is on, and says it is back. You see `· persona changed; brain restarting`.
+
+```markdown title="~/.config/claudio/prompt.md"
+Call me Jean. When I ask about the farm, the repo is Hawaii-Farming/aloha-app.
+```
 
 ## What the default persona says
 
-Know these rules before you edit, since the rest of claudio relies on some of them:
+These are claudio's own rules, from the package. Know them before you add to them, since the rest of claudio relies on some of them:
 
 - **Write for the ear**: two to five short, plain sentences, no paths or URLs, since every sentence is spoken
 - **Let the screen carry more when the shape fits**: bullets for three or more parallel things (each read aloud), a Markdown table for a comparison on two or more factors and a fenced block for code (both shown, never read, with a spoken line on what they show), **bold** and `backticks` for key words and names
@@ -45,35 +49,11 @@ claudio also adds text you do not need to write:
 
 The brain also reads `CLAUDE.md` files, the project's and your own, like any Claude Code session.
 
-## Get a newer default persona
+## Replace the whole persona
 
-claudio never overwrites your copy, so rules added in a later version do not reach it. To take the new default and keep your edits:
+To write the persona from scratch instead, put a complete one in `prompt.md`, starting with “You are the voice in front of”, as the package's does. claudio then uses yours instead of its own, and warns at start that its newer rules can't reach it. Keep the cmux handover lines and the marker if you rewrite it.
 
-<Steps>
-<Step>
-
-### Quit claudio
-
-Press <kbd>Ctrl</kbd>+<kbd>C</kbd>. claudio copies the default persona in only when it starts.
-
-</Step>
-<Step>
-
-### Move your copy aside
-
-```bash
-mv ~/.config/claudio/prompt.md ~/.config/claudio/prompt.md.old
-```
-
-</Step>
-<Step>
-
-### Start claudio
-
-It copies the packaged persona into `prompt.md`. Merge your edits back from `prompt.md.old`.
-
-</Step>
-</Steps>
+Older versions copied the whole persona into `prompt.md`. If you never edited that copy, claudio turns it into an empty additions file the next time it starts. If you did, it keeps using your copy, with the same warning: move your changes into an additions file to get claudio's updates again.
 
 ## Switch the style
 

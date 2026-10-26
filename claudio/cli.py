@@ -169,7 +169,7 @@ def doctor():
         row(sd.query_devices(kind="input")["name"], f"microphone: {sd.query_devices(kind='input')['name']}")
     except Exception as e:
         row(False, "microphone", str(e)[:80])
-    row(os.path.exists(config.PROMPT), "persona prompt present", "it is copied on first run")
+    row(os.path.exists(config.PROMPT), "persona additions file present", "it is made on first run")
     console.print("  [dim]one typed turn through brain and mouth…[/]")
     os.environ["CLAUDIO_TEXT"] = "Say only: the doctor is in."
     agent.run()

@@ -86,7 +86,7 @@ flowchart LR
 - 🕰️ A dim rule with the time marks a gap of more than five minutes.
 - 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 - 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
-- ✍️ Edit `prompt.md` and the brain restarts with the new persona, memory kept.
+- ✍️ Add to the persona in `prompt.md` and the brain restarts with it, memory kept; claudio's own rules come from the package, so updates still reach you.
 
 ## 🔬 Under the hood
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it is the persona; edit it freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` commands; for anything more, say yes when claudio asks, or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `allow`, one per line, such as `Bash(gh:*)`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it.
+`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it holds your additions to the persona; write freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` commands; for anything more, say yes when claudio asks, or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `allow`, one per line, such as `Bash(gh:*)`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it.
 
 The persona carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced triads, no inflated significance, at most one hedge, no chatbot wrapper, stop on the last fact. The `style` setting, plain, brief or caveman, switchable mid-session by voice, follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip without touching the prompt.
 

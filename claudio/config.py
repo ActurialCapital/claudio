@@ -1,6 +1,6 @@
 """Settings in ~/.config/claudio: config.json (the knobs), secrets.json (the keys, mode 600, never named to the
 brain) and prompt.md (the persona, yours to edit). Also the few paths and parsers both the agent and the CLI need."""
-import difflib, json, os, re, shutil, urllib.request
+import difflib, hashlib, json, os, re, shutil, urllib.request
 
 DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "claudio")
 CONF = os.path.join(DIR, "config.json")
@@ -142,9 +142,8 @@ def load():
     """The settings for this run: global, then the project's .claudio.json, then CLAUDIO_<KEY> env.
     Creates the persona file on first use. Bad values are skipped and listed in WARNINGS."""
     os.makedirs(DIR, exist_ok=True)
-    if not os.path.exists(PROMPT):
-        shutil.copy(PACKAGED_PROMPT, PROMPT)
     WARNINGS.clear()
+    _persona_file()
     c = dict(DEFAULTS)
     saved = stored()
     _merge(c, {k: saved[k] for k in DEFAULTS if k not in SECRETS}, CONF)
@@ -219,6 +218,46 @@ def allow(rule):
     os.makedirs(DIR, exist_ok=True)
     with open(ALLOW, "a") as f:
         f.write(f"{rule}\n")
+
+
+ADDITIONS = """<!--
+Your additions to claudio's persona. claudio's own rules come from the package and stay up to date;
+whatever you write below is added after them, and wins where they disagree. Saving restarts the brain.
+-->
+"""
+FULL = "You are the voice in front of"   # how a whole persona starts: older versions copied one here
+PACKAGED = {"192f75ad59c2cd26", "1db85bb7b3de079f", "2968da599f69e3f7", "404972bf6b6ac69e", "42c31234ba05e10e",
+            "4804450a5cbcf202", "4ec8cc6083d69c40", "54a344c215392748", "6bb0bc1be0ea00c9", "87c50e7146225d00",
+            "8d611f9f34ffc895", "8dc40ed291c14f27", "9435c916aefdae7c", "c6b8a09b88c21cb1", "d22ef11225abb39d",
+            "d9c1b1870e779063", "eeb0428322d4d3e5", "efa4ae1ab656d2a1"}   # every persona claudio shipped as a copy
+
+
+def _persona_file():
+    """PROMPT holds the user's additions. A copy of a shipped persona, never edited, becomes an empty one; an
+    edited copy stays the whole persona, with a warning that claudio's later rules can't reach it."""
+    try:
+        mine = open(PROMPT, "rb").read()
+    except OSError:
+        mine = None
+    if mine is None or hashlib.sha256(mine).hexdigest()[:16] in PACKAGED:
+        with open(PROMPT, "w") as f:
+            f.write(ADDITIONS)
+    elif mine.decode(errors="replace").lstrip().startswith(FULL):
+        WARNINGS.append(f"{PROMPT} is a whole persona of your own, so claudio's newer rules don't reach it; "
+                        "keep only your changes there (see the persona docs)")
+
+
+def persona():
+    """What the brain is told about itself: the package's persona, then the user's additions."""
+    base = open(PACKAGED_PROMPT).read()
+    try:
+        mine = open(PROMPT).read()
+    except OSError:
+        return base
+    if mine.lstrip().startswith(FULL):
+        return mine
+    mine = re.sub(r"<!--.*?-->", "", mine, flags=re.S).strip()
+    return base + (f"\n\nThe user's own additions, which win over anything above:\n{mine}" if mine else "")
 
 
 def mcp_servers():

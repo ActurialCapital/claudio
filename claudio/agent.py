@@ -159,7 +159,7 @@ def system_prompt():
     lines = [f"- {w}: surface {full} ({t}), in {c}" for sid, (w, t, c, full) in surfaces.items() if w]
     keys = [k for k in config.DEFAULTS if k not in config.SECRETS]
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
-    persona = (open(config.PROMPT).read()
+    persona = (config.persona()
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
                .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
                                             for k in keys)))

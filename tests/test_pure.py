@@ -348,3 +348,17 @@ def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
     assert config.allowed() == ["Bash(gh:*)", "WebFetch"]
     monkeypatch.setattr(config, "ALLOW", str(tmp_path / "missing"))
     assert config.allowed() == []
+
+
+def test_persona_is_the_package_plus_the_users_additions(tmp_path, monkeypatch):
+    mine = tmp_path / "prompt.md"
+    monkeypatch.setattr(config, "PROMPT", str(mine))
+    base = open(config.PACKAGED_PROMPT).read()
+    mine.write_text(base)                              # a shipped persona copied here, never edited
+    config.WARNINGS.clear(); config._persona_file()
+    assert mine.read_text() == config.ADDITIONS and config.persona() == base and not config.WARNINGS
+    mine.write_text(config.ADDITIONS + "Call me Jean.\n")
+    assert config.persona() == base + "\n\nThe user's own additions, which win over anything above:\nCall me Jean."
+    mine.write_text(base + "\nAlways answer in French.\n")   # a whole persona, edited: still used, with a warning
+    config.WARNINGS.clear(); config._persona_file()
+    assert config.persona().endswith("Always answer in French.\n") and config.WARNINGS
