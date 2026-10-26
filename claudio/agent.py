@@ -182,6 +182,8 @@ class Brain:
             "--disallowedTools", f"Read(//{config.SECRETS_FILE.lstrip('/')})",
             "--allowedTools", "Read", "Grep", "Glob",
             "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
+            "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
+            "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh search:*)",
             "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
             "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
