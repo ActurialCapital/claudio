@@ -910,6 +910,8 @@ async def main():
         elif cmd == "style":
             said = f"I don't know style {arg}. " if arg else "Style is "     # "slash style" alone: just the choices
             start(f"{said}{', '.join(STYLES)}.", committed=True, fixed=True)
+        elif cmd == "voice" and len(arg.split()) > 1:     # "slash voice, can you list the voices": not a name
+            start("A voice is one name, like apollo, thalia or orion.", committed=True, fixed=True)
         elif cmd in ("model", "effort", "voice") and arg:
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):
