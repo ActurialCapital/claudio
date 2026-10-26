@@ -32,7 +32,7 @@ Each line starts with a glyph that says who it's from:
 | Glyph | Line |
 |---|---|
 | `›` | you |
-| `◆` | claudio; its next sentences are indented under it |
+| `◆` | claudio; one paragraph per thought, wrapped lines indented under it |
 | `▸` | a session reporting back, with the request it was for |
 | `→` | what the brain is reading or running |
 | `⚙` | a setting that changed |
@@ -66,6 +66,7 @@ Backchannels show dim, as do turns that don't start with "claudio" when `address
 
 The last line of the terminal updates four times a second. From left to right, it shows:
 
+1. **A spinner**, or a still `■` while muted
 1. **The mic level**, from blank to `▇`
 2. **What claudio is doing**: `listening`, `thinking`, `speaking`, `paused`, `muted · say /unmute`, `ears lost · reconnecting`, or `push to talk · Enter opens the mic`
 3. **How long the last reply took to its first word**, for 6 seconds after it starts

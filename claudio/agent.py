@@ -7,6 +7,7 @@ session, so it remembers), the mouth retries once. An interruption first pauses 
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
 import array, asyncio, contextlib, json, os, re, shutil, signal, subprocess, sys, threading, time
 import sounddevice as sd, websockets
+from rich.spinner import SPINNERS
 from . import config, ui
 from .ui import console
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
@@ -48,6 +49,7 @@ speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones 
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
           "level": 0, "latency": None}
 BARS = " ▁▂▃▄▅▆▇"
+SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
               "style plain, brief or caveman. status says the settings. mute and unmute. stop cuts a reply.")
 STYLES = {
@@ -88,6 +90,7 @@ def refresh():
     if status["live"]:
         bar = BARS[min(7, int(status["level"] / 1200))]       # ~0 to 8400 peak over the eight bars
         status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]")
+        status["live"].renderable.frames = MUTED if status["muted"] else SPIN     # muted: a still square, no spin
 
 
 parse_surfaces, sessions = config.parse_surfaces, config.surfaces
@@ -451,6 +454,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
     if mouth is None:
         ui.warn("mouth lost: the speech service is unreachable; text only")
         await gen_done.wait()
+        await commit.wait()                    # an early guess shows only once your turn is final, as with audio
         for k in range(i, len(sentences)):
             show(sentences, k, shown)
         return len(sentences), True
@@ -507,9 +511,10 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
                 mouth = await open_mouth()
                 if mouth is None:
                     ui.warn("mouth lost mid-reply; the rest is text only")
+                    await gen_done.wait()
+                    await commit.wait()
                     for k in range(i, len(sentences)):
                         show(sentences, k, shown)
-                    await gen_done.wait()
                     return len(sentences), True
                 first = i                      # the new mouth counts from here
                 player = asyncio.create_task(mouth.receive(on_audio))
@@ -690,7 +695,7 @@ async def main():
 
     def live():
         t = current["task"]
-        return t is not None and not t.done()
+        return t is not None and not t.done() and not t.cancelling()   # a cut reply still draining the brain is gone
 
     def paused():
         return live() and current["ctl"]["paused"].is_set()
@@ -731,8 +736,9 @@ async def main():
     latest = {"handle": None}      # the newest reply asked for, speaking or queued; what a final transcript commits
 
     def start(text, committed, event=False, fixed=False):
-        if live() and not event:
-            cut("replaced" if current["commit"].is_set() else None)    # an unheard early guess goes quietly
+        if not event:
+            if live():
+                cut("replaced" if current["commit"].is_set() else None)    # an unheard early guess goes quietly
             queued = latest["handle"]
             if queued and not queued["task"].done() and queued["task"] is not current["task"]:
                 queued["task"].cancel()        # an eager reply still waiting behind the drain: gone too
@@ -960,9 +966,10 @@ async def main():
                 if SLASH.search(words):
                     return                      # a command: wait for the final transcript, no brain
                 start(said, committed=False)    # quiet: your line prints at EndOfTurn, the reply waits for it
-            case "TurnResumed":
-                if live() and not current["commit"].is_set():
-                    cut(None)                   # you kept talking: drop the guess quietly
+            case "TurnResumed":                 # you kept talking: drop the guess quietly, speaking or still queued
+                L = latest["handle"]
+                if L and not L["task"].done() and not L["commit"].is_set():
+                    cut(None) if L["task"] is current["task"] else L["task"].cancel()
             case "EndOfTurn":
                 if cfg["push_to_talk"]:
                     status["gate_open"] = False
@@ -977,7 +984,8 @@ async def main():
                         resume()
                 elif said:
                     L = latest["handle"]
-                    if L and not L["task"].done() and not L["commit"].is_set() and norm(L["text"]) == norm(said):
+                    if (L and not L["task"].done() and not L["task"].cancelling() and not L["commit"].is_set()
+                            and norm(L["text"]) == norm(said)):
                         ui.you(said)
                         L["commit"].set()      # the eager reply for these words, speaking or still queued
                         L["committed_at"] = time.monotonic()
