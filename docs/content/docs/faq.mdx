@@ -62,6 +62,17 @@ Put a `.claudio.json` in the project and run claudio from there. Any setting exc
 The persona asks the brain to say what it's about to do before each tool call. When the brain skips that, claudio fills in one word, "Looking." before it reads or searches files and "Checking." before anything else, so you don't sit through silence.
 
 </Accordion>
+<Accordion title="Does quitting claudio clear the conversation?">
+
+No. With `memory` on, the brain resumes the same conversation the next time you start claudio, if it's less than 7 days old, so Ctrl-C and a restart keep everything it said and believed. That includes a wrong conclusion, such as "the cmux tools are down" after an outage that has passed. To start fresh:
+
+- say "slash clear", or type `/clear`, while it runs
+- run `claudio forget` before the next start
+- run `claudio set memory false` to start fresh every time
+
+None of these delete your transcripts. See [what the brain remembers](/docs/guide/talking#what-the-brain-remembers).
+
+</Accordion>
 <Accordion title="How do I remove it?">
 
 Remove the hooks first, then the tool, then its files:
