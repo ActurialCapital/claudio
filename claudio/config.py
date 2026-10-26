@@ -9,6 +9,7 @@ PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SECRETS_FILE = os.path.join(DIR, "secrets.json")
 SESSION = os.path.join(DIR, "session")
 MCP = os.path.join(DIR, "mcp.json")      # MCP servers for the brain, as in a .mcp.json; none when it is absent
+ALLOW = os.path.join(DIR, "allow")       # more tools for the brain: one Claude Code permission rule per line
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
 VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
@@ -184,6 +185,14 @@ def fetch_aura(key):
         return
     if names:
         AURA[:] = names
+
+
+def allowed():
+    """The rules in ALLOW, such as Bash(gh:*) or WebFetch; blank lines and # comments skipped."""
+    try:
+        return [r for r in (line.split("#")[0].strip() for line in open(ALLOW)) if r]
+    except OSError:
+        return []
 
 
 def mcp_servers():

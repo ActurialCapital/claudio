@@ -313,3 +313,12 @@ def test_two_live_blocks_settle_in_order():
     finally:
         ui.fading.clear()
         ui.console, ui.log = console, log
+
+
+def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
+    f = tmp_path / "allow"
+    f.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n")
+    monkeypatch.setattr(config, "ALLOW", str(f))
+    assert config.allowed() == ["Bash(gh:*)", "WebFetch"]
+    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "missing"))
+    assert config.allowed() == []

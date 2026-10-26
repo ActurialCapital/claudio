@@ -189,6 +189,7 @@ class Brain:
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
             *(f"mcp__{name}" for name in mcp),
+            *config.allowed(),                # the user's own: ~/.config/claudio/allow
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             *(["--resume", resume] if resume else []),
@@ -1001,6 +1002,7 @@ async def main():
         global cfg
         stamp = mtime(config.CONF)
         persona = mtime(config.PROMPT)
+        access = (mtime(config.ALLOW), mtime(config.MCP))
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(brain.changed.wait(), 1.0)
@@ -1013,6 +1015,10 @@ async def main():
                 await brain.restart()
                 start("[event] Your persona prompt was just edited and you were restarted with it. "
                       "Say in a few words that you are back.", committed=True, event=True)
+            if (mtime(config.ALLOW), mtime(config.MCP)) != access:   # allow or mcp.json edited: a brain that has them
+                access = (mtime(config.ALLOW), mtime(config.MCP))
+                ui.note("access changed; brain restarting")
+                await brain.restart()
             now = mtime(config.CONF)
             if now is None or now == stamp:
                 continue
