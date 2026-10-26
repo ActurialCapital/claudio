@@ -205,13 +205,15 @@ def set_key(key, value):
 
 
 def parse_surfaces(text):
-    """`cmux surface list` → {8-char surface id: (workspace title, surface title, cwd)}."""
+    """`cmux surface list` → {8-char surface id: (workspace title, surface title, cwd, the id cmux takes)}.
+    cmux now takes only the full UUID (or a ref), listed as local/terminal/<UUID>; older versions took the 8 chars."""
     found, ws = {}, None
     for line in text.splitlines():
         if m := re.match(r"^\s{4}(\S.*?)\s+workspace:\d+", line):
             ws = m.group(1)
         elif m := re.match(r"^\s{6}\S\s+([0-9A-F]{8})\s+(.*?)\s{2,}(\S+)", line):
-            found[m.group(1)] = (ws, m.group(2), m.group(3))
+            full = re.search(r"/(%s[0-9A-F-]{28})\)" % m.group(1), line)
+            found[m.group(1)] = (ws, m.group(2), m.group(3), full.group(1) if full else m.group(1))
     return found
 
 
@@ -226,7 +228,7 @@ def surfaces():
 def workspaces():
     """Workspace titles in the order cmux lists them."""
     seen = []
-    for ws, _, _ in surfaces().values():
+    for ws, *_ in surfaces().values():
         if ws and ws not in seen:
             seen.append(ws)
     return seen

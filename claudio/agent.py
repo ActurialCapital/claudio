@@ -134,7 +134,7 @@ parse_surfaces, sessions = config.parse_surfaces, config.surfaces
 
 
 def system_prompt():
-    lines = [f"- {w}: surface {sid} ({t}), in {c}" for sid, (w, t, c) in surfaces.items() if w]
+    lines = [f"- {w}: surface {full} ({t}), in {c}" for sid, (w, t, c, full) in surfaces.items() if w]
     keys = [k for k in config.DEFAULTS if k not in config.SECRETS]
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
     persona = (open(config.PROMPT).read()
@@ -962,7 +962,7 @@ async def main():
         sid = (ev.get("surface") or "")[:8]
         if sid not in surfaces:
             surfaces = sessions()          # a session that appeared after we started
-        ws = surfaces.get(sid, (None,))[0]
+        ws, *_, full = surfaces.get(sid, (None, None, None, sid))     # full: the id cmux takes
         if not ws:
             return
         if status["muted"]:
@@ -975,10 +975,10 @@ async def main():
             text = (f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}" if handed
                     else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
-            screen = await loop.run_in_executor(None, pane, sid, 18)
+            screen = await loop.run_in_executor(None, pane, full, 18)
             text = f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}"
         elif ev["event"] == "AskUserQuestion" and ev.get("questions"):
-            text = f"[event] {ws} (surface {sid}) asks you to choose:\n{json.dumps(ev['questions'])}"
+            text = f"[event] {ws} (surface {full}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
             return
         ui.event(ws, ev["event"], asked if ev["event"] == "Stop" else "")
@@ -1192,7 +1192,7 @@ async def main():
 
     def orchestrator_state():
         """What the orchestrator's pane shows: working, waiting on you, or idle."""
-        sid = next((sid for sid, (w, _, _) in surfaces.items() if w == cfg["orchestrator"]), None)
+        sid = next((full for w, _, _, full in surfaces.values() if w == cfg["orchestrator"]), None)
         if not sid:
             return ""
         screen = pane(sid, 14)
@@ -1223,6 +1223,8 @@ async def main():
     status["live"] = console.status("[dim]listening[/]")
     ui.attach(status["live"])
     status["live"].start()
+    if not typed:
+        start("Hi, I'm listening.", committed=True, fixed=True)    # so you hear it's up, and the voice works
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
     if not aec:
         tasks.append(shower())

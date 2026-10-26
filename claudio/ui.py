@@ -152,7 +152,7 @@ class Fade:
         self.words = []          # (word as Text, share of its sentence's audio before it, sentence); "\n" breaks the line
         self.listing, self.bol = False, True     # in a list; the last sentence ended its line
         self.printed = 0         # lines of render(base=self.base) already in the transcript (settle), at self.width
-        self.base = self.done = self.width = 0     # words left out of the render; words in the transcript
+        self.base = self.inked = self.width = 0    # words left out of the render; words in the transcript
 
     def add(self, sentence, secs=None):
         """secs(): the sentence's audio length once all of it has arrived, else None (the pace estimate stands in)."""
@@ -222,7 +222,7 @@ class Fade:
         """What isn't in the transcript yet. After a resize the old line count means nothing at the new width:
         go on from the first word not printed, on a fresh line."""
         if self.printed and console.width != self.width:
-            return SegmentLines(self.lines(final, base=self.done), new_lines=True)
+            return SegmentLines(self.lines(final, base=self.inked), new_lines=True)
         return SegmentLines(self.lines(final)[self.printed:], new_lines=True)
 
     def __rich__(self):
@@ -250,13 +250,13 @@ def settle():
     if fading:
         f = fading[-1]
         if f.printed and console.width != f.width:   # resized: start over from the first word not printed
-            f.base, f.printed = f.done, 0
+            f.base, f.printed = f.inked, 0
         n = len(f.lines()) - LIVE_LINES
         if n > f.printed:
             lines = f.lines(final=True)
             done.append(SegmentLines(lines[f.printed:n], new_lines=True))
             f.printed, f.width = n, console.width
-            f.done = f.base + words_in(lines[:n]) - (1 if not f.base and f.head.plain.strip() else 0)   # not the ◆
+            f.inked = f.base + words_in(lines[:n]) - (1 if not f.base and f.head.plain.strip() else 0)   # not the ◆
     if done:
         settling["now"] = True
         try:

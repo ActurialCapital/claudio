@@ -87,7 +87,7 @@ def test_norm_lowercases_and_strips_punctuation():
 SURFACES = """This Mac  JR's MacBook Pro  · 2 terminals
   terminals/
     Sequencer  workspace:1000020009
-      ● 12BA24EB  Aloha refactor advisor  /Users/jmr/GitHub/aloha  (open: 12BA24EB)
+      ● 12BA24EB  Aloha refactor advisor  /Users/jmr/GitHub/aloha  (open: 12BA24EB)  (cmux surface open local/terminal/12BA24EB-6732-4999-BB16-7EE5AF2D35EE)
       ● DFEF3D7D  pnpm dev  /Users/jmr/GitHub/aloha  (open: DFEF3D7D)
     Voice  workspace:1000020019
       ● 34E60333  Speech in Claude code  /Users/jmr/GitHub/aloha  (open: 34E60333)
@@ -96,7 +96,9 @@ SURFACES = """This Mac  JR's MacBook Pro  · 2 terminals
 
 def test_parse_surfaces_maps_surface_ids_to_workspace_title_surface_title_and_cwd():
     got = parse_surfaces(SURFACES)
-    assert got["12BA24EB"] == ("Sequencer", "Aloha refactor advisor", "/Users/jmr/GitHub/aloha")
+    assert got["12BA24EB"] == ("Sequencer", "Aloha refactor advisor", "/Users/jmr/GitHub/aloha",
+                               "12BA24EB-6732-4999-BB16-7EE5AF2D35EE")
+    assert got["DFEF3D7D"][3] == "DFEF3D7D"          # an older cmux lists no UUID: the 8 chars it took
     assert got["34E60333"][0] == "Voice"
     assert len(got) == 3
 
@@ -295,3 +297,19 @@ def test_local_mouth_counts_a_sentence_only_after_its_audio(monkeypatch):
     asyncio.run(go())
     pcm = np.array([16383, -32767], "<i2").tobytes()          # 0.5 and a clipped -2.0 as int16
     assert seen == [(0, pcm), (2, pcm)]                         # the blank sentence counts, but plays nothing
+
+
+def test_two_live_blocks_settle_in_order():
+    import io, time
+    from rich.console import Console
+    from claudio import ui
+    console, log = ui.console, ui.log
+    ui.console, ui.log = Console(file=io.StringIO(), width=60), lambda line: None
+    try:
+        ui.me_line("Checking the screen.\n", True, live=True, secs=lambda: 0.01)
+        time.sleep(0.5)
+        ui.me_line("Sequencer is running the tests.\n", True, live=True, secs=lambda: 0.01)   # a second block: settles the first
+        assert len(ui.fading) == 1 and "Checking the screen." in ui.console.file.getvalue()
+    finally:
+        ui.fading.clear()
+        ui.console, ui.log = console, log
