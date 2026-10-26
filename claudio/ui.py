@@ -337,7 +337,7 @@ def tool(name, inp):
     elif name in ("Grep", "Glob"):
         what = "searching " + inp.get("pattern", "")
     elif name == "Bash":
-        what = " ".join(inp.get("command", "").split()[:3])
+        what = " ".join(inp.get("command", "").split())   # cut at the line's width below, not after three words
     else:
         what = name.lower()
     console.print(Text(f"  → {what[:70]}", style="dim"), width=width())

@@ -110,7 +110,7 @@ def parse_slash(words):
         return None
     rest = f"{m.group(1)} {m.group(2)}".split()
     if rest[0] not in COMMANDS:                # misheard: "slash e fort", "slash efort", "slash colours" spelt oddly
-        for n in (2, 1):
+        for n in (1, 2):                      # one word first: "permission skip" keeps its "skip"
             near = difflib.get_close_matches("".join(rest[:n]), COMMANDS, 1, 0.75)
             if near and len(rest) >= n:
                 rest = [near[0], *rest[n:]]
@@ -1043,7 +1043,7 @@ async def main():
             on = said in config.TRUE if said else not cfg["code_colors"]
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
-        elif cmd == "permissions" and any(w in arg.split() for w in ("skip", "off", "dangerously")):
+        elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
             pending.update(rule=SKIP, text="", left=0)   # only a yes right after this turns them off
             start("Skip every permission check until you quit? The brain could then run anything, unasked. "
                   "Say yes or no.", committed=True, fixed=True)
