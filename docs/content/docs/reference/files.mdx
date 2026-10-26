@@ -52,7 +52,7 @@ It gets none of your Claude Code skills or slash commands, which it would otherw
 
 - **anything you list in `settings.json`**
 
-It can never read `secrets.json`, by any tool, nor write anything in `~/.config/claudio`, so it can't give itself more rules.
+It can't read `secrets.json` with Read, nor with a command that names it, and it can't write anything in `~/.config/claudio`, so it can't give itself more rules. A command is matched as text, so a broad rule you allow, such as `Bash(cat:*)`, could still reach the keys through a pattern like `~/.config/claudio/s*`: keep the rules you allow narrow.
 
 ### When it needs more
 

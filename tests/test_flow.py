@@ -5,7 +5,7 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-cut",
-             "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
+             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
 
 
 @pytest.fixture(scope="module")
@@ -83,6 +83,11 @@ def test_always_allows_it_now_and_from_now_on_without_a_restart(runs):
                                                   "behavior": "allow", "destination": "session"}]
     assert json.loads((home / "settings.json").read_text()) == {"permissions": {"allow": ["Bash(gh pr create:*)"]}}
     assert sum(line.startswith("START") for line in lines) == 1                 # claudio's own write: no restart
+
+
+def test_a_question_from_an_early_start_is_asked_once_the_turn_is_final(runs):
+    lines, _ = runs["allow-eager"]
+    assert first(lines, "YOU 'open a PR'") < first(lines, "ME \"I'm not allowed") < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
 
 
 def test_no_allows_nothing(runs):

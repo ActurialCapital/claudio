@@ -15,7 +15,7 @@ from claude_agent_sdk.types import PermissionRuleValue
 from rich.spinner import SPINNERS
 from . import config, ui
 from .ui import console
-warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)   # skip mode: no asking, on purpose
+warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)   # whole tools allowed (Read…) never ask: on purpose
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s|\n")   # a newline ends one too: list items often have no full stop
 def closed(text):
@@ -272,7 +272,7 @@ class Brain:
             mcp_servers=config.MCP if mcp else {},
             extra_args={"disable-slash-commands": None,      # nor its skills and /commands: the brain took them for claudio's
                         **({"dangerously-skip-permissions": None} if status["skip"] else {})},   # the user's choice, this run only
-            disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})", "Bash(*secrets.json*)",   # the keys, by any tool
+            disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})", "Bash(*secret*)",   # the keys, by a command that names them
                               *(f"{t}(//{config.DIR.lstrip('/')}/**)" for t in ("Edit", "Write")),   # nor grant itself rules
                               "Bash(cmux new-workspace *--layout*)", "Bash(cmux new-workspace *--env*)"],   # their own commands
             allowed_tools=[
@@ -332,9 +332,13 @@ class Brain:
     async def restart(self):
         async with self.lock:
             self.expected_exit = True
-            await self.stop()
-            await self.start()
-            self.expected_exit = False
+            try:
+                await self.stop()
+                await self.start()
+            except Exception as e:             # it would not start: brain_watch tries again
+                ui.warn(f"the brain didn't restart ({type(e).__name__}: {str(e)[:120]})")
+            finally:
+                self.expected_exit = False
 
     async def can_use(self, tool, tool_input, context):
         """A tool use the rules don't cover. In a reply to the user, claudio asks them and the call waits; an event,
@@ -417,6 +421,8 @@ class Brain:
                 while not task.done():         # whatever cancels us again, the drain finishes: the stream stays in step
                     with contextlib.suppress(asyncio.CancelledError):
                         await asyncio.shield(task)
+                if pending["future"] and not pending["future"].done():
+                    pending["future"].set_result(None)   # a question never outlives its turn (a brain that died)
                 self.busy, self.q = False, None
 
 
@@ -1274,6 +1280,7 @@ async def main():
                       f"'Back, on {cfg['style']}.' or 'Back on {cfg['model']}.'", committed=True, event=True)
 
     async def brain_watch():
+        delay = 1
         while True:
             dead = brain.dead
             await dead.wait()
@@ -1284,7 +1291,15 @@ async def main():
             why = ("You just crashed and were restarted. Say in a few words that you are back, "
                    "and ask the user to repeat what they said last if they were mid-request.")
             async with brain.lock:
-                await brain.start()
+                await brain.stop()             # a reader that failed on one bad message leaves the CLI running
+                try:
+                    await brain.start()
+                except Exception as e:         # it would not start (a broken settings.json…): again, slower each time
+                    ui.warn(f"the brain didn't start ({type(e).__name__}); trying again in {delay}s")
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2, 30)
+                    continue
+            delay = 1
             start(f"[event] {why}", committed=True, event=True)
 
     status["gate_open"] = not cfg["push_to_talk"]   # push to talk: Enter opens the mic until your turn ends
@@ -1320,7 +1335,10 @@ async def main():
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
             return
-        if pending["future"] and not (ev["event"] == "EndOfTurn" and SLASH.search(words)):
+        asking = pending["future"] and current["commit"] and current["commit"].is_set()   # an early guess: as ever
+        if asking and not (ev["event"] == "EndOfTurn" and SLASH.search(words)):
+            if ev["event"] == "EndOfTurn" and cfg["push_to_talk"]:
+                status["gate_open"] = False
             if ev["event"] == "EndOfTurn" and said:   # a tool waits on the question: no pause, no eager start, no cut
                 ui.you(said, tentative=not pending["ready"])   # before the question is out, nothing answers it
                 if pending["ready"] and not pending["future"].done():

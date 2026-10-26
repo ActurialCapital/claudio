@@ -197,6 +197,8 @@ SCENARIOS = {   # name: (seconds to run, script)
                         (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "what would that do"))]),
     "allow-cut": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                       (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "slash stop"))]),
+    "allow-eager": (9, [(2.0, turn("StartOfTurn")), (2.2, turn("EagerEndOfTurn", "open a PR")),
+                        (4.5, turn("EndOfTurn", "open a PR")), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes"))]),
     "allow-early": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
                         (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
     "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),
