@@ -98,10 +98,18 @@ def parse_slash(words):
     if not m:
         return None
     rest = f"{m.group(1)} {m.group(2)}".split()
-    at = next((i for i, w in enumerate(rest) if w in COMMANDS or w in STYLES), 0)   # past "um, I want a"
+    if rest[0] not in COMMANDS:                # misheard: "slash e fort", "slash efort", "slash colours" spelt oddly
+        for n in (2, 1):
+            near = difflib.get_close_matches("".join(rest[:n]), COMMANDS, 1, 0.75)
+            if near and len(rest) >= n:
+                rest = [near[0], *rest[n:]]
+                break
+    at = next((i for i, w in enumerate(rest) if w in COMMANDS or w in STYLES or w in config.AURA), 0)   # past "um, I want a"
     cmd, arg = rest[at], " ".join(rest[at + 1:])
     if cmd in STYLES:                          # "slash caveman"
         cmd, arg = "style", cmd
+    elif cmd in config.AURA:                   # "slash pandora"
+        cmd, arg = "voice", cmd
     if cmd == "style":                         # misheard: "pavement" is caveman
         arg = next((c[0] for w in arg.split() if (c := difflib.get_close_matches(w, STYLES, 1, 0.6))), arg)
     return cmd, arg
@@ -148,11 +156,26 @@ def system_prompt():
                .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
                                             for k in keys)))
     commands = SLASH_HELP.split("\n", 1)[1]
+    try:
+        remote = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        remote = ""
+    m = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$", remote)
+    owner, repo = m.groups() if m else ("", "")
     return (STYLES.get(cfg["style"], "").strip() + "\n\n" + persona
             + "\n\nclaudio's own slash commands, the only ones there are here. The user says \"slash\" and the name "
             + "(or types /name), and claudio runs it before you hear anything; you can't run them:\n" + commands
-            + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\nSessions now:\n"
-            + "\n".join(lines))
+            + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\n"
+            + "Sessions now (to see one, run cmux read-screen --surface <its id> --lines 60):\n"
+            + "\n".join(lines)
+            + "\n\nRules that matter most, last so they stay in mind:\n"
+            + "- A turn not meant for you (talk to someone else, a TV, a name, one stray word) or cut off mid-thought "
+              "(\"Can you tell me\") gets exactly [skip] as your whole reply. Nothing else.\n"
+            + (f"- GitHub here is {owner}/{repo}. A repo named without its owner, such as \"{repo}-app\", is {owner}/<that name>: "
+               f"gh ... -R {owner}/<name>.\n" if owner else "")
+            + (f"- The voice is {cfg['mouth']}: local_voice, local_speed and local_model do nothing, and it has no speed "
+               "setting. Say so rather than suggest them.\n" if cfg["mouth"] != "local" else "")
+            + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no.")
 
 
 def remembered_session():
@@ -194,7 +217,7 @@ class Brain:
             "--allowedTools", "Read", "Grep", "Glob",
             "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
             "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
-            "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh search:*)",
+            "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
             "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
             "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
@@ -664,6 +687,8 @@ async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
             def emit(sentence):
                 nonlocal first, bol
                 bol = sentence.endswith("\n")
+                if sentence.strip() == "[skip]":       # not for claudio, or cut off mid-thought: say nothing
+                    return
                 if not ui.sayable(sentence):   # a blank line, or markup alone: nothing to say
                     return
                 sentences.append((sentence, first, pre[:]))
@@ -969,7 +994,10 @@ async def main():
             brain.changed.set()
             cfg["voice"] = f"aura-2-{name}-en"     # so the confirmation already speaks in it
             start(f"{name.capitalize()} from now on.", committed=True, fixed=True)
-        elif cmd in ("model", "effort") and arg:
+        elif cmd in ("model", "effort") and not arg:   # "slash effort" alone: the choices
+            start(f"{cmd.capitalize()} is {', '.join(config.MODELS if cmd == 'model' else config.EFFORTS)}.",
+                  committed=True, fixed=True)
+        elif cmd in ("model", "effort"):
             value = arg.replace(" ", "-")
             if (cmd == "model" and value not in config.MODELS) or (cmd == "effort" and value not in config.EFFORTS):
                 choices = config.MODELS if cmd == "model" else config.EFFORTS
@@ -1043,6 +1071,7 @@ async def main():
         stamp = mtime(config.CONF)
         persona = mtime(config.PROMPT)
         access = (mtime(config.ALLOW), mtime(config.MCP))
+        last = dict(cfg)                       # the file as last loaded: what a change is told against
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(brain.changed.wait(), 1.0)
@@ -1074,15 +1103,17 @@ async def main():
             if not new["push_to_talk"]:
                 status["gate_open"] = True     # off: the mic is open again
             diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
-                             if k not in config.SECRETS and new[k] != cfg[k])
-            cfg = new
-            ui.setting(f"{diff or 'settings reloaded'}{'  ·  brain restarting' if restart else ''}")
+                             if k not in config.SECRETS and new[k] != last[k])    # not cfg: a slash voice set it early
+            cfg, last = new, dict(new)
+            if diff or restart:
+                ui.setting(f"{diff or 'settings reloaded'}{'  ·  brain restarting' if restart else ''}")
             if re_ear and ears["ws"]:
                 asyncio.create_task(ears["ws"].close())   # the listener reconnects with the new ears
             if restart:
                 await brain.restart()
                 start(f"[event] You were just restarted with model {cfg['model']} at effort {cfg['effort']}, "
-                      f"style {cfg['style']}. Say in a few words that you are back, in that style.", committed=True, event=True)
+                      f"style {cfg['style']}. Say only that you're back with it, in two to four words, such as "
+                      f"'Back, on {cfg['style']}.' or 'Back on {cfg['model']}.'", committed=True, event=True)
 
     async def brain_watch():
         while True:

@@ -60,6 +60,9 @@ def test_parse_slash_skips_filler_takes_bare_styles_and_fixes_misheard_ones():
     assert parse_slash("add a slash command") is None
     assert parse_slash("slash slash mute") == ("mute", "")
     assert parse_slash("yeah slash stop") == ("stop", "")
+    assert parse_slash("slash e fort low") == ("effort", "low")      # a word split in two
+    assert parse_slash("slash efort") == ("effort", "")
+    assert parse_slash("slash pandora") == ("voice", "pandora")
     assert parse_slash("type slash help in the session") is None
 
 

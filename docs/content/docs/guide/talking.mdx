@@ -29,6 +29,8 @@ Deepgram Flux listens continuously and decides when you've finished. Three setti
 - **`eot`** (default `0.7`): at this confidence your turn is final. If the final words match what the brain started on, the held audio plays at once. If they differ, the early reply is dropped and a new one starts
 - **`eot_timeout_ms`** (default `1500`): after this much silence your turn ends, whatever the confidence
 
+If a turn still ends mid-thought ("Can you tell me"), or is plainly meant for someone else in the room, the brain says nothing and waits; finish your sentence and it answers the whole thing.
+
 If you start talking again before your turn is final, the early reply is dropped. The state line shows how long the last reply took to its first word, and a reply that takes more than 3 seconds prints a `! slow` warning.
 
 [Listening and turns](/docs/configure/listening) explains how to tune these numbers.

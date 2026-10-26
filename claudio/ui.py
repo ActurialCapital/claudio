@@ -25,7 +25,7 @@ def log(line):
     try:
         os.makedirs(TRANSCRIPTS, exist_ok=True)
         with open(os.path.join(TRANSCRIPTS, datetime.date.today().isoformat() + ".md"), "a") as f:
-            f.write(f"{datetime.datetime.now():%H:%M}  {line}\n")
+            f.write(f"{datetime.datetime.now():%H:%M:%S}  {line}\n")
     except OSError:
         pass
 
@@ -307,7 +307,7 @@ def block(md, colors=True):
     while lines and blank(lines[-1]):
         lines.pop()
     console.print(SegmentLines(lines, new_lines=True))
-    log(md.rstrip())
+    log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())   # one entry, indented like the rest
 
 
 KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose"}
@@ -340,6 +340,7 @@ def tool(name, inp):
     else:
         what = name.lower()
     console.print(Text(f"  → {what[:70]}", style="dim"), width=width())
+    log(f"  → {inp.get('command') or what}"[:300])     # the whole command: the transcript is for looking back
 
 
 def setting(text):
@@ -349,11 +350,13 @@ def setting(text):
 
 def note(text):
     console.print(Text(f"· {text}", style="dim"), width=width())
+    log(f"· {text}")
 
 
 def warn(text):
     line = Text.assemble(("! ", "bold yellow"), (text, "yellow"))
     console.print(line, width=width())
+    log(f"! {text}")
 
 
 def check(ok, name, hint=""):
