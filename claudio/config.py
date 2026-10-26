@@ -1,6 +1,6 @@
 """Settings in ~/.config/claudio: config.json (the knobs), secrets.json (the keys, mode 600, never named to the
 brain) and prompt.md (the persona, yours to edit). Also the few paths and parsers both the agent and the CLI need."""
-import json, os, re, shutil
+import json, os, re, shutil, urllib.request
 
 DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "claudio")
 CONF = os.path.join(DIR, "config.json")
@@ -166,6 +166,24 @@ def _write(path, data, mode):
         json.dump(data, f, indent=2)
     os.chmod(tmp, mode)
     os.replace(tmp, path)
+
+
+AURA = ["amalthea", "andromeda", "apollo", "arcas", "aries", "asteria", "athena", "atlas", "aurora", "callista", "cora",
+        "cordelia", "delia", "draco", "electra", "harmonia", "helena", "hera", "hermes", "hyperion", "iris", "janus",
+        "juno", "jupiter", "luna", "mars", "minerva", "neptune", "odysseus", "ophelia", "orion", "orpheus", "pandora",
+        "phoebe", "pluto", "saturn", "selene", "thalia", "theia", "vesta", "zeus"]   # Deepgram's English Aura-2 voices, 2026-10
+
+
+def fetch_aura(key):
+    """Replace AURA with Deepgram's current list, when it can be reached. Blocking: run it off the event loop."""
+    try:
+        req = urllib.request.Request("https://api.deepgram.com/v1/models", headers={"Authorization": f"Token {key}"})
+        names = sorted({m["name"] for m in json.load(urllib.request.urlopen(req, timeout=10)).get("tts", [])
+                        if str(m.get("canonical_name", "")).startswith("aura-2-") and m["canonical_name"].endswith("-en")})
+    except (OSError, ValueError, KeyError, TypeError):
+        return
+    if names:
+        AURA[:] = names
 
 
 def mcp_servers():

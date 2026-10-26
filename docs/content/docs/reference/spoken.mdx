@@ -18,7 +18,7 @@ Say “slash” and a command, such as “slash stop”, or type `/stop` and pre
 | `model` | `default`, `sonnet`, `opus` or `haiku` | saves the model; the brain restarts and says it is back |
 | `effort` | `low`, `medium` or `high` | saves the effort; the brain restarts and says it is back |
 | `style` | `plain`, `brief` or `caveman` | saves the [style](/docs/configure/persona#switch-the-style); the brain restarts and says it is back |
-| `voice` | an Aura-2 name, such as `thalia` | saves `aura-2-thalia-en` and confirms in the new voice: “Thalia from now on.” |
+| `voice` | an Aura-2 name, such as `thalia` | saves `aura-2-thalia-en` and confirms in the new voice: “Thalia from now on.” Any other word, or none, lists the voices |
 | `colors` (or `colours`, “code colors”) | `on`, `off`, or none to flip | saves `code_colors`: code blocks highlighted, or as plain text; says “Code colours off.” |
 
 The `model`, `effort`, `style`, `voice` and `colors` changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
@@ -36,7 +36,7 @@ While muted, typed lines still work as turns.
 | You say | You hear |
 |---|---|
 | a model or effort it does not know | “I don't know model fast. Choose default, sonnet, opus, haiku.” |
-| a voice of more than one word | “A voice is one name, like apollo, thalia or orion.” Nothing is saved |
+| a voice it does not know, or none | “Banana is not recognised as a voice.”, then every Aura-2 voice as a list, read aloud. Nothing is saved |
 | a style it does not know | “I don't know style …. Choose plain, brief, caveman.” A near miss like “pavement” counts as caveman |
 | an unknown command | “I don't know slash …”, then the help list |
 

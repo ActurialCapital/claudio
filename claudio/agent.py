@@ -801,6 +801,7 @@ async def main():
         return brain.proc.terminate()
 
     loop = asyncio.get_running_loop()
+    voices = asyncio.create_task(asyncio.to_thread(config.fetch_aura, cfg["deepgram_api_key"]))   # for "slash voice"; kept so it isn't collected
     mic = asyncio.Queue()
     helper_holder = {"proc": None}  # the echo-cancelling helper, when it runs
     fallback_streams = {"streams": None}   # the plain mic and speaker, if the helper died
@@ -910,22 +911,25 @@ async def main():
         elif cmd == "style":
             said = f"I don't know style {arg}. " if arg else "Style is "     # "slash style" alone: just the choices
             start(f"{said}{', '.join(STYLES)}.", committed=True, fixed=True)
-        elif cmd == "voice" and len(arg.split()) > 1:     # "slash voice, can you list the voices": not a name
-            start("A voice is one name, like apollo, thalia or orion.", committed=True, fixed=True)
-        elif cmd in ("model", "effort", "voice") and arg:
+        elif cmd == "voice":
+            name = arg.replace(" ", "-").removeprefix("aura-2-").removesuffix("-en")
+            if name not in config.AURA:        # "banana", "can you list the voices", or nothing: all of them, nothing saved
+                said = f"{arg.capitalize()} is not recognised as a voice. " if len(arg.split()) == 1 else ""   # a sentence: just the list
+                start(f"{said}The voices are:\n" + "\n".join(f"- {n}" for n in config.AURA)
+                      + "\nSay slash voice and one of them.", committed=True, fixed=True)
+                return True
+            config.set_key("voice", f"aura-2-{name}-en")
+            brain.changed.set()
+            cfg["voice"] = f"aura-2-{name}-en"     # so the confirmation already speaks in it
+            start(f"{name.capitalize()} from now on.", committed=True, fixed=True)
+        elif cmd in ("model", "effort") and arg:
             value = arg.replace(" ", "-")
-            if cmd == "voice" and not value.startswith("aura-"):
-                value = f"aura-2-{value}-en"
             if (cmd == "model" and value not in config.MODELS) or (cmd == "effort" and value not in config.EFFORTS):
                 choices = config.MODELS if cmd == "model" else config.EFFORTS
                 start(f"I don't know {cmd} {arg}. Choose {', '.join(choices)}.", committed=True, fixed=True)
                 return True
-            cut(None)
             config.set_key(cmd, value)
             brain.changed.set()
-            if cmd == "voice":
-                cfg["voice"] = value               # so the confirmation already speaks in it
-                start(f"{arg.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd in ("colors", "colours"):     # "slash code colors off"; alone, it flips them
             said = next((w for w in arg.split() if w in config.TRUE + config.FALSE), None)    # "off please" is off
             on = said in config.TRUE if said else not cfg["code_colors"]
