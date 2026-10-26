@@ -84,7 +84,7 @@ def ok(req):
 class FakeProc:
     """The CLI's side of the stream-json protocol: control requests answered, a scripted reply per user line."""
     def __init__(self):
-        self.stdout, self.gen = asyncio.StreamReader(), None
+        self.stdout, self.gen, self.perm = asyncio.StreamReader(), None, None
 
     def emit(self, obj):
         self.stdout.feed_data((json.dumps({"session_id": "s", "uuid": "u", **obj}) + "\n").encode())
@@ -98,6 +98,11 @@ class FakeProc:
             text = msg["message"]["content"]
             log("BRAIN", repr(text[:60]))
             self.gen = asyncio.get_running_loop().create_task(self.answer(text))
+        elif msg["type"] == "control_response" and msg["response"]["request_id"] == "perm":
+            r = msg["response"]["response"]
+            log("PERM", r["behavior"], json.dumps(r.get("updatedPermissions") or r.get("message", "")))
+            if not self.perm.done():          # a cut cancelled the turn waiting on it
+                self.perm.set_result(r)
         elif msg["type"] == "control_request":
             self.emit(ok(msg))
             if msg["request"]["subtype"] == "interrupt":
@@ -110,15 +115,22 @@ class FakeProc:
         if SC == "handoff-new" and "fix the login" in text:    # hand it over by surface id, as the persona says
             self.emit({"type": "assistant", "message": {"model": "m", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {
                 "command": f'cmux agent message {NEW} --from Voice "[spoken by the user, transcribed by claudio] fix the login"'}}]}})
-        words = REPLIES.get(SC, "It is noon. Have a nice day.")
+        if SC.startswith("allow") and "open a PR" in text:   # a tool the rules don't cover: the SDK asks claudio
+            await self.say("Let me open it. " * (4 if SC == "allow-early" else 1))
+            self.perm = asyncio.get_running_loop().create_future()
+            self.emit({"type": "control_request", "request_id": "perm", "request": {
+                "subtype": "can_use_tool", "tool_name": "Bash", "input": {"command": "gh pr create --title x"}, "tool_use_id": "t"}})
+            await self.say("Opened it." if (await self.perm)["behavior"] == "allow" else "Okay.")
+        else:
+            await self.say(REPLIES.get(SC, "It is noon. Have a nice day."))
+        self.result()
+
+    async def say(self, words):
         for i in range(0, len(words), 4):        # in 4-character pieces: a block or a style split anywhere
             self.emit({"type": "stream_event", "event": {"type": "content_block_delta",
                                                         "delta": {"type": "text_delta", "text": words[i:i + 4]}}})
             await asyncio.sleep(0.01)
         self.emit({"type": "stream_event", "event": {"type": "content_block_stop"}})
-        refused = SC.startswith("allow") and "open a PR" in text and not os.path.exists(config.ALLOW)
-        self.result(**({"permission_denials": [{"tool_name": "Bash", "tool_input": {
-            "command": "gh pr create --title x"}}]} if refused else {}))
 
 
 class FakeTransport(Transport):
@@ -177,14 +189,20 @@ SCENARIOS = {   # name: (seconds to run, script)
     "resumed": (5, [(0.1, turn("StartOfTurn")), (0.5, turn("EagerEndOfTurn", "what is the time")),
                     (1.0, turn("TurnResumed")), (1.8, turn("EndOfTurn", "what is the time"))]),
     "markdown": (11, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "compare the engines"))]),
-    "allow-yes": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
-                      (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "yes"))]),
-    "allow-early": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
+    "allow-yes": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                      (2.5, turn("StartOfTurn")), (2.6, turn("EagerEndOfTurn", "yes")), (2.7, turn("EndOfTurn", "yes"))]),
+    "allow-always": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                         (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "always"))]),
+    "allow-other": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                        (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "what would that do"))]),
+    "allow-cut": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "slash stop"))]),
+    "allow-early": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
                         (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
     "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),
     "loose-table": (5, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "give me a table of what changed"))]),
-    "allow-no": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
-                     (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "no"))]),
+    "allow-no": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                     (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
     "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),
                  (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "yes")),

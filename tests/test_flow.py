@@ -1,11 +1,11 @@
 """The whole reply flow, end to end: tests/flow.py runs the real agent.main() with fakes only at the edges, one
 process per scenario, all at once (about 11 s). Each test reads what its scenario logged."""
-import os, re, subprocess, sys
+import json, os, re, subprocess, sys
 
 import pytest
 
-SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana", "skip",
-             "allow-early", "handoff-new", "loose-table")
+SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-cut",
+             "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
 
 
 @pytest.fixture(scope="module")
@@ -66,18 +66,39 @@ def test_tables_and_code_are_shown_never_said_and_in_place(runs):
     assert first(lines, "ME 'Here is the call") < code < first(lines, "ME 'It turns text into audio.'")
 
 
-def test_a_refused_command_is_allowed_by_saying_yes_and_retried(runs):
+def test_a_yes_inside_the_reply_lets_the_waiting_command_run_once(runs):
     lines, home = runs["allow-yes"]
-    assert any("not allowed to run" in line for line in lines if line.startswith("SAY"))
-    assert "NOTE allowed Bash(gh pr create:*)" in lines
-    assert (home / "allow").read_text() == "Bash(gh pr create:*)\n"
-    assert sum(line == "BRAIN 'open a PR'" for line in lines) == 2     # once refused, once allowed
+    asked = first(lines, "ME \"I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.")
+    assert first(lines, "ME 'Let me open it.") < asked < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
+    assert "NOTE allowed once: Bash(gh pr create:*)" in lines
+    assert first(lines, "PERM allow") < first(lines, "ME 'Opened it.'")         # the same reply goes on
+    assert sum(line.startswith("BRAIN") for line in lines) == 2                 # the warm-up and the request: no retry
+    assert "NOTE stopped" not in lines and not (home / "settings.json").exists()
+
+
+def test_always_allows_it_now_and_from_now_on_without_a_restart(runs):
+    lines, home = runs["allow-always"]
+    perm = lines[first(lines, "PERM allow")]
+    assert json.loads(perm.split(" ", 2)[2]) == [{"type": "addRules", "rules": [{"toolName": "Bash", "ruleContent": "gh pr create:*"}],
+                                                  "behavior": "allow", "destination": "session"}]
+    assert json.loads((home / "settings.json").read_text()) == {"permissions": {"allow": ["Bash(gh pr create:*)"]}}
+    assert sum(line.startswith("START") for line in lines) == 1                 # claudio's own write: no restart
 
 
 def test_no_allows_nothing(runs):
     lines, home = runs["allow-no"]
-    assert "NOTE not allowed: Bash(gh pr create:*)" in lines
-    assert not (home / "allow").exists()
+    assert "NOTE not allowed: Bash(gh pr create:*)" in lines and first(lines, "PERM deny") < first(lines, "ME 'Okay.'")
+    assert not (home / "settings.json").exists()
+
+
+def test_any_other_answer_refuses_and_reaches_the_brain(runs):
+    lines, _ = runs["allow-other"]
+    assert any(line.startswith("PERM deny") and "what would that do" in line for line in lines)
+
+
+def test_a_cut_while_asking_refuses_the_waiting_command(runs):
+    lines, _ = runs["allow-cut"]
+    assert "NOTE stopped" in lines and first(lines, "NOTE stopped") < first(lines, "PERM deny")
 
 
 def test_an_unknown_voice_lists_them_on_screen_and_saves_nothing(runs):
@@ -99,8 +120,9 @@ def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
 
 def test_an_okay_to_the_reply_before_the_question_allows_nothing(runs):
     lines, home = runs["allow-early"]
-    assert not any(line.startswith("NOTE allowed") for line in lines)
-    assert not (home / "allow").exists()
+    assert first(lines, "YOU 'okay'") < first(lines, "ME \"I'm not allowed")
+    assert not any(line.startswith(("NOTE allowed", "PERM")) for line in lines)
+    assert not (home / "settings.json").exists()
 
 
 def test_a_session_opened_after_start_is_still_heard_when_it_finishes(runs):

@@ -1,18 +1,21 @@
 """The voice loop: Deepgram Flux ears (eager end of turn, preemptive generation, barge-in),
-one long-lived `claude -p` brain, Deepgram Aura mouth sentence by sentence, and a socket where
+one long-lived `claude` brain through the Agent SDK, Deepgram Aura mouth sentence by sentence, and a socket where
 the Claude Code hooks (`claudio hook ...`) report what sessions did.
 
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, threading, time
+import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, threading, time, warnings
 import sounddevice as sd, websockets
 os.environ.setdefault("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")   # it would run `claude -v` before every start
-from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, ResultMessage,
-                              StreamEvent, SystemMessage, TextBlock, ToolUseBlock)
+from claude_agent_sdk import (AssistantMessage, CanUseToolShadowedWarning, ClaudeAgentOptions, ClaudeSDKClient,
+                              PermissionResultAllow, PermissionResultDeny, PermissionUpdate,
+                              ResultMessage, StreamEvent, SystemMessage, TextBlock, ToolUseBlock)
+from claude_agent_sdk.types import PermissionRuleValue
 from rich.spinner import SPINNERS
 from . import config, ui
 from .ui import console
+warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)   # skip mode: no asking, on purpose
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s|\n")   # a newline ends one too: list items often have no full stop
 def closed(text):
@@ -60,6 +63,10 @@ def loose_row(line):
 
 
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
+
+
+class Question(str):
+    """claudio's own permission question, in the turn whose tool waits on it: said as one sentence of its own."""
 YES, NO = ("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"), ("no", "nope", "n", "dont", "deny", "never")
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
@@ -96,7 +103,7 @@ def clear_audio():
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
           "level": 0, "latency": None, "skip": False}
-pending = {"rule": None, "text": "", "retry": None, "ask": "", "ready": False}   # an allow question: answerable once shown   # skip: no permission checks, this run only, never saved
+pending = {"rule": None, "ask": "", "ready": False, "future": None}   # the skip question, or a tool waiting on one: answerable once shown   # skip: no permission checks, this run only, never saved
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n"
@@ -243,7 +250,8 @@ class Brain:
         self.inbox, self.dead = asyncio.Queue(), asyncio.Event()   # what the CLI sends; set when it is gone
         self.lock = asyncio.Lock()
         self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it
-        self.on_denied = None          # (denials, the turn's text): a tool use the allow-list refused
+        self.on_ask = None             # (tool, input) -> a permission result: claudio asks the user; None denies
+        self.q, self.text = None, ""   # the turn running now, if any: where a question goes, and what was asked
         self.changed = asyncio.Event() # set when it ran `claudio set`, so the watcher reloads at once
         self.expected_exit = False     # a restart on purpose, not a death
         self.transport = None          # tests: a factory for a fake CLI
@@ -264,21 +272,24 @@ class Brain:
             mcp_servers=config.MCP if mcp else {},
             extra_args={"disable-slash-commands": None,      # nor its skills and /commands: the brain took them for claudio's
                         **({"dangerously-skip-permissions": None} if status["skip"] else {})},   # the user's choice, this run only
-            disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})"],
+            disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})", "Bash(*secrets.json*)",   # the keys, by any tool
+                              *(f"{t}(//{config.DIR.lstrip('/')}/**)" for t in ("Edit", "Write")),   # nor grant itself rules
+                              "Bash(cmux new-workspace *--layout*)", "Bash(cmux new-workspace *--env*)"],   # their own commands
             allowed_tools=[
                 "Read", "Grep", "Glob",
                 "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
-                "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
+                *(f"Bash(cmux {c} * --command claude)" for c in ("new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)",
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(test:*)",   # looking things up; opening a link or a note
-                *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt")),   # notes only
-                *(r for r in config.allowed() if not r.startswith(("/", "~")))],   # the user's own: ~/.config/claudio/allow
+                *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only
+            settings=config.SETTINGS if os.path.exists(config.SETTINGS) else None,   # the user's own rules
             add_dirs=[*notes, *config.allowed_dirs()],             # and folders
+            can_use_tool=self.can_use,
             model=None if cfg["model"] == "default" else cfg["model"],
             effort=cfg["effort"] or None,
             resume=resume,
@@ -325,7 +336,21 @@ class Brain:
             await self.start()
             self.expected_exit = False
 
+    async def can_use(self, tool, tool_input, context):
+        """A tool use the rules don't cover. In a reply to the user, claudio asks them and the call waits; an event,
+        the warm-up or a typed doctor turn has nobody to ask."""
+        if not self.on_ask or not self.q or self.text.startswith("[event]"):
+            return PermissionResultDeny(message="Not allowed. Say in a few words that you couldn't do it.")
+        return await self.on_ask(tool, tool_input)
+
+    def say(self, text):
+        """Put a question into the reply speaking now, after what the brain said so far."""
+        if self.q:
+            self.q.put_nowait(Question(text))
+
     async def interrupt(self):
+        if pending["future"] and not pending["future"].done():
+            pending["future"].set_result(None)     # a cut answers the question: no
         if self.busy and not self.dead.is_set():
             await self.client.interrupt()
 
@@ -354,9 +379,9 @@ class Brain:
         async with self.lock:
             self.busy = True
             tag = "" if cfg["style"] == "plain" or text.startswith("[event]") else f"({cfg['style']} style) "
-            inbox = self.inbox
+            inbox, q = self.inbox, asyncio.Queue()
+            self.q, self.text = q, text
             await self.client.query(tag + text)
-            q = asyncio.Queue()
 
             async def pump():
                 spoke, last_text = False, ""
@@ -375,8 +400,6 @@ class Brain:
                         elif isinstance(m, AssistantMessage):
                             last_text = " ".join(c.text for c in m.content if isinstance(c, TextBlock))
                         elif isinstance(m, ResultMessage):
-                            if m.permission_denials and self.on_denied and not text.startswith("[event]"):
-                                self.on_denied(m.permission_denials, text)
                             if m.is_error and not spoke and last_text:
                                 q.put_nowait(last_text)   # an error with no streamed text (a bad model name): say it
                             return
@@ -394,7 +417,7 @@ class Brain:
                 while not task.done():         # whatever cancels us again, the drain finishes: the stream stays in step
                     with contextlib.suppress(asyncio.CancelledError):
                         await asyncio.shield(task)
-                self.busy = False
+                self.busy, self.q = False, None
 
 
 brain = Brain()
@@ -739,8 +762,8 @@ def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block, blocks = sentences[k]
-        if pending["rule"] and text.strip() == pending["ask"]:
-            pending["ready"] = True            # the allow question is being asked: now a yes answers it
+        if (pending["rule"] or pending["future"]) and text.strip() == pending["ask"]:
+            pending["ready"] = True            # the question is being asked: now a yes answers it
         for b in blocks:
             ui.block(b, colors=cfg.get("code_colors", True))
         if text:
@@ -807,6 +830,13 @@ async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
                         flush()
                     return
                 async for d in brain.turn(text):
+                    if isinstance(d, Question):
+                        split(final=True)
+                        flush()
+                        first = True
+                        emit(d)                # one item, on a line of its own: show() knows it by its text
+                        buf, first, bol = "", True, True
+                        continue
                     if d is BLOCK_END:
                         split(final=True)
                         flush()                # a tool runs next: its table or code shouldn't wait for it
@@ -909,6 +939,7 @@ async def main():
                          "memory": "on" if remembered_session() else "fresh",
                          **({"permissions": "SKIPPED"} if status["skip"] else {})},
                   hints="Enter cuts · Ctrl-C quits · claudio setup")
+    config.migrate_allow()
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
         async for _ in brain.turn("Say only: ready."):
@@ -998,36 +1029,60 @@ async def main():
         refresh()
 
 
-    def denied(denials, text):
-        """The brain was refused a tool: claudio, not the brain, asks the user, so nothing it reads can say yes."""
-        rule, what = config.rule_for(denials[0].get("tool_name", ""), denials[0].get("tool_input") or {})
-        if not rule or rule in config.allowed():
-            return                             # nothing a yes may safely allow (sh -c, a bare Write…), or already is
-        ask = f"I'm not allowed {what}. Allow it from now on? Say yes or no."
-        pending.update(rule=rule, text=text, left=1, ask=ask, ready=False)   # answerable once it is on screen
-        start(ask, committed=True, fixed=True, event=True)
+    async def ask(tool, tool_input):
+        """A tool use the rules refuse: claudio, not the brain, asks the user, inside the reply that wants it, while
+        the call waits, so nothing the brain reads can say yes. yes: this once. always: from now on, as a rule claudio
+        made (never sh -c or a bare Write: those are once only). no, anything else, a cut or a minute's silence:
+        not run, and the brain hears what was said."""
+        rule, what = config.rule_for(tool, tool_input)
+        if not rule:
+            target = str(tool_input.get("command") or tool_input.get("file_path") or "")
+            what = f"to run `{' '.join(target.split())[:80]}`" if tool == "Bash" else f"to use {tool} on {target}".strip()
+        question = f"I'm not allowed {what}. May I? Say yes{', always,' if rule else ''} or no."
+        future = loop.create_future()
+        pending.update(future=future, ask=question, ready=False)
+        brain.say(question)
+        try:
+            said = await asyncio.wait_for(future, 60)
+        except asyncio.TimeoutError:
+            said = None
+        finally:
+            pending.update(future=None, ask="", ready=False)
+        words = norm(said or "")
+        short = bool(words) and len(words) <= 3
+        if said is None:
+            ui.note(f"not allowed: {rule or what}")
+            return PermissionResultDeny(message="The user did not answer, so it did not run. Say so in a few words.")
+        if short and words[0] in NO:
+            ui.note(f"not allowed: {rule or what}")
+            return PermissionResultDeny(message="The user said no. Say in a few words that you won't.")
+        if short and rule and "always" in words:
+            config.allow(rule)                 # for later runs; this one has it from the update below
+            ui.note(f"allowed {rule}")
+            m = re.fullmatch(r"([^(]+)(?:\((.*)\))?", rule)
+            return PermissionResultAllow(updated_permissions=[
+                PermissionUpdate(type="addDirectories", directories=[rule], destination="session") if rule.startswith("/")
+                else PermissionUpdate(type="addRules", rules=[PermissionRuleValue(m[1], m[2])], behavior="allow",
+                                      destination="session")])
+        if short and (words[0] in YES or "always" in words):
+            ui.note(f"allowed once: {rule or what}")
+            return PermissionResultAllow()
+        return PermissionResultDeny(message=f"Not run: asked, the user said \"{said}\" instead. Answer that.")
 
-    brain.on_denied = denied
+    brain.on_ask = ask
 
     def answer(said):
-        """The turn after an allow question: yes adds the rule and retries the request; no drops it. The note to
-        show when it was the answer; None for anything else, which drops the question and is an ordinary turn."""
-        rule, words = pending["rule"], norm(said)
-        if not rule or not pending["ready"]:   # not yet asked: an "okay" to the reply before it is no yes
+        """The turn after the skip question: yes turns the checks off. The note to show when it was the answer;
+        None for anything else, which drops the question and is an ordinary turn."""
+        words = norm(said)
+        if not pending["rule"] or not pending["ready"]:   # not yet asked: an "okay" to the reply before it is no yes
             return None
-        if words and len(words) <= 3 and words[0] in YES + NO:
-            pending["rule"] = None
-            if words[0] in NO:
-                return f"not allowed: {rule}"
-            if rule == SKIP:
-                asyncio.create_task(skipping(True))
-                return "no permission checks until you quit"
-            config.allow(rule)                 # watch_config sees it, restarts the brain, then retries
-            pending["retry"] = pending["text"]
-            return f"allowed {rule}"
-        pending["left"] -= 1                   # a question about the question can come in between, once
-        if pending["left"] < 0:
-            pending["rule"] = None
+        pending["rule"] = None
+        if words and len(words) <= 3 and words[0] in YES:
+            asyncio.create_task(skipping(True))
+            return "no permission checks until you quit"
+        if words and len(words) <= 3 and words[0] in NO:
+            return f"not allowed: {SKIP}"
         return None
 
     async def skipping(on):
@@ -1104,7 +1159,7 @@ async def main():
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
             ask = "Skip every permission check until you quit? The brain could then run anything, unasked. Say yes or no."
-            pending.update(rule=SKIP, text="", left=0, ask=ask, ready=False)   # only a yes right after it turns them off
+            pending.update(rule=SKIP, ask=ask, ready=False)   # only a yes right after it turns them off
             start(ask, committed=True, fixed=True)
         elif cmd == "permissions":
             if status["skip"]:
@@ -1173,7 +1228,7 @@ async def main():
         global cfg
         stamp = mtime(config.CONF)
         persona = mtime(config.PROMPT)
-        access = (mtime(config.ALLOW), mtime(config.MCP))
+        access = (mtime(config.SETTINGS), mtime(config.MCP))
         last = dict(cfg)                       # the file as last loaded: what a change is told against
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
@@ -1187,13 +1242,13 @@ async def main():
                 await brain.restart()
                 start("[event] Your persona prompt was just edited and you were restarted with it. "
                       "Say in a few words that you are back.", committed=True, event=True)
-            if (mtime(config.ALLOW), mtime(config.MCP)) != access:   # allow or mcp.json edited: a brain that has them
-                access = (mtime(config.ALLOW), mtime(config.MCP))
-                ui.note("access changed; brain restarting")
-                await brain.restart()
-                if pending["retry"]:           # a yes to an allow question: the request again, now allowed
-                    start(pending["retry"], committed=True)
-                    pending["retry"] = None
+            now = (mtime(config.SETTINGS), mtime(config.MCP))
+            if now != access:                  # settings.json or mcp.json edited: a brain that has them
+                ours = now[0] == config.written and now[1] == access[1]   # claudio's own "always": the brain has it
+                access = now
+                if not ours:
+                    ui.note("access changed; brain restarting")
+                    await brain.restart()
             now = mtime(config.CONF)
             if now is None or now == stamp:
                 continue
@@ -1243,7 +1298,7 @@ async def main():
             # barge-in off: deaf only while a reply your turn has committed is playing, never during an
             # eager start, or the rest of what you are saying would be lost
             answering = live() and current["commit"].is_set()
-            if (answering and not cfg["barge_in"]) or not status["gate_open"]:
+            if (answering and not cfg["barge_in"] and not pending["future"]) or not status["gate_open"]:   # asking: hear the answer
                 b = b"\x00" * len(b)
             else:
                 peak = max(abs(x) for x in array.array("h", b)[::8]) if len(b) >= 16 else 0
@@ -1264,6 +1319,12 @@ async def main():
         if status["muted"]:                # only "slash unmute" gets through; nothing else is printed or kept
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
+            return
+        if pending["future"] and not (ev["event"] == "EndOfTurn" and SLASH.search(words)):
+            if ev["event"] == "EndOfTurn" and said:   # a tool waits on the question: no pause, no eager start, no cut
+                ui.you(said, tentative=not pending["ready"])   # before the question is out, nothing answers it
+                if pending["ready"] and not pending["future"].done():
+                    pending["future"].set_result(said)
             return
         if ev["event"] == "EndOfTurn" and said and not paused() and (note := answer(said)):   # paused: a backchannel
             ui.you(said)
@@ -1346,6 +1407,10 @@ async def main():
             typed = line.strip()
             if typed.startswith("/") and slash("slash " + typed[1:].lower()):
                 pass
+            elif typed and pending["future"]:   # typed, it answers the question at once
+                ui.you(typed)
+                if not pending["future"].done():
+                    pending["future"].set_result(typed)
             elif typed:                         # a typed question is a turn, for when you cannot talk
                 ui.you(typed)
                 if note := answer(typed):

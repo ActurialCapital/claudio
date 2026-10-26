@@ -9,7 +9,8 @@ PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SECRETS_FILE = os.path.join(DIR, "secrets.json")
 SESSION = os.path.join(DIR, "session")
 MCP = os.path.join(DIR, "mcp.json")      # MCP servers for the brain, as in a .mcp.json; none when it is absent
-ALLOW = os.path.join(DIR, "allow")       # more tools for the brain: one Claude Code permission rule per line
+SETTINGS = os.path.join(DIR, "settings.json")   # the brain's own permission rules, in Claude Code's settings format
+ALLOW = os.path.join(DIR, "allow")       # the older one-rule-per-line file, moved into SETTINGS once
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
 VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
 SOCK = f"/tmp/claudio-{os.getuid()}.sock"
@@ -197,12 +198,20 @@ def fetch_aura(key):
         AURA[:] = names
 
 
-def allowed():
-    """The rules in ALLOW, such as Bash(gh:*) or WebFetch; blank lines and # comments skipped."""
-    try:
-        return [r for r in (line.split("#")[0].strip() for line in open(ALLOW)) if r]
-    except OSError:
-        return []
+def migrate_allow():
+    """An `allow` file from before settings.json: its rules and folders move there, once; it stays as allow.bak."""
+    if not os.path.exists(ALLOW) or os.path.exists(SETTINGS):
+        return
+    for r in (line.split("#")[0].strip() for line in open(ALLOW)):
+        if r:
+            allow(r)
+    os.replace(ALLOW, ALLOW + ".bak")
+
+
+def permissions():
+    """SETTINGS's permissions: allow and deny rules such as Bash(gh:*), and additionalDirectories."""
+    p = _read(SETTINGS).get("permissions")
+    return p if isinstance(p, dict) else {}
 
 
 NOTES = ("~/Desktop", "~/Documents")   # where the brain may write a note: .md and .txt files only
@@ -223,7 +232,7 @@ def openable(target):
 
 def outside(tool_input, cwd, dirs):
     """The folder a refused tool use reaches outside the working one and the allowed ones, or None: its git
-    repo when it is in one, else the nearest folder that exists. claude -p refuses those whatever the rules."""
+    repo when it is in one, else the nearest folder that exists. The brain is refused those whatever the rules."""
     import subprocess
     values = {**tool_input, "command": " ".join(str(tool_input["command"]).split()[1:])} if "command" in tool_input else tool_input
     text = re.sub(r"'[^']*\s[^']*'|\"[^\"]*\s[^\"]*\"", " ", " ".join(str(v) for v in values.values()))   # not the program, not a quoted message
@@ -248,6 +257,8 @@ def rule_for(tool, tool_input, cwd=None):
     is the rule when it is the reason; else for Bash, its leading plain words up to three, so "gh issue view 727
     -R x" gives Bash(gh issue view:*) and a yes allows that kind of command, not all of gh."""
     folder = outside(tool_input, cwd or os.getcwd(), [*allowed_dirs(), *map(os.path.expanduser, NOTES)])
+    if folder and (DIR + "/").startswith(folder.rstrip("/") + "/"):
+        return None, "into " + folder.replace(os.path.expanduser("~"), "~", 1)   # claudio's own, keys and rules: once only
     if folder:
         return folder, "into " + folder.replace(os.path.expanduser("~"), "~", 1)
     if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -259,22 +270,41 @@ def rule_for(tool, tool_input, cwd=None):
         if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
             break
         words.append(w)
-    if not words or words[0] in WRAPPERS:      # VAR=x, env, sh -c, python -c…: a yes would allow any command
-        return None, ""
+    if not words or words[0] in WRAPPERS or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface")):
+        return None, ""                        # VAR=x, sh -c, python -c, cmux new-split --command…: any command at all
     prefix = " ".join(words)
     return f"Bash({prefix}:*)", f"to run `{prefix}`"
 
 
 def allowed_dirs():
-    """The folders in ALLOW (a line that is a path), given to the brain with --add-dir."""
-    return [os.path.expanduser(r) for r in allowed() if r.startswith(("/", "~"))]
+    """The folders in SETTINGS, given to the brain with --add-dir."""
+    return [os.path.expanduser(d) for d in permissions().get("additionalDirectories", []) if isinstance(d, str)]
+
+
+written = None    # SETTINGS's mtime after claudio's own last write: the brain has that rule already, no restart
 
 
 def allow(rule):
-    """Add a rule to ALLOW, which restarts the brain with it."""
+    """Add a rule, or a folder (a path), to SETTINGS. One it can't read is kept as settings.json.bak first."""
+    global written
     os.makedirs(DIR, exist_ok=True)
-    with open(ALLOW, "a") as f:
-        f.write(f"{rule}\n")
+    try:
+        s = json.load(open(SETTINGS))
+    except OSError:
+        s = {}
+    except ValueError:
+        s = None
+    if not isinstance(s, dict):
+        shutil.copy(SETTINGS, SETTINGS + ".bak")
+        s = {}
+    p = s.setdefault("permissions", {})
+    key = "additionalDirectories" if rule.startswith(("/", "~")) else "allow"
+    if rule not in p.setdefault(key, []):
+        p[key].append(rule)
+    with open(SETTINGS + ".tmp", "w") as f:
+        json.dump(s, f, indent=2)
+    os.replace(SETTINGS + ".tmp", SETTINGS)
+    written = os.path.getmtime(SETTINGS)
 
 
 ADDITIONS = """<!--

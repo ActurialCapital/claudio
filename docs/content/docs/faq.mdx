@@ -18,7 +18,7 @@ The brain runs through your Claude Code login, so it uses your Claude plan like 
 </Accordion>
 <Accordion title="Can it change my code?">
 
-Not unless you allow it. Out of the box the brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, read GitHub with `gh` (issues, pull requests, search), use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. Anything more is up to you: say yes when it asks, or list it in `allow`. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+Not unless you allow it. Out of the box the brain can read and search files, run `git status`, `git log`, `git diff` and `git branch`, read GitHub with `gh` (issues, pull requests, search), use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. Anything more is up to you: say yes or always when it asks, or list it in `settings.json`. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
 
 </Accordion>
 <Accordion title="Can it answer a session's prompts for me?">
@@ -32,7 +32,7 @@ Not unless you allow it. Out of the box the brain can read and search files, run
 Your CLAUDE.md, yes. Your settings, no.
 
 - **CLAUDE.md**: the brain reads the CLAUDE.md files that Claude Code loads for the project you run claudio in, like any session. Keep instructions there that you are happy for the voice to follow too.
-- **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, plus what you allow in `~/.config/claudio/allow`, and it can't read `~/.config/claudio/secrets.json`.
+- **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, plus what you allow in `~/.config/claudio/settings.json`, and it can't read `~/.config/claudio/secrets.json`.
 - **MCP servers**: none of yours, only those you list in `~/.config/claudio/mcp.json`.
 - **Skills and slash commands**: none. Its prompt lists claudio's own slash commands, so it can tell you about them.
 
@@ -66,9 +66,9 @@ The persona asks the brain to say what it's about to do before each tool call. W
 </Accordion>
 <Accordion title="It says it isn't allowed to run something. How do I allow it?">
 
-Say yes. When the brain is refused a command, claudio asks “I'm not allowed to run `gh pr create`. Allow it from now on? Say yes or no.” A yes, spoken or typed, adds the rule to `~/.config/claudio/allow`, restarts the brain with it and runs your request again. No adds nothing.
+Answer the question. When the brain needs a command its rules don't cover, the command waits and claudio asks, in the same reply: “I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.” Yes runs it once; always also adds the rule to `~/.config/claudio/settings.json`, for every later run; no, or a minute's silence, doesn't run it.
 
-You can also edit that file yourself, one [Claude Code permission rule](https://code.claude.com/docs/en/settings#permission-settings) per line, such as `Bash(gh:*)` or `WebFetch`; saving it restarts the brain. Telling the brain “I approve” does nothing on its own, since `claude -p` has no approval prompt. See [allow more](/docs/reference/files#allow-more).
+You can also edit that file yourself, in [Claude Code's settings format](https://code.claude.com/docs/en/settings#permission-settings), such as `{"permissions": {"allow": ["Bash(gh:*)", "WebFetch"]}}`; saving it restarts the brain. Telling the brain “I approve” does nothing on its own: only claudio's question can allow it. See [allow more](/docs/reference/files#allow-more).
 
 </Accordion>
 <Accordion title="Does quitting claudio clear the conversation?">

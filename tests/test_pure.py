@@ -1,5 +1,5 @@
 """The pure parts: what would break silently. No network, no audio, no claude."""
-import os, sys, types
+import json, os, sys, types
 
 # agent imports sounddevice and websockets at module load; stub them so the pure functions import anywhere
 for name in ("sounddevice", "websockets", "websockets.exceptions"):
@@ -347,7 +347,7 @@ def test_two_live_blocks_settle_in_order():
 
 
 def test_rule_for_allows_the_kind_of_command_not_the_whole_tool(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     here = str(tmp_path)
     assert config.rule_for("Bash", {"command": "gh issue view 727 --repo a/b"}, here) == ("Bash(gh issue view:*)", "to run `gh issue view`")
     assert config.rule_for("Bash", {"command": "curl -s https://x 2>/dev/null"}, here) == ("Bash(curl:*)", "to run `curl`")
@@ -355,7 +355,7 @@ def test_rule_for_allows_the_kind_of_command_not_the_whole_tool(tmp_path, monkey
 
 
 def test_rule_for_never_offers_what_a_yes_should_not_allow(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     here = str(tmp_path)
     for cmd in ("GH_PAGER=cat gh pr view 3", "env FOO=1 rm x", 'sh -c "gh pr create"', "python3 -c 'x'",
                 "open -na Ghostty --args -e sh", "/usr/bin/curl x"):
@@ -365,7 +365,7 @@ def test_rule_for_never_offers_what_a_yes_should_not_allow(tmp_path, monkeypatch
 
 
 def test_a_notes_folder_is_never_offered_as_a_folder(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     monkeypatch.setattr(config, "NOTES", (str(tmp_path / "Desktop"),))
     (tmp_path / "Desktop").mkdir()
     assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/Desktop/notes.md"}, str(tmp_path / "w"))[0] == "Bash(wc:*)"
@@ -384,13 +384,13 @@ def test_claudio_open_takes_a_link_or_a_note_only(tmp_path, monkeypatch):
 
 
 def test_rule_for_offers_the_folder_when_it_is_outside(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     (tmp_path / "repo" / "src").mkdir(parents=True)
     work = tmp_path / "work"
     work.mkdir()
     rule, what = config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))
     assert rule == str(tmp_path / "repo" / "src") and what.startswith("into ")
-    (tmp_path / "allow").write_text(f"{tmp_path}/repo\n")      # allowed: the command is the reason now
+    (tmp_path / "settings.json").write_text(json.dumps({"permissions": {"additionalDirectories": [f"{tmp_path}/repo"]}}))
     assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))[0] == "Bash(wc:*)"
 
 
@@ -413,13 +413,35 @@ def test_replies_are_new_messages_from_others():
     assert [m["id"] for m in config.replies(msgs, me, 100)] == ["a"]
 
 
-def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
-    f = tmp_path / "allow"
-    f.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n")
-    monkeypatch.setattr(config, "ALLOW", str(f))
-    assert config.allowed() == ["Bash(gh:*)", "WebFetch"]
-    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "missing"))
-    assert config.allowed() == []
+def test_an_allow_file_moves_into_settings_once_and_always_adds_to_it(tmp_path, monkeypatch):
+    allow, settings = tmp_path / "allow", tmp_path / "settings.json"
+    allow.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n~/src/other\n")
+    monkeypatch.setattr(config, "ALLOW", str(allow))
+    monkeypatch.setattr(config, "SETTINGS", str(settings))
+    config.migrate_allow()
+    assert json.loads(settings.read_text()) == {"permissions": {"allow": ["Bash(gh:*)", "WebFetch"],
+                                                                "additionalDirectories": ["~/src/other"]}}
+    assert not allow.exists() and (tmp_path / "allow.bak").exists()
+    assert config.allowed_dirs() == [os.path.expanduser("~/src/other")]
+    config.allow("Bash(gh:*)")                       # already there: once
+    config.allow("Bash(curl:*)")
+    assert json.loads(settings.read_text())["permissions"]["allow"] == ["Bash(gh:*)", "WebFetch", "Bash(curl:*)"]
+    assert config.written == os.path.getmtime(settings)    # claudio's own write: no restart for it
+    settings.write_text("{not json")                 # a hand edit gone wrong is kept, never lost
+    config.allow("WebFetch")
+    assert (tmp_path / "settings.json.bak").read_text() == "{not json"
+
+
+def test_rule_for_never_offers_claudios_own_folder_for_good(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
+    for path in (config.DIR, os.path.dirname(config.DIR), os.path.expanduser("~")):
+        assert config.rule_for("Bash", {"command": f"cat {path}/x"}, str(tmp_path))[0] is None, path
+
+
+def test_rule_for_never_offers_a_cmux_command_that_runs_any_program(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
+    for cmd in ("cmux new-split right --surface A --command htop", "cmux new-workspace --name x", "cmux new-surface"):
+        assert config.rule_for("Bash", {"command": cmd}, str(tmp_path))[0] is None, cmd
 
 
 def test_persona_is_the_package_plus_the_users_additions(tmp_path, monkeypatch):

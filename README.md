@@ -63,7 +63,7 @@ flowchart LR
 | "write a note: call Michael" | asks Desktop or Documents, then adds it to `notes.md` there, dated |
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
 | "open issue 727 in the browser" | opens it, or a Google search, and says only "Opening it." |
-| "yes", when it asks to allow a command | adds it to `allow`; the brain restarts and retries your request |
+| "yes", "always" or "no", when it asks to allow a command | yes runs it once; always also adds it to `settings.json`; the reply goes on |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
 
@@ -112,7 +112,7 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it holds your additions to the persona; write freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` commands; for anything more, say yes when claudio asks, or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `allow`, one per line, such as `Bash(gh:*)`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it. To drop every check for one run, start `claudio --dangerously-skip-permissions`, or say "slash permissions skip" and then yes.
+`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it holds your additions to the persona; write freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` commands; for anything more, answer when claudio asks (yes, always or no; the command waits), or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `settings.json`, such as `{"permissions": {"allow": ["Bash(gh:*)"]}}`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it. To drop every check for one run, start `claudio --dangerously-skip-permissions`, or say "slash permissions skip" and then yes.
 
 The persona carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced triads, no inflated significance, at most one hedge, no chatbot wrapper, stop on the last fact. The `style` setting, plain, brief or caveman, switchable mid-session by voice, follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip without touching the prompt.
 

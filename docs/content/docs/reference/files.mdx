@@ -13,7 +13,8 @@ claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio`
 | `transcripts/YYYY-MM-DD.md` | each day's conversation, one line each with the time to the second: your turns, its replies and what it showed, session reports, the commands the brain ran, setting changes, notes and warnings |
 | `session` | the remembered brain session id and when it started |
 | `mcp.json` | optional: MCP servers for the brain, in the same format as a project's `.mcp.json` |
-| `allow` | optional: more tools for the brain, one Claude Code permission rule per line |
+| `settings.json` | optional: more tools and folders for the brain, in Claude Code's settings format; "always" adds to it |
+| `allow.bak` | the older one-rule-per-line `allow` file, kept after its rules moved into `settings.json` |
 | `brain.log` | the brain's error output, appended across runs |
 | `helper.log` | the echo canceller's error output, rewritten each run |
 | `bin/claudio-audio` | the echo canceller, built once from `audio.swift`, and rebuilt when that file is newer |
@@ -36,7 +37,7 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch`
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
-- **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface` and `send-key`
+- **cmux**: `agent message`, `surface list`, `read-screen` and `send-key`, and `new-workspace`, `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - **claudio set**, to change a setting when you ask
 - **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and check that a file exists with `test`
 - **`claudio open`**: a web link, or a `.md` or `.txt` note in those folders, never an app, a script or anything else
@@ -49,35 +50,41 @@ It gets none of your Claude Code skills or slash commands, which it would otherw
 {"mcpServers": {"notes": {"command": "npx", "args": ["-y", "some-notes-mcp"]}}}
 ```
 
-- **anything you list in `allow`**
+- **anything you list in `settings.json`**
 
-Your Claude Code permission settings don't apply to it, and `claude -p` has no approval prompt. Instead, when the brain is refused a command, claudio itself asks: “I'm not allowed to run `gh pr create`. Allow it from now on? Say yes or no.” Answer by voice or by typing:
+It can never read `secrets.json`, by any tool, nor write anything in `~/.config/claudio`, so it can't give itself more rules.
 
-- **yes** (or yeah, sure, okay, allow): `Bash(gh pr create:*)` is added to `allow`, the brain restarts with it, and your request runs again
-- **no**: nothing is added
-- **anything else**: an ordinary turn; the question still stands for one more, so you can ask what it means first
+### When it needs more
 
-When it's a folder outside the one you started in that was refused, claudio asks about the folder instead, the whole repo when it's in one: “I'm not allowed into ~/GitHub/ActurialCapital/claudio. Allow it from now on?”
+Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply: “I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.” Answer by voice or by typing:
 
-The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio doesn't ask at all when a yes would allow far more than the request: a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, or writing a file (a bare `Write` rule would allow any file). Add a narrow rule to `allow` yourself for those. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
+- **yes** (or yeah, sure, okay, allow): it runs, this once, and the reply goes on
+- **always**: it runs, and `Bash(gh pr create:*)` is added to `settings.json`, for the rest of this run and every later one, with no restart
+- **no**, or no answer within a minute: it doesn't run, and the brain says so
+- **anything else**, such as “what would that do?”: it doesn't run, and the brain answers what you said
+
+Talking while it asks doesn't pause it, and a reply you cut off answers no. When it's a folder outside the one you started in, claudio asks about the folder instead, the whole repo when it's in one: “I'm not allowed into ~/GitHub/ActurialCapital/claudio.”
+
+The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
 To drop every check instead, for this run only, start `claudio --dangerously-skip-permissions` or say “slash permissions skip” and then yes. The brain can then run anything without asking; it is still told to hand work to sessions and to get your yes before deleting, overwriting or pushing.
 
 ### Allow more
 
-Put one [Claude Code permission rule](https://code.claude.com/docs/en/settings#permission-settings) per line in `~/.config/claudio/allow`. Blank lines and `#` comments are skipped:
+`~/.config/claudio/settings.json` takes [Claude Code permission settings](https://code.claude.com/docs/en/settings#permission-settings): `allow` and `deny` rules, and `additionalDirectories`, folders the brain may read and search in as well as the one you start claudio in:
 
-```text title="~/.config/claudio/allow"
-# all of gh, not just reading
-Bash(gh:*)
-# fetch web pages
-WebFetch
-# a folder outside the one you start claudio in
-~/GitHub/ActurialCapital/claudio
+```json title="~/.config/claudio/settings.json"
+{
+  "permissions": {
+    "allow": ["Bash(gh:*)", "WebFetch"],
+    "deny": ["Bash(gh repo delete:*)"],
+    "additionalDirectories": ["~/GitHub/ActurialCapital/claudio"]
+  }
+}
 ```
 
-A line that is a path is a folder the brain may read and search in, as well as the one you start claudio in: `claude -p` refuses anything outside those, whatever the other rules say.
+An `allow` file from an earlier version, one rule or folder per line, is moved into `settings.json` once, and kept as `allow.bak`. If `settings.json` can't be read when “always” adds to it, the old one is kept as `settings.json.bak`.
 
-Saving the file, or `mcp.json`, restarts the brain with it, keeping the conversation. Anything you allow, the brain can run without asking, so allow only what you'd let it do unwatched. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
+Saving the file yourself, or `mcp.json`, restarts the brain with it, keeping the conversation; “always” doesn't need to. Anything you allow, the brain can run without asking, so allow only what you'd let it do unwatched. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
 
 Its model and effort come from the `model` and `effort` settings. With `model` set to `default`, it uses your Claude Code default.
