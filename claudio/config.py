@@ -195,6 +195,27 @@ def allowed():
         return []
 
 
+def rule_for(tool, tool_input):
+    """The rule that allows a refused tool use, and its command in words: "gh issue view 727 -R x" gives
+    Bash(gh issue view:*), its leading plain words up to three, so a yes allows that kind of command, not all of gh."""
+    if tool != "Bash":
+        return tool, tool
+    words = []
+    for w in str(tool_input.get("command", "")).split():
+        if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
+            break
+        words.append(w)
+    prefix = " ".join(words) or str(tool_input.get("command", "")).split(" ")[0]
+    return f"Bash({prefix}:*)", prefix
+
+
+def allow(rule):
+    """Add a rule to ALLOW, which restarts the brain with it."""
+    os.makedirs(DIR, exist_ok=True)
+    with open(ALLOW, "a") as f:
+        f.write(f"{rule}\n")
+
+
 def mcp_servers():
     """The names of the servers in MCP, [] when there is no such file or it can't be read."""
     servers = _read(MCP).get("mcpServers")

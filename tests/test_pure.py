@@ -315,6 +315,12 @@ def test_two_live_blocks_settle_in_order():
         ui.console, ui.log = console, log
 
 
+def test_rule_for_allows_the_kind_of_command_not_the_whole_tool():
+    assert config.rule_for("Bash", {"command": "gh issue view 727 --repo a/b"}) == ("Bash(gh issue view:*)", "gh issue view")
+    assert config.rule_for("Bash", {"command": "curl -s https://x"}) == ("Bash(curl:*)", "curl")
+    assert config.rule_for("WebFetch", {"url": "https://x"}) == ("WebFetch", "WebFetch")
+
+
 def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
     f = tmp_path / "allow"
     f.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n")

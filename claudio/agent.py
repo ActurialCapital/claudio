@@ -33,6 +33,7 @@ def shown_block(buf, final=False):
 
 
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
+YES, NO = {"yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"}, {"no", "nope", "n", "dont", "deny", "never"}
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
@@ -163,6 +164,7 @@ class Brain:
         self.proc, self.session_id, self.busy = None, None, False
         self.lock = asyncio.Lock()
         self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it
+        self.on_denied = None          # (denials, the turn's text): a tool use the allow-list refused
         self.changed = asyncio.Event() # set when it ran `claudio set`, so the watcher reloads at once
         self.expected_exit = False     # a restart on purpose, not a death
 
@@ -266,6 +268,8 @@ class Brain:
                         elif ev.get("type") == "assistant":
                             last_text = " ".join(c.get("text", "") for c in ev["message"].get("content", []) if c.get("type") == "text")
                         elif ev.get("type") == "result":
+                            if ev.get("permission_denials") and self.on_denied and not text.startswith("[event]"):
+                                self.on_denied(ev["permission_denials"], text)
                             if ev.get("is_error") and not spoke and last_text:
                                 q.put_nowait(last_text)   # an error with no streamed text (a bad model name): say it
                             return
@@ -881,6 +885,33 @@ async def main():
             status["reply"] = handle
         refresh()
 
+    pending = {"rule": None, "text": "", "retry": None}   # a rule asked about, the request it was for, one to retry
+
+    def denied(denials, text):
+        """The brain was refused a tool: claudio, not the brain, asks the user, so nothing it reads can say yes."""
+        rule, what = config.rule_for(denials[0].get("tool_name", ""), denials[0].get("tool_input") or {})
+        if rule in config.allowed():
+            return
+        pending.update(rule=rule, text=text)
+        start(f"I'm not allowed to run `{what}`. Allow it from now on? Say yes or no.", committed=True, fixed=True, event=True)
+
+    brain.on_denied = denied
+
+    def answer(said):
+        """The turn after an allow question: yes adds the rule and retries the request; no drops it. The note to
+        show when it was the answer; None for anything else, which drops the question and is an ordinary turn."""
+        rule, pending["rule"] = pending["rule"], None
+        words = norm(said)
+        if not rule or not words or len(words) > 3:
+            return None
+        if words[0] in YES:
+            config.allow(rule)                 # watch_config sees it, restarts the brain, then retries
+            pending["retry"] = pending["text"]
+            return f"allowed {rule}"
+        if words[0] in NO:
+            return f"not allowed: {rule}"
+        return None
+
     def set_mute(on):
         status["muted"] = on
         if on:
@@ -1019,6 +1050,9 @@ async def main():
                 access = (mtime(config.ALLOW), mtime(config.MCP))
                 ui.note("access changed; brain restarting")
                 await brain.restart()
+                if pending["retry"]:           # a yes to an allow question: the request again, now allowed
+                    start(pending["retry"], committed=True)
+                    pending["retry"] = None
             now = mtime(config.CONF)
             if now is None or now == stamp:
                 continue
@@ -1094,6 +1128,11 @@ async def main():
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
                 set_mute(False)
             return
+        if ev["event"] == "EndOfTurn" and said and (note := answer(said)):
+            ui.you(said)
+            ui.note(note)
+            cut(None)                          # the question, if it was still being asked: answered
+            return
         if ev["event"] == "EndOfTurn" and SLASH.search(words):
             ui.you(said)
             slash(words)
@@ -1106,7 +1145,7 @@ async def main():
                 if paused() and later["resume"]:           # still talking: the 3 s grace starts over
                     later["resume"].cancel()
                     later["resume"] = asyncio.create_task(resume_later())
-            case "EagerEndOfTurn" if said and not paused():
+            case "EagerEndOfTurn" if said and not paused() and not pending["rule"]:   # an allow answer waits for the end
                 if SLASH.search(words):
                     return                      # a command: wait for the final transcript, no brain
                 start(said, committed=False)    # quiet: your line prints at EndOfTurn, the reply waits for it
@@ -1172,7 +1211,10 @@ async def main():
                 pass
             elif typed:                         # a typed question is a turn, for when you cannot talk
                 ui.you(typed)
-                start(typed, committed=True)
+                if note := answer(typed):
+                    ui.note(note)
+                else:
+                    start(typed, committed=True)
             elif cfg["push_to_talk"] and not status["gate_open"]:
                 status["gate_open"] = True
                 ui.note("mic open")

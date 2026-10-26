@@ -48,7 +48,13 @@ It never gets the MCP servers of your own Claude Code setup: a desktop tool that
 
 - **anything you list in `allow`**
 
-Nothing can approve a command mid-conversation: `claude -p` has no approval prompt, and your Claude Code permission settings don't apply to it. Saying “I approve” changes nothing; it says what it can't run, that you can add it to `allow`, and offers to hand the job to a session.
+Your Claude Code permission settings don't apply to it, and `claude -p` has no approval prompt. Instead, when the brain is refused a command, claudio itself asks: “I'm not allowed to run `gh pr create`. Allow it from now on? Say yes or no.” Answer by voice or by typing:
+
+- **yes** (or yeah, sure, okay, allow): `Bash(gh pr create:*)` is added to `allow`, the brain restarts with it, and your request runs again
+- **no**: nothing is added
+- **anything else**: the question is dropped and your words are an ordinary turn
+
+The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
 ### Allow more
 
