@@ -84,6 +84,7 @@ def test_spoken_drops_bullets_and_markup():
     assert spoken("2 * 3 * 4 is 24.") == "2 * 3 * 4 is 24."
     assert spoken("- `/clear` starts over, see docs/x.md.") == "slash clear starts over, see docs/x.md."
     assert spoken("Glob **/*.py and `rm **/*.pyc`.") == "Glob **/*.py and rm **/*.pyc."
+    assert spoken("See [the pricing page](https://deepgram.com/pricing).") == "See the pricing page."
 
 
 def test_backchannel_is_short_or_only_filler():

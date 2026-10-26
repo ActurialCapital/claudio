@@ -38,6 +38,8 @@ The brain is one `claude -p` process, started in the directory you ran claudio f
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view` and `search`, with your `gh` login
 - **cmux**: `agent message`, `surface list`, `read-screen`, `new-workspace`, `new-split`, `new-surface` and `send-key`
 - **claudio set**, to change a setting when you ask
+- **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and `open` a file or a link
+- **the web**: WebSearch and WebFetch
 - **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
 
 It gets none of your Claude Code skills or slash commands, which it would otherwise offer as claudio's; its prompt lists claudio's own. It never gets the MCP servers of your own Claude Code setup either: a desktop tool that disconnects would otherwise confuse it into thinking it can't check a session. To give it a server, list it in `mcp.json`; saving the file restarts the brain with it:

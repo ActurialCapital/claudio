@@ -32,6 +32,7 @@ def shown_block(buf, final=False):
     return 0
 
 
+NOTES = ("~/Desktop", "~/Documents")   # where the brain may write a note: .md and .txt files only
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 YES, NO = ("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"), ("no", "nope", "n", "dont", "deny", "never")
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
@@ -187,6 +188,7 @@ def system_prompt():
                f"gh ... -R {owner}/<name>.\n" if owner else "")
             + (f"- The voice is {cfg['mouth']}: local_voice, local_speed and local_model do nothing, and it has no speed "
                "setting. Say so rather than suggest them.\n" if cfg["mouth"] != "local" else "")
+            + "- Notes and looking things up are your own jobs: never hand them to a session.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
             + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
                "work to sessions, and run nothing that deletes, overwrites or pushes without the user's plain yes."
@@ -220,6 +222,7 @@ class Brain:
         env["PATH"] = f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}"
         resume = remembered_session()
         mcp = config.mcp_servers()
+        notes = [d for d in map(os.path.expanduser, NOTES) if os.path.isdir(d)]
         self.resumed, self.started_at = bool(resume), time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
@@ -239,8 +242,10 @@ class Brain:
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
             *(f"mcp__{name}" for name in mcp),
+            "WebSearch", "WebFetch", "Bash(open:*)", "Bash(test:*)",   # looking things up; opening a note or a link
+            *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt")),   # notes only
             *(r for r in config.allowed() if not r.startswith(("/", "~"))),   # the user's own: ~/.config/claudio/allow
-            *(["--add-dir", *config.allowed_dirs()] if config.allowed_dirs() else []),    # and folders, from the same file
+            *(["--add-dir", *notes, *config.allowed_dirs()] if notes or config.allowed_dirs() else []),   # and folders
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             *(["--resume", resume] if resume else []),

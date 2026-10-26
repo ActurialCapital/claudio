@@ -105,7 +105,8 @@ SHADES = ["grey30", "grey50", "grey70", ""]
 LIVE_LINES = 4                  # a long block keeps only its last lines live; the spoken lines above go to the transcript
 fading = []                     # claudio's blocks still fading in, drawn above the status line until they settle
 BULLET = re.compile(r"^\s*[-*•]\s+")   # a list item from the brain: "- Silero starts turns"
-INLINE = re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*|`([^`]+)`|(?<![*\w])\*(?=[A-Za-z0-9])([^*\n]*?[A-Za-z0-9.!?])\*(?![*\w])")   # **bold**, `code`, *italic*; not **/*.py
+INLINE = re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*|`([^`]+)`|(?<![*\w])\*(?=[A-Za-z0-9])([^*\n]*?[A-Za-z0-9.!?])\*(?![*\w])"
+                    r"|\[([^\]\n]+)\]\((https?://[^)\s]+)\)")   # **bold**, `code`, *italic*, [a link](url); not **/*.py
 INLINE_STYLE = ("bold", "cyan", "italic")
 settling = {"now": False}       # settle() is printing: the hook must not flush the blocks still fading
 
@@ -127,7 +128,7 @@ def styled(text):
     for m in INLINE.finditer(text):
         t.append(text[at:m.start()])
         n = next(i for i, g in enumerate(m.groups()) if g is not None)
-        t.append(m.group(n + 1), style=INLINE_STYLE[n])
+        t.append(m.group(n + 1), style=f"underline link {m.group(5)}" if n == 3 else INLINE_STYLE[n])   # a link: clickable
         at = m.end()
     t.append(text[at:])
     return t
