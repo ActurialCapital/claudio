@@ -121,6 +121,7 @@ class FakeProc:
 
 
 async def fake_start(self=agent.brain):
+    log("START", "no permission checks" if agent.status["skip"] else "checks on")
     self.proc, self.resumed, self.started_at = FakeProc(), False, time.monotonic()
 agent.brain.start = fake_start
 
@@ -170,6 +171,9 @@ SCENARIOS = {   # name: (seconds to run, script)
     "allow-no": (7, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                      (4.5, turn("StartOfTurn")), (4.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
+    "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash permissions skip")),
+                 (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "yes")),
+                 (5.0, turn("StartOfTurn")), (5.2, turn("EndOfTurn", "slash permissions ask"))]),
 }
 RUN, SCRIPT = SCENARIOS[SC]
 

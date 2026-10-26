@@ -9,6 +9,7 @@ VOICES = [("aura-2-orion-en", "male, calm, approachable"), ("aura-2-arcas-en", "
           ("aura-2-apollo-en", "male, confident, casual"), ("aura-2-thalia-en", "female, clear, confident"),
           ("aura-2-asteria-en", "female, knowledgeable, energetic"), ("aura-2-athena-en", "female, calm, professional")]
 USAGE = """claudio             talk (runs setup the first time)
+claudio --dangerously-skip-permissions   talk, with the brain's permission checks off until you quit
 claudio setup       the wizard again
 claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
@@ -184,11 +185,11 @@ def forget():
 
 def main():
     args = sys.argv[1:]
-    if not args:
+    if not args or args == ["--dangerously-skip-permissions"]:
         if not config.configured():
             setup()
         from . import agent
-        agent.run()
+        agent.run(skip=bool(args))
     elif args[0] == "setup":
         setup()
     elif args[0] == "install":

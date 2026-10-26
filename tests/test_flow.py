@@ -4,7 +4,7 @@ import os, re, subprocess, sys
 
 import pytest
 
-SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana")
+SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-no", "voice-banana", "skip")
 
 
 @pytest.fixture(scope="module")
@@ -81,3 +81,12 @@ def test_an_unknown_voice_lists_them_on_screen_and_saves_nothing(runs):
     assert said[-1] == "SAY 'Banana is not recognised as a voice. The voices are as follows:\\n'"
     assert "- zeus" in lines[first(lines, "BLOCK")]
     assert not (home / "config.json").exists()
+
+
+def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
+    lines, home = runs["skip"]
+    starts = [line for line in lines if line.startswith("START")]
+    assert starts == ["START checks on", "START no permission checks", "START checks on"]
+    asked, said_yes = first(lines, "SAY 'Skip every permission check"), first(lines, "YOU 'yes'")
+    assert asked < said_yes < lines.index("START no permission checks")
+    assert not (home / "config.json").exists()           # never saved

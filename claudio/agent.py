@@ -68,7 +68,7 @@ def clear_audio():
     audio["marks"].clear()
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
-          "level": 0, "latency": None}
+          "level": 0, "latency": None, "skip": False}   # skip: no permission checks, this run only, never saved
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n"
@@ -81,8 +81,11 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/status` says the settings.\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
+              "- `/permissions skip` or `ask`: no checks until you quit, or checks again.\n"
               "- `/help` says this list.")
-COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours"}
+COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours",
+            "permissions"}
+SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
     "plain": "",
     "brief": "\n\nSTYLE OVERRIDE, brief: this replaces every rule above about length and format. Speak one sentence "
@@ -148,7 +151,8 @@ def state_text():
 def refresh():
     if status["live"]:
         bar = BARS[min(7, int(status["level"] / 1200))]       # ~0 to 8400 peak over the eight bars
-        status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]")
+        status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]"
+                              + ("  [bold red]· no permission checks[/]" if status["skip"] else ""))
         status["live"].renderable.frames = MUTED if status["muted"] else SPIN     # muted: a still square, no spin
 
 
@@ -183,7 +187,10 @@ def system_prompt():
                f"gh ... -R {owner}/<name>.\n" if owner else "")
             + (f"- The voice is {cfg['mouth']}: local_voice, local_speed and local_model do nothing, and it has no speed "
                "setting. Say so rather than suggest them.\n" if cfg["mouth"] != "local" else "")
-            + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no.")
+            + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
+            + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
+               "work to sessions, and run nothing that deletes, overwrites or pushes without the user's plain yes."
+               if status["skip"] else ""))
 
 
 def remembered_session():
@@ -218,6 +225,7 @@ class Brain:
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose", "--setting-sources", "",
             "--strict-mcp-config",            # never the desktop's MCP servers: only those in mcp.json, if any
+            *(["--dangerously-skip-permissions"] if status["skip"] else []),   # the user's choice, this run only
             "--disable-slash-commands",       # nor its skills and /commands: the brain took them for claudio's
             *(["--mcp-config", config.MCP] if mcp else []),
             "--append-system-prompt", system_prompt(),
@@ -840,7 +848,8 @@ async def main():
                                    else f"local {cfg['local_voice']}" if cfg["mouth"] == "local"
                                    else ui.short_voice(cfg["voice"])),
                          "echo cancel": "on" if aec else "off",
-                         "memory": "on" if remembered_session() else "fresh"},
+                         "memory": "on" if remembered_session() else "fresh",
+                         **({"permissions": "SKIPPED"} if status["skip"] else {})},
                   hints="Enter cuts · Ctrl-C quits · claudio setup")
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
@@ -952,6 +961,9 @@ async def main():
             pending["rule"] = None
             if words[0] in NO:
                 return f"not allowed: {rule}"
+            if rule == SKIP:
+                asyncio.create_task(skipping(True))
+                return "no permission checks until you quit"
             config.allow(rule)                 # watch_config sees it, restarts the brain, then retries
             pending["retry"] = pending["text"]
             return f"allowed {rule}"
@@ -959,6 +971,13 @@ async def main():
         if pending["left"] < 0:
             pending["rule"] = None
         return None
+
+    async def skipping(on):
+        """Permission checks off (a yes to /permissions skip) or on again: a brain that has them, same memory."""
+        status["skip"] = on
+        await brain.restart()
+        start("Permission checks are off until you quit." if on else "Permission checks are back on.",
+              committed=True, fixed=True)
 
     def set_mute(on):
         status["muted"] = on
@@ -1024,6 +1043,16 @@ async def main():
             on = said in config.TRUE if said else not cfg["code_colors"]
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
+        elif cmd == "permissions" and any(w in arg.split() for w in ("skip", "off", "dangerously")):
+            pending.update(rule=SKIP, text="", left=0)   # only a yes right after this turns them off
+            start("Skip every permission check until you quit? The brain could then run anything, unasked. "
+                  "Say yes or no.", committed=True, fixed=True)
+        elif cmd == "permissions":
+            if status["skip"]:
+                asyncio.create_task(skipping(False))
+            else:
+                start("Permission checks are on. Say slash permissions skip to turn them off until you quit.",
+                      committed=True, fixed=True)
         elif cmd == "status":
             start(f"Status:\n- Orchestrator {cfg['orchestrator'] or 'none'}.\n- Brain {cfg['model']} at {cfg['effort']} effort.\n"
                   f"- Voice {ui.short_voice(cfg['voice'])}.\n- Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
@@ -1443,6 +1472,7 @@ async def main():
         ui.note("bye")
 
 
-def run():
+def run(skip=False):
+    status["skip"] = skip                      # claudio --dangerously-skip-permissions
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())

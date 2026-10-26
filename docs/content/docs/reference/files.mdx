@@ -58,6 +58,8 @@ When it's a folder outside the one you started in that was refused, claudio asks
 
 The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
+To drop every check instead, for this run only, start `claudio --dangerously-skip-permissions` or say “slash permissions skip” and then yes. The brain can then run anything without asking; it is still told to hand work to sessions and to get your yes before deleting, overwriting or pushing.
+
 ### Allow more
 
 Put one [Claude Code permission rule](https://code.claude.com/docs/en/settings#permission-settings) per line in `~/.config/claudio/allow`. Blank lines and `#` comments are skipped:

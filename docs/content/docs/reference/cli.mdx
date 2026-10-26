@@ -15,6 +15,10 @@ Starts talking. If there is no `config.json` yet, it runs setup first. The direc
 
 Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to quit.
 
+## `claudio --dangerously-skip-permissions`
+
+Starts talking with the brain's permission checks off until you quit: it can run any command and reach any folder without asking, as `claude --dangerously-skip-permissions` does. The banner shows `permissions SKIPPED` and the state line `· no permission checks`. It is never saved; the next plain `claudio` has the checks back. To switch mid-session instead, say “slash permissions skip”.
+
 ## `claudio setup`
 
 Runs the first-run wizard again. Each question offers your current value, so <kbd>Enter</kbd> keeps it. In order, it:
