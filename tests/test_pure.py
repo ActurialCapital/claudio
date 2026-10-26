@@ -9,7 +9,8 @@ sys.modules["websockets.exceptions"].WebSocketException = Exception
 sys.modules["websockets"].ConnectionClosed = Exception
 
 from claudio import config
-from claudio.agent import SENTENCE, backchannel, norm, parse_slash
+from claudio.agent import SENTENCE, backchannel, norm, parse_slash, shown_block
+from claudio.ui import spoken
 from claudio.config import parse_surfaces
 
 
@@ -50,7 +51,24 @@ def test_parse_slash_skips_filler_takes_bare_styles_and_fixes_misheard_ones():
     assert parse_slash("okay so slash mute") == ("mute", "")
     assert parse_slash("add a slash command") is None
     assert parse_slash("slash slash mute") == ("mute", "")
+    assert parse_slash("yeah slash stop") == ("stop", "")
     assert parse_slash("type slash help in the session") is None
+
+
+def test_shown_block_takes_a_whole_table_or_fence_and_waits_while_unsure():
+    table = "| a | b |\n|---|---|\n| 1 | 2 |\n"
+    assert shown_block(table + "Kokoro wins.") == len(table)
+    assert shown_block("| a | b |\n|---") is None                 # more rows may come
+    assert shown_block("| a |", final=True) == 5
+    fence = "```py\nx = 1\n```\n"
+    assert shown_block(fence + "That sets x.") == len(fence)
+    assert shown_block("```py\nx = 1") is None
+    assert shown_block("``") is None and shown_block("Hello") == 0
+
+
+def test_spoken_drops_bullets_and_markup():
+    assert spoken("- Use **Kokoro** with `claudio set` and *care*.") == "Use Kokoro with claudio set and care."
+    assert spoken("2 * 3 * 4 is 24.") == "2 * 3 * 4 is 24."
 
 
 def test_backchannel_is_short_or_only_filler():

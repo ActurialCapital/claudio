@@ -15,7 +15,8 @@ claudio copies it from the package the first time it runs. After that the file i
 
 Know these rules before you edit, since the rest of claudio relies on some of them:
 
-- **Write for the ear**: two to five short, plain sentences, with no Markdown, lists, code, paths or URLs, since every word is spoken
+- **Write for the ear**: two to five short, plain sentences, no paths or URLs, since every sentence is spoken
+- **Let the screen carry more when the shape fits**: bullets for three or more parallel things (each read aloud), a Markdown table for a comparison on two or more factors and a fenced block for code (both shown, never read, with a spoken line on what they show), **bold** and `backticks` for key words and names
 - **Lead with the answer**: end with a question only when the next step is your call
 - **Say the next step before a tool call**, in two to five words, so you hear something while it runs: “Checking the roadmap.”
 - **Discuss or hand over**: answer questions itself, hand work to a session, and never do the work itself
@@ -35,7 +36,7 @@ Two placeholders in the file are replaced each time the brain starts:
 | Placeholder | Becomes |
 |---|---|
 | `{TRANSCRIPTS}` | the transcripts directory, `~/.config/claudio/transcripts` |
-| `{KEYS}` | the names of the settings, without the API keys |
+| `{KEYS}` | the names of the settings, each with its choices where it has a fixed set, without the API keys |
 
 claudio also adds text you do not need to write:
 

@@ -12,13 +12,28 @@ from . import config, ui
 from .ui import console
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
 SENTENCE = re.compile(r"[.!?]['\")]?\s|\n")   # a newline ends one too: list items often have no full stop
+def shown_block(buf, final=False):
+    """Length of the table or code fence that buf starts with, once it is complete; 0 when buf starts no such block;
+    None while it can't tell yet. These are shown, never spoken."""
+    if not buf or (not final and len(buf) < 3 and "```".startswith(buf)):
+        return None if not final else 0
+    if buf.startswith("```"):
+        close = buf.find("\n```", 3)
+        end = buf.find("\n", close + 4) if close >= 0 else -1
+        return end + 1 if end >= 0 else (len(buf) if final else None)
+    if buf.startswith("|"):
+        m = re.search(r"\n[^|]", buf)
+        return m.start() + 1 if m else (len(buf) if final else None)
+    return 0
+
+
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
 current = {"task": None, "text": "", "commit": None, "ctl": None}   # the reply that holds the mouth, set by reply()
 out = bytearray()             # audio waiting for the speaker
-audio = {"fed": 0, "played": 0, "marks": []}   # bytes in and out of `out`, and (offset, sentences, k, shown) still to show
+audio = {"fed": 0, "played": 0, "marks": []}   # bytes in and out of `out`, and (offset, sentences, k, shown, secs) still to show
 
 
 def feed(m):
@@ -62,7 +77,7 @@ STYLES = {
                "Facts, names and numbers stay exact. Example: \"Next: Sales. File fields still open. Main clean. "
                "Want Sales started?\" Never a full polite sentence.",
 }
-LEAD = "|".join(["um", "uh", "ok", "okay", "so", "hey", "and", "well", "please", "slash", *COMMANDS])   # what may come before "slash"
+LEAD = "|".join(["um", "uh", "ok", "okay", "so", "hey", "and", "well", "please", "yeah", "right", "now", "slash", *COMMANDS])   # what may come before "slash"
 SLASH = re.compile(rf"^(?:(?:{LEAD})\s+){{0,2}}slash\s+(\w+)\s*(.*)$")   # "um slash mute", an echoed "mute slash mute"; not "add a slash command"
 
 
@@ -529,7 +544,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
             if i >= len(sentences):
                 break
             try:
-                await mouth.say(ui.BULLET.sub("", sentences[i][0]))
+                said = ui.spoken(sentences[i][0])
+                if not said.strip():           # only blocks to show, at the very end: nothing for the mouth
+                    i += 1
+                    continue
+                await mouth.say(said)
             except (websockets.ConnectionClosed, OSError):      # the socket dropped mid-reply: one new mouth, carry on
                 player.cancel()
                 mouth = await open_mouth()
@@ -566,8 +585,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
 def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
-        text, first_of_block = sentences[k]
-        ui.me_line(text.strip(), first_of_block, live=bool(status["live"]), secs=secs)
+        text, first_of_block, blocks = sentences[k]
+        for b in blocks:
+            ui.block(b)
+        if text:
+            ui.me_line(text, first_of_block, live=bool(status["live"]), secs=secs)
 
 
 async def reply(text, commit, ctl, fixed=False, handle=None):
@@ -581,32 +603,52 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
         sentences, new, gen_done, shown = [], asyncio.Event(), asyncio.Event(), set()
 
         async def generate():
-            buf, first = "", True
+            buf, first, bol, pre = "", True, True, []    # bol: buf starts a line; pre: blocks shown before the next sentence
 
             def emit(sentence):
-                nonlocal first
-                if not sentence.strip():       # a blank line between list items
+                nonlocal first, bol
+                bol = sentence.endswith("\n")
+                if not ui.spoken(sentence).strip():   # a blank line, or markup alone: nothing to say
                     return
-                sentences.append((sentence, first))
+                sentences.append((sentence, first, pre[:]))
+                pre.clear()
                 new.set()
                 first = False
+
+            def split(final=False):
+                nonlocal buf, bol
+                while True:
+                    n = shown_block(buf, final) if bol else 0
+                    if n is None:
+                        return                 # maybe a table or a fence: wait for more
+                    if n:
+                        pre.append(buf[:n])
+                        buf, bol = buf[n:], True
+                        continue
+                    m = SENTENCE.search(buf)
+                    if not m:
+                        break
+                    emit(buf[:m.end()])
+                    buf = buf[m.end():]
+                if final and buf.strip():
+                    emit(buf)
+                    buf = ""
             try:
                 if fixed:
                     for line in text.split("\n"):    # a list: one line, one sentence, each its own bullet
-                        emit(line)
+                        emit(line + "\n")
                     return
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
-                        if buf.strip():
-                            emit(buf)
-                        buf, first = "", True
+                        split(final=True)
+                        buf, first, bol = "", True, True
                         continue
                     buf += d
-                    while m := SENTENCE.search(buf):
-                        emit(buf[:m.end()])
-                        buf = buf[m.end():]
-                if buf.strip():
-                    emit(buf)
+                    split()
+                split(final=True)
+                if pre:                        # a block with nothing said after it: shown when the reply ends
+                    sentences.append(("", first, pre[:]))
+                    new.set()
             finally:
                 gen_done.set()
                 new.set()
@@ -818,7 +860,8 @@ async def main():
             config.set_key("style", arg)
             brain.changed.set()
         elif cmd == "style":
-            start(f"I don't know style {arg}. Choose {', '.join(STYLES)}.", committed=True, fixed=True)
+            said = f"I don't know style {arg}. " if arg else "Style is "     # "slash style" alone: just the choices
+            start(f"{said}{', '.join(STYLES)}.", committed=True, fixed=True)
         elif cmd in ("model", "effort", "voice") and arg:
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):
@@ -1069,6 +1112,7 @@ async def main():
         while True:
             await asyncio.sleep(0.25)
             refresh()
+            ui.settle()                    # a long block's spoken lines go to the transcript as it grows
 
     async def shower():                    # the plain audio path: sentences show as the callback thread plays them
         while True:

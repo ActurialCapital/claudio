@@ -3,6 +3,9 @@ import datetime, os, re, time
 from rich.console import Console, Group, RenderHook
 from rich.constrain import Constrain
 from rich.control import Control
+from rich.markdown import Markdown
+from rich.padding import Padding
+from rich.segment import Segment, Segments
 from rich.table import Table
 from rich.text import Text
 from . import config
@@ -99,9 +102,36 @@ def you(text, tentative=False):
 CHARS_PER_SEC = 15              # the pace while a sentence's audio is still arriving; after that its real length is used
 FADE = 0.35                     # seconds for one word to go from dim to full
 SHADES = ["grey30", "grey50", "grey70", ""]
+LIVE_LINES = 4                  # a long block keeps only its last lines live; the spoken lines above go to the transcript
 fading = []                     # claudio's blocks still fading in, drawn above the status line until they settle
 BULLET = re.compile(r"^\s*[-*•]\s+")   # a list item from the brain: "- Silero starts turns"
+INLINE = re.compile(r"\*\*(.+?)\*\*|`([^`]+)`|(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*")   # **bold**, `code`, *italic*
+INLINE_STYLE = ("bold", "cyan", "italic")
 settling = {"now": False}       # settle() is printing: the hook must not flush the blocks still fading
+
+
+def spoken(text):
+    """What the voice says: the sentence without its bullet or markup."""
+    return INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), BULLET.sub("", text))
+
+
+def styled(text):
+    """The sentence as shown: markup turned into style."""
+    t, at = Text(), 0
+    for m in INLINE.finditer(text):
+        t.append(text[at:m.start()])
+        n = next(i for i, g in enumerate(m.groups()) if g is not None)
+        t.append(m.group(n + 1), style=INLINE_STYLE[n])
+        at = m.end()
+    t.append(text[at:])
+    return t
+
+
+def segments(lines):
+    out = []
+    for line in lines:
+        out += [*line, Segment.line()]
+    return Segments(out)
 
 
 def hang(head, body):
@@ -117,8 +147,9 @@ class Fade:
     """One block of claudio's: its sentences run on as one paragraph, words appear in time with the voice, each dim to full."""
     def __init__(self, first):
         self.head = Text("◆ ", style="bold #2dd4bf") if first else Text("  ")
-        self.words = []          # (word, share of its sentence's audio before it, sentence); "\n" breaks the line
-        self.listing = False
+        self.words = []          # (word as Text, share of its sentence's audio before it, sentence); "\n" breaks the line
+        self.listing, self.bol = False, True     # in a list; the last sentence ended its line
+        self.printed = 0         # lines already in the transcript (settle)
 
     def add(self, sentence, secs=None):
         """secs(): the sentence's audio length once all of it has arrived, else None (the pace estimate stands in)."""
@@ -127,12 +158,16 @@ class Fade:
             part["end"] = min(part["end"] or now, now)
         part = {"t0": now, "secs": secs or (lambda: None), "est": max(0.3, len(sentence) / CHARS_PER_SEC), "end": None}
         bullet = BULLET.match(sentence)
-        words = sentence[bullet.end():].split() if bullet else sentence.split()
-        if bullet or self.listing:           # a list item, or the first sentence after a list: a line of its own
+        if bullet or (self.listing and self.bol):   # a list item, or the first line after a list: a line of its own
             self.words.append(("\n", 0, part))
         if bullet:
-            self.words.append(("•", 0, part))
-        self.listing = bool(bullet)
+            self.words.append((Text("•"), 0, part))
+            self.listing = True
+        elif self.bol:
+            self.listing = False                    # a new line that is no item: the list is over
+        self.bol = sentence.endswith("\n")         # a second sentence on an item's line stays in that item
+        t = styled(sentence[bullet.end():] if bullet else sentence)
+        words = [t[m.start():m.end()] for m in re.finditer(r"\S+", t.plain)]
         total, before = sum(len(w) + 1 for w in words) or 1, 0
         for w in words:                      # a long word takes longer to say: spread by characters, not word count
             self.words.append((w, before / total, part))
@@ -156,8 +191,12 @@ class Fade:
                 if line:
                     line.append("\n")
                 continue
-            shade = "" if final else SHADES[min(len(SHADES) - 1, int((now - at) / FADE * len(SHADES)))]
-            line.append((" " if line and not line.plain.endswith("\n") else "") + w, style=shade)
+            if line and not line.plain.endswith("\n"):
+                line.append(" ")
+            w = w.copy()
+            if not final:
+                w.stylize(SHADES[min(len(SHADES) - 1, int((now - at) / FADE * len(SHADES)))])
+            line.append_text(w)
         return line
 
     def render(self, final=False):
@@ -170,8 +209,15 @@ class Fade:
             grid.add_row(self.head if i == 0 else "", line)
         return Constrain(grid, width())
 
+    def lines(self, final=False):
+        return console.render_lines(self.render(final), console.options, pad=False)
+
+    def rest(self, final=False):
+        """What isn't in the transcript yet."""
+        return segments(self.lines(final)[self.printed:])
+
     def __rich__(self):
-        return self.render()
+        return self.rest()
 
 
 class _Settle(RenderHook):
@@ -182,15 +228,22 @@ class _Settle(RenderHook):
             return renderables
         done = []
         while fading:                       # pop, not clear: a sentence added meanwhile from another thread isn't lost
-            done.append(fading.pop(0).render(final=True))
+            done.append(fading.pop(0).rest(final=True))
         return done + renderables
 
 
 def settle():
-    """Blocks that have finished fading go into the transcript, so a long reply can't outgrow the live area."""
+    """Finished blocks go into the transcript, and so do the spoken lines of a long one, so the live area stays short.
+    Wrapping is greedy, so a line above the last never changes once the next has begun."""
     done = []
     while len(fading) > 1 and fading[0].done():     # the newest stays: the next sentence may still join it
-        done.append(fading.pop(0).render(final=True))
+        done.append(fading.pop(0).rest(final=True))
+    if fading:
+        f = fading[-1]
+        n = len(f.lines()) - LIVE_LINES
+        if n > f.printed:
+            done.append(segments(f.lines(final=True)[f.printed:n]))
+            f.printed = n
     if done:
         settling["now"] = True
         try:
@@ -214,8 +267,9 @@ class _Above:
 
 
 def me_line(sentence, first, live=False, secs=None):
-    """One sentence of claudio's. A new block opens with the glyph; the rest of a block joins its paragraph.
-    Live, it fades in word by word over its audio (secs, see Fade.add); otherwise it prints whole on its own line."""
+    """One sentence of claudio's, as the brain wrote it (a trailing newline ends its line). A new block opens with the
+    glyph; the rest of a block joins its paragraph. Live, it fades in word by word over its audio (secs, see Fade.add);
+    otherwise it prints whole on its own line."""
     if live:
         if first or not fading:
             fading.append(Fade(first))
@@ -225,7 +279,19 @@ def me_line(sentence, first, live=False, secs=None):
         f = Fade(first)
         f.add(sentence)
         console.print(f.render(final=True))
-    log(("◆ " if first else "  ") + sentence)
+    log(("◆ " if first else "  ") + sentence.strip())
+
+
+def block(md):
+    """A table or code block from the brain: shown whole, in place, never spoken."""
+    lines = console.render_lines(Constrain(Padding(Markdown(md.strip()), (0, 0, 0, 2)), width()), console.options, pad=False)
+    blank = lambda line: not "".join(seg.text for seg in line).strip()
+    while lines and blank(lines[0]):                 # a table's box leaves empty rows around it
+        lines.pop(0)
+    while lines and blank(lines[-1]):
+        lines.pop()
+    console.print(segments(lines))
+    log(md.rstrip())
 
 
 KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose"}

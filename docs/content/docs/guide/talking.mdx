@@ -12,7 +12,14 @@ The brain sorts each turn into one of two kinds:
 - **Discussing**: you're thinking out loud, asking what something is, or weighing options. The brain answers itself, briefly, reading the project's files when it needs facts
 - **Doing**: you want work done in the code, the repo or the plan. The brain hands it to a session and says in one sentence what it handed over and to whom. It never does the work itself
 
-Replies are written for the ear: two to five short sentences, no code, no paths spelled out. Three or more parallel things come as a bulleted list on screen, spoken item by item. The [persona](/docs/configure/persona) sets these rules, and you can edit it.
+Replies are written for the ear: two to five short sentences, no paths spelled out. When the shape fits, the screen carries more than the voice:
+
+- **Three or more parallel things** come as bullets, each item read aloud
+- **A comparison on two or more factors** comes as a table, shown and not read; claudio says what it compares, then its take
+- **Code** comes as a highlighted block, shown and not read; up to 10 lines claudio explains it, longer it says what it is
+- **Bold** marks the word that matters and `code` a name you may type; the voice says them plainly
+
+Casual talk stays plain sentences. The [persona](/docs/configure/persona) sets these rules, and you can edit it.
 
 ## When your turn ends
 
@@ -45,7 +52,7 @@ With `barge_in` off, the mic sends silence to the ears while claudio answers, fr
 
 ## Say a command
 
-Say "slash" and a command. Up to two words before "slash" are fine ("um, slash mute"). Anything earlier in the sentence doesn't count, so "add a slash command" isn't a command.
+Say "slash" and a command. Up to two filler words before "slash" are fine ("um, slash mute", "okay so, slash stop"). Any other word before it makes it ordinary speech, so "add a slash command" goes to the brain.
 
 | Say | What happens |
 |---|---|
