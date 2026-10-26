@@ -23,7 +23,7 @@ It doesn't read your terminal aloud. A separate brain listens to you, decides wh
 claudio has three parts of its own, and it works with the Claude Code sessions you already run:
 
 - **Ears**: Deepgram Flux turns your speech into text as you talk and decides when your turn has ended
-- **Brain**: one long-lived `claude -p` process with a short [persona](/docs/configure/persona). It answers questions itself and hands work to a session, never doing the work itself
+- **Brain**: one long-lived `claude` process, driven through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), with a short [persona](/docs/configure/persona). It answers questions itself and hands work to a session, never doing the work itself
 - **Mouth**: Deepgram Aura or ElevenLabs speaks the brain's reply one sentence at a time
 - **Your sessions**: ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox, and they report back through three Claude Code hooks
 

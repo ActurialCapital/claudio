@@ -97,7 +97,7 @@ flowchart LR
 flowchart LR
     mic["🎙️ mic"] --> aec["Apple voice-processing unit<br/><sub>echo cancellation: talk over it on speakers</sub>"]
     aec --> flux["Deepgram Flux<br/><sub>streaming STT · eager end of turn</sub>"]
-    flux --> cp["claude -p<br/><sub>stream-json · one process · remembers</sub>"]
+    flux --> cp["Claude Agent SDK<br/><sub>one claude process · remembers</sub>"]
     cp --> aura["Deepgram Aura<br/><sub>streaming TTS · per sentence</sub>"]
     aura --> aec
     hooks["🪝 Stop · Notification · AskUserQuestion"] -->|unix socket| cp

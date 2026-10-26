@@ -1,9 +1,10 @@
 """Run the real claudio.agent.main() for one scenario, with fakes only at the edges: Flux's socket, the brain's
-`claude -p` process, the mouth, the sound devices. Prints what claudio did, one line per thing, with the time.
+`claude` process, the mouth, the sound devices. Prints what claudio did, one line per thing, with the time.
 Usage: XDG_CONFIG_HOME=<a temp dir> python tests/flow.py <scenario>      (test_flow.py runs them all)"""
 import asyncio, json, os, signal, sys, tempfile, time
 
 from claudio import agent, config, ui
+from claude_agent_sdk import Transport
 import websockets.exceptions, websockets.asyncio.client   # what the real connect() would have imported
 
 SC = sys.argv[1]
@@ -64,7 +65,7 @@ class FakeOut(FakeIn):
 agent.sd.RawInputStream, agent.sd.RawOutputStream = FakeIn, FakeOut
 
 
-# ---- the brain: a fake `claude -p` under the real Brain.turn, send and interrupt
+# ---- the brain: a fake CLI under the real SDK client and Brain.turn, query and interrupt
 REPLIES = {
     "markdown": "Here is how the three compare:\n\n| Engine | Speed | License |\n|---|---|---|\n| Kokoro | fast | Apache |\n"
                 "| Piper | faster | MIT |\n\n**Kokoro** wins on quality. Two things to try:\n- Run `claudio set mouth local`. "
@@ -76,23 +77,21 @@ REPLIES = {
 INTERRUPT = 1.5            # how long a cut brain takes to drain to its result
 
 
-class FakeStdin:
-    def __init__(self, proc): self.proc = proc
-
-    def write(self, b):
-        for line in b.decode().splitlines():
-            self.proc.got(json.loads(line))
-
-    async def drain(self): pass
+def ok(req):
+    return {"type": "control_response", "response": {"subtype": "success", "request_id": req["request_id"], "response": {}}}
 
 
 class FakeProc:
+    """The CLI's side of the stream-json protocol: control requests answered, a scripted reply per user line."""
     def __init__(self):
-        self.stdout, self.stdin = asyncio.StreamReader(), FakeStdin(self)
-        self.returncode, self.gen, self.dead = None, None, asyncio.Event()
+        self.stdout, self.gen = asyncio.StreamReader(), None
 
     def emit(self, obj):
-        self.stdout.feed_data((json.dumps(obj) + "\n").encode())
+        self.stdout.feed_data((json.dumps({"session_id": "s", "uuid": "u", **obj}) + "\n").encode())
+
+    def result(self, **k):
+        self.emit({"type": "result", "subtype": "success", "duration_ms": 1, "duration_api_ms": 1,
+                   "is_error": False, "num_turns": 1, **k})
 
     def got(self, msg):
         if msg["type"] == "user":
@@ -100,14 +99,16 @@ class FakeProc:
             log("BRAIN", repr(text[:60]))
             self.gen = asyncio.get_running_loop().create_task(self.answer(text))
         elif msg["type"] == "control_request":
-            if self.gen:
-                self.gen.cancel()
-            asyncio.get_running_loop().call_later(INTERRUPT, lambda: self.emit({"type": "result"}))
+            self.emit(ok(msg))
+            if msg["request"]["subtype"] == "interrupt":
+                if self.gen:
+                    self.gen.cancel()
+                asyncio.get_running_loop().call_later(INTERRUPT, self.result)
 
     async def answer(self, text):
         await asyncio.sleep(0.3)
         if SC == "handoff-new" and "fix the login" in text:    # hand it over by surface id, as the persona says
-            self.emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {
+            self.emit({"type": "assistant", "message": {"model": "m", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {
                 "command": f'cmux agent message {NEW} --from Voice "[spoken by the user, transcribed by claudio] fix the login"'}}]}})
         words = REPLIES.get(SC, "It is noon. Have a nice day.")
         for i in range(0, len(words), 4):        # in 4-character pieces: a block or a style split anywhere
@@ -116,21 +117,24 @@ class FakeProc:
             await asyncio.sleep(0.01)
         self.emit({"type": "stream_event", "event": {"type": "content_block_stop"}})
         refused = SC.startswith("allow") and "open a PR" in text and not os.path.exists(config.ALLOW)
-        self.emit({"type": "result", **({"permission_denials": [{"tool_name": "Bash", "tool_input": {
-            "command": "gh pr create --title x"}}]} if refused else {})})
-
-    async def wait(self):
-        await self.dead.wait()
-
-    def terminate(self):
-        self.returncode = 0
-        self.dead.set()
+        self.result(**({"permission_denials": [{"tool_name": "Bash", "tool_input": {
+            "command": "gh pr create --title x"}}]} if refused else {}))
 
 
-async def fake_start(self=agent.brain):
-    log("START", "no permission checks" if agent.status["skip"] else "checks on")
-    self.proc, self.resumed, self.started_at = FakeProc(), False, time.monotonic()
-agent.brain.start = fake_start
+class FakeTransport(Transport):
+    """The SDK's own client and protocol, over a FakeProc instead of a `claude` process."""
+    def __init__(self): self.proc = FakeProc()
+    async def connect(self): log("START", "no permission checks" if agent.status["skip"] else "checks on")
+    async def write(self, data):
+        for line in data.splitlines():
+            self.proc.got(json.loads(line))
+    async def read_messages(self):
+        while line := await self.proc.stdout.readline():
+            yield json.loads(line)
+    async def close(self): self.proc.stdout.feed_eof()
+    def is_ready(self): return True
+    async def end_input(self): pass
+agent.brain.transport = FakeTransport
 
 
 # ---- the mouth: a second of audio per sentence, or unreachable

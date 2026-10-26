@@ -31,7 +31,7 @@ claudio also uses these paths:
 
 ## What the brain may do
 
-The brain is one `claude -p` process, started in the directory you ran claudio from. It loads no Claude Code settings files, so the permissions, hooks and environment in your `settings.json` files do not apply to it. It does read `CLAUDE.md` files, both the project's and your own, like any Claude Code session. It may use only:
+The brain is one `claude` process, run through the Claude Agent SDK and started in the directory you ran claudio from. It loads no Claude Code settings files, so the permissions, hooks and environment in your `settings.json` files do not apply to it. It does read `CLAUDE.md` files, both the project's and your own, like any Claude Code session. It may use only:
 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch`

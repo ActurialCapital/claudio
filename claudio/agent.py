@@ -7,6 +7,9 @@ session, so it remembers), the mouth retries once. An interruption first pauses 
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
 import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, threading, time
 import sounddevice as sd, websockets
+os.environ.setdefault("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")   # it would run `claude -v` before every start
+from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, ResultMessage,
+                              StreamEvent, SystemMessage, TextBlock, ToolUseBlock)
 from rich.spinner import SPINNERS
 from . import config, ui
 from .ui import console
@@ -234,89 +237,114 @@ def remembered_session():
 
 
 class Brain:
-    """One claude process. A turn is a user line on stdin; its text deltas stream back."""
+    """One claude process, through the Agent SDK. A turn is a user line; its text deltas stream back."""
     def __init__(self):
-        self.proc, self.session_id, self.busy = None, None, False
+        self.client, self.session_id, self.busy = None, None, False
+        self.inbox, self.dead = asyncio.Queue(), asyncio.Event()   # what the CLI sends; set when it is gone
         self.lock = asyncio.Lock()
         self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it
         self.on_denied = None          # (denials, the turn's text): a tool use the allow-list refused
         self.changed = asyncio.Event() # set when it ran `claudio set`, so the watcher reloads at once
         self.expected_exit = False     # a restart on purpose, not a death
+        self.transport = None          # tests: a factory for a fake CLI
+        self.log = None
 
-    async def start(self):
+    def options(self, resume):
         me = os.path.dirname(os.path.abspath(sys.argv[0]))      # so the brain can run `claudio set`
-        env = {k: v for k, v in os.environ.items() if k.lower() not in config.SECRETS}   # the brain never needs the keys
+        env = {k: "" for k in os.environ if k.lower() in config.SECRETS}   # the SDK merges os.environ: blank the keys
         env["PATH"] = f"{me}:{os.path.dirname(CMUX)}:{os.environ.get('PATH', '')}"
-        resume = remembered_session()
         mcp = config.mcp_servers()
         notes = [d for d in map(os.path.expanduser, config.NOTES) if os.path.isdir(d)]
-        self.resumed, self.started_at = bool(resume), time.monotonic()
-        self.proc = await asyncio.create_subprocess_exec(
-            "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
-            "--include-partial-messages", "--verbose", "--setting-sources", "",
-            "--strict-mcp-config",            # never the desktop's MCP servers: only those in mcp.json, if any
-            *(["--dangerously-skip-permissions"] if status["skip"] else []),   # the user's choice, this run only
-            "--disable-slash-commands",       # nor its skills and /commands: the brain took them for claudio's
-            *(["--mcp-config", config.MCP] if mcp else []),
-            "--append-system-prompt", system_prompt(),
-            "--disallowedTools", f"Read(//{config.SECRETS_FILE.lstrip('/')})",
-            "--allowedTools", "Read", "Grep", "Glob",
-            "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
-            "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
-            "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
-            "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
-            "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
-            "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
-            "Bash(claudio set:*)",
-            *(f"mcp__{name}" for name in mcp),
-            "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(test:*)",   # looking things up; opening a link or a note
-            *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt")),   # notes only
-            *(r for r in config.allowed() if not r.startswith(("/", "~"))),   # the user's own: ~/.config/claudio/allow
-            *(["--add-dir", *notes, *config.allowed_dirs()] if notes or config.allowed_dirs() else []),   # and folders
-            *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
-            *(["--effort", cfg["effort"]] if cfg["effort"] else []),
-            *(["--resume", resume] if resume else []),
-            env=env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=open(os.path.join(config.DIR, "brain.log"), "ab"),
-            limit=16 * 1024 * 1024)            # a Read of a big file is one stream-json line; the default 64 KiB hangs the turn
-        if resume:
-            await asyncio.sleep(1.5)
-            if self.proc.returncode is not None:      # that session is gone: forget it and start fresh
-                os.unlink(SESSION)
-                await self.start()
+        self.log = self.log or open(os.path.join(config.DIR, "brain.log"), "a")
+        return ClaudeAgentOptions(
+            cli_path=shutil.which("claude") or "claude",
+            system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt()},
+            setting_sources=[],
+            strict_mcp_config=True,           # never the desktop's MCP servers: only those in mcp.json, if any
+            mcp_servers=config.MCP if mcp else {},
+            extra_args={"disable-slash-commands": None,      # nor its skills and /commands: the brain took them for claudio's
+                        **({"dangerously-skip-permissions": None} if status["skip"] else {})},   # the user's choice, this run only
+            disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})"],
+            allowed_tools=[
+                "Read", "Grep", "Glob",
+                "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
+                "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
+                "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
+                "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
+                "Bash(cmux new-workspace:*)", "Bash(cmux new-split:*)", "Bash(cmux new-surface:*)",
+                "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
+                "Bash(claudio set:*)",
+                *(f"mcp__{name}" for name in mcp),
+                "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(test:*)",   # looking things up; opening a link or a note
+                *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt")),   # notes only
+                *(r for r in config.allowed() if not r.startswith(("/", "~")))],   # the user's own: ~/.config/claudio/allow
+            add_dirs=[*notes, *config.allowed_dirs()],             # and folders
+            model=None if cfg["model"] == "default" else cfg["model"],
+            effort=cfg["effort"] or None,
+            resume=resume,
+            include_partial_messages=True,
+            env=env,
+            stderr=lambda line: (self.log.write(line + "\n"), self.log.flush()),
+            max_buffer_size=16 * 1024 * 1024)  # a Read of a big file is one message; a small buffer fails the turn
+
+    async def start(self):
+        resume = remembered_session()
+        self.client = ClaudeSDKClient(self.options(resume), transport=self.transport and self.transport())
+        try:
+            await self.client.connect()
+        except Exception:
+            if not resume:
+                raise
+            with contextlib.suppress(OSError):
+                os.unlink(SESSION)             # that session is gone: forget it and start fresh
+            ui.note("the remembered conversation is gone; starting fresh")
+            return await self.start()
+        self.inbox, self.dead = asyncio.Queue(), asyncio.Event()
+        asyncio.create_task(self.read(self.inbox, self.dead))
+
+    async def read(self, inbox, dead):
+        """The one reader: everything the CLI sends, into the inbox; None and `dead` when it ends."""
+        try:
+            async for m in self.client.receive_messages():
+                self.saw(m)
+                inbox.put_nowait(m)
+        except Exception as e:
+            self.log.write(f"reader: {type(e).__name__}: {e}\n")
+        finally:
+            dead.set()
+            inbox.put_nowait(None)
+
+    async def stop(self):
+        with contextlib.suppress(Exception):
+            await self.client.disconnect()
 
     async def restart(self):
         async with self.lock:
             self.expected_exit = True
-            self.proc.terminate()
+            await self.stop()
             await self.start()
             self.expected_exit = False
 
-    async def send(self, obj):
-        self.proc.stdin.write((json.dumps(obj) + "\n").encode())
-        await self.proc.stdin.drain()
-
     async def interrupt(self):
-        if self.busy and self.proc.returncode is None:
-            await self.send({"type": "control_request", "request_id": f"cut-{os.urandom(4).hex()}",
-                             "request": {"subtype": "interrupt"}})
+        if self.busy and not self.dead.is_set():
+            await self.client.interrupt()
 
-    def saw(self, ev):
+    def saw(self, m):
         """Side channel: the brain's own session id, and which sessions it handed work to."""
-        if ev.get("type") == "system" and ev.get("subtype") == "init":
-            self.session_id = ev.get("session_id")
+        if isinstance(m, SystemMessage) and m.subtype == "init":
+            self.session_id = m.data.get("session_id")
             if cfg.get("memory", True):
                 with contextlib.suppress(OSError):
                     open(SESSION, "w").write(f"{self.session_id} {time.time()}")
-        if ev.get("type") == "assistant":
-            for c in ev["message"].get("content", []):
-                if c.get("type") == "tool_use":
-                    ui.tool(c.get("name"), c.get("input", {}))
-                if c.get("type") == "tool_use" and c.get("name") == "Bash":
-                    cmd = c["input"].get("command", "")
-                    if m := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
+        if isinstance(m, AssistantMessage):
+            for c in m.content:
+                if isinstance(c, ToolUseBlock):
+                    ui.tool(c.name, c.input or {})
+                if isinstance(c, ToolUseBlock) and c.name == "Bash":
+                    cmd = c.input.get("command", "")
+                    if m_ := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
                         asked = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
-                        to = m.group(1) or m.group(2)        # a surface id: the workspace it is in, which events carry
+                        to = m_.group(1) or m_.group(2)      # a surface id: the workspace it is in, which events carry
                         to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to.upper())
                         self.handoffs[to] = (time.time(), asked[-1] if asked else "")
                     if "claudio set" in cmd:
@@ -326,20 +354,16 @@ class Brain:
         async with self.lock:
             self.busy = True
             tag = "" if cfg["style"] == "plain" or text.startswith("[event]") else f"({cfg['style']} style) "
-            await self.send({"type": "user", "message": {"role": "user", "content": tag + text}})
+            inbox = self.inbox
+            await self.client.query(tag + text)
             q = asyncio.Queue()
 
             async def pump():
                 spoke, last_text = False, ""
                 try:
-                    while True:
-                        line = await self.proc.stdout.readline()
-                        if not line:
-                            return                     # it died; the watchdog restarts it
-                        ev = json.loads(line)
-                        self.saw(ev)
-                        if ev.get("type") == "stream_event":
-                            e = ev["event"]
+                    while (m := await inbox.get()) is not None:   # None: it died; the watchdog restarts it
+                        if isinstance(m, StreamEvent):
+                            e = m.event
                             if e.get("type") == "content_block_delta" and e["delta"].get("type") == "text_delta":
                                 spoke = True
                                 q.put_nowait(e["delta"]["text"])
@@ -348,12 +372,12 @@ class Brain:
                             elif e.get("type") == "content_block_start" and e["content_block"].get("type") == "tool_use" and not spoke:
                                 spoke = True          # it skipped its lead-in: a word by tool kind, so the tool run is not silence
                                 q.put_nowait("Looking. " if e["content_block"].get("name") in ("Read", "Grep", "Glob") else "Checking. ")
-                        elif ev.get("type") == "assistant":
-                            last_text = " ".join(c.get("text", "") for c in ev["message"].get("content", []) if c.get("type") == "text")
-                        elif ev.get("type") == "result":
-                            if ev.get("permission_denials") and self.on_denied and not text.startswith("[event]"):
-                                self.on_denied(ev["permission_denials"], text)
-                            if ev.get("is_error") and not spoke and last_text:
+                        elif isinstance(m, AssistantMessage):
+                            last_text = " ".join(c.text for c in m.content if isinstance(c, TextBlock))
+                        elif isinstance(m, ResultMessage):
+                            if m.permission_denials and self.on_denied and not text.startswith("[event]"):
+                                self.on_denied(m.permission_denials, text)
+                            if m.is_error and not spoke and last_text:
                                 q.put_nowait(last_text)   # an error with no streamed text (a bad model name): say it
                             return
                 finally:
@@ -897,7 +921,7 @@ async def main():
             showing = asyncio.create_task(shower_typed())
             await reply(typed, ev, new_ctl())
             showing.cancel()
-        return brain.proc.terminate()
+        return await brain.stop()
 
     loop = asyncio.get_running_loop()
     voices = asyncio.create_task(asyncio.to_thread(config.fetch_aura, cfg["deepgram_api_key"]))   # for "slash voice"; kept so it isn't collected
@@ -1196,20 +1220,14 @@ async def main():
 
     async def brain_watch():
         while True:
-            proc = brain.proc
-            await proc.wait()
+            dead = brain.dead
+            await dead.wait()
             await asyncio.sleep(0.1)
-            if brain.expected_exit or brain.proc is not proc:
+            if brain.expected_exit or brain.dead is not dead:
                 continue
-            if brain.resumed and time.monotonic() - brain.started_at < 8:
-                with contextlib.suppress(OSError):
-                    os.unlink(SESSION)             # the remembered session would not resume: start fresh, once
-                ui.note("the remembered conversation is gone; starting fresh")
-                why = "The conversation you were resuming is gone, so you start fresh. Say so in a few words."
-            else:
-                ui.warn("the brain died; restarting it")
-                why = ("You just crashed and were restarted. Say in a few words that you are back, "
-                       "and ask the user to repeat what they said last if they were mid-request.")
+            ui.warn("the brain died; restarting it")
+            why = ("You just crashed and were restarted. Say in a few words that you are back, "
+                   "and ask the user to repeat what they said last if they were mid-request.")
             async with brain.lock:
                 await brain.start()
             start(f"[event] {why}", committed=True, event=True)
@@ -1493,11 +1511,12 @@ async def main():
             with contextlib.suppress(Exception):
                 st.stop(); st.close()          # or the mic callback fires after the loop is gone
         brain.expected_exit = True
-        for proc in (brain.proc, helper_holder["proc"]):
-            if proc and proc.returncode is None:
-                proc.terminate()
-                with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError):
-                    await asyncio.wait_for(proc.wait(), 2)   # before the loop closes, or asyncio complains
+        await brain.stop()
+        proc = helper_holder["proc"]
+        if proc and proc.returncode is None:
+            proc.terminate()
+            with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError):
+                await asyncio.wait_for(proc.wait(), 2)   # before the loop closes, or asyncio complains
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
         console.print()
