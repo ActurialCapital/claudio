@@ -34,6 +34,7 @@ Your CLAUDE.md, yes. Your settings, no.
 - **CLAUDE.md**: the brain reads the CLAUDE.md files that Claude Code loads for the project you run claudio in, like any session. Keep instructions there that you are happy for the voice to follow too.
 - **Settings**: the brain starts with `--setting-sources ""`, so your `settings.json` files do not apply to it: not your permissions, hooks or env. Which tools it may use is set by claudio, plus what you allow in `~/.config/claudio/allow`, and it can't read `~/.config/claudio/secrets.json`.
 - **MCP servers**: none of yours, only those you list in `~/.config/claudio/mcp.json`.
+- **Skills and slash commands**: none. Its prompt lists claudio's own slash commands, so it can tell you about them.
 
 Your sessions use your settings as usual.
 

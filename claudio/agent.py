@@ -72,7 +72,8 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n- clear starts a fresh conversation.\n- model, effort and voice change the brain or the voice.\n"
-              "- style plain, brief or caveman.\n- colors on or off for code.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.")
+              "- style plain, brief or caveman.\n- colors on or off for code.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.\n"
+              "- help says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours"}
 STYLES = {
     "plain": "",
@@ -142,7 +143,10 @@ def system_prompt():
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
                .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
                                             for k in keys)))
+    commands = SLASH_HELP.split("\n", 1)[1]
     return (STYLES.get(cfg["style"], "").strip() + "\n\n" + persona
+            + "\n\nclaudio's own slash commands, the only ones there are here. The user says \"slash\" and the name "
+            + "(or types /name), and claudio runs it before you hear anything; you can't run them:\n" + commands
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\nSessions now:\n"
             + "\n".join(lines))
 
@@ -179,6 +183,7 @@ class Brain:
             "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose", "--setting-sources", "",
             "--strict-mcp-config",            # never the desktop's MCP servers: only those in mcp.json, if any
+            "--disable-slash-commands",       # nor its skills and /commands: the brain took them for claudio's
             *(["--mcp-config", config.MCP] if mcp else []),
             "--append-system-prompt", system_prompt(),
             "--disallowedTools", f"Read(//{config.SECRETS_FILE.lstrip('/')})",

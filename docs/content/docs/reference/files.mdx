@@ -40,7 +40,7 @@ The brain is one `claude -p` process, started in the directory you ran claudio f
 - **claudio set**, to change a setting when you ask
 - **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
 
-It never gets the MCP servers of your own Claude Code setup: a desktop tool that disconnects would otherwise confuse it into thinking it can't check a session. To give it a server, list it in `mcp.json`; saving the file restarts the brain with it:
+It gets none of your Claude Code skills or slash commands, which it would otherwise offer as claudio's; its prompt lists claudio's own. It never gets the MCP servers of your own Claude Code setup either: a desktop tool that disconnects would otherwise confuse it into thinking it can't check a session. To give it a server, list it in `mcp.json`; saving the file restarts the brain with it:
 
 ```json title="~/.config/claudio/mcp.json"
 {"mcpServers": {"notes": {"command": "npx", "args": ["-y", "some-notes-mcp"]}}}
