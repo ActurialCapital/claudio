@@ -31,13 +31,13 @@ def drained(n):
     """n bytes left `out` for the speaker: show every sentence whose audio has now started playing."""
     audio["played"] += n
     while audio["marks"] and audio["marks"][0][0] <= audio["played"]:
-        _, sentences, k, shown = audio["marks"].pop(0)
-        show(sentences, k, shown)
+        _, sentences, k, shown, secs = audio["marks"].pop(0)
+        show(sentences, k, shown, secs)
 
 
-def mark(sentences, k, shown):
+def mark(sentences, k, shown, secs=None):
     """Sentence k's audio starts at the current end of `out`."""
-    audio["marks"].append((audio["fed"], sentences, k, shown))
+    audio["marks"].append((audio["fed"], sentences, k, shown, secs))
 
 
 def clear_audio():
@@ -480,11 +480,16 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
     held = bytearray()
     held_marks = []               # (offset within held, k): sentence starts inside the held audio
     marked = set()
+    sizes = {}                    # k: bytes of sentence k's audio so far, from this mouth
+
+    def secs(k):
+        """Sentence k's audio length, once all of it is in (the next one has started, or the mouth is done)."""
+        return sizes[k] / (OUT_RATE * 2) if k in sizes and (k + 1 in sizes or mouth.done()) else None
 
     def release():
         """Held audio (synthesized before the final transcript) goes to the speaker, marks and all."""
         for off, k in held_marks:
-            audio["marks"].append((audio["fed"] + off, sentences, k, shown))
+            audio["marks"].append((audio["fed"] + off, sentences, k, shown, lambda k=k: secs(k)))
         held_marks.clear()
         feed(bytes(held)); held.clear()
         r = status["reply"]
@@ -493,11 +498,12 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
 
     def on_audio(m):
         k = first + mouth.got
+        sizes[k] = sizes.get(k, 0) + len(m)
         if commit.is_set():
             if held:
                 release()
             if k not in marked:
-                marked.add(k); mark(sentences, k, shown)
+                marked.add(k); mark(sentences, k, shown, lambda k=k: secs(k))
             feed(m)
             r = status["reply"]
             if r and r.get("committed_at") and not r.get("first_word"):
@@ -557,11 +563,11 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         await mouth.close()
 
 
-def show(sentences, k, shown):
+def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block = sentences[k]
-        ui.me_line(text.strip(), first_of_block, live=bool(status["live"]))
+        ui.me_line(text.strip(), first_of_block, live=bool(status["live"]), secs=secs)
 
 
 async def reply(text, commit, ctl, fixed=False, handle=None):

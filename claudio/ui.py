@@ -96,7 +96,7 @@ def you(text, tentative=False):
         log(f"› {text}")
 
 
-CHARS_PER_SEC = 15              # ponytail: a guess at speaking pace, not the audio's own timing; tune if words run ahead
+CHARS_PER_SEC = 15              # the pace while a sentence's audio is still arriving; after that its real length is used
 FADE = 0.35                     # seconds for one word to go from dim to full
 SHADES = ["grey30", "grey50", "grey70", ""]
 fading = []                     # claudio's blocks still fading in, drawn above the status line until they settle
@@ -114,31 +114,42 @@ def hang(head, body):
 
 
 class Fade:
-    """One block of claudio's: its sentences run on as one paragraph, words appear at speaking pace, each dim to full."""
+    """One block of claudio's: its sentences run on as one paragraph, words appear in time with the voice, each dim to full."""
     def __init__(self, first):
         self.head = Text("◆ ", style="bold #2dd4bf") if first else Text("  ")
-        self.words = []          # (word, when it starts to show); "\n" breaks the line
+        self.words = []          # (word, share of its sentence's audio before it, sentence); "\n" breaks the line
         self.listing = False
 
-    def add(self, sentence):
-        at = time.monotonic()    # its audio starts now, so the last sentence's audio is over: show what's left of it
-        self.words = [(w, min(t, at)) for w, t in self.words]
+    def add(self, sentence, secs=None):
+        """secs(): the sentence's audio length once all of it has arrived, else None (the pace estimate stands in)."""
+        now = time.monotonic()
+        for w, frac, part in self.words:    # its audio starts now, so the last sentence's audio is over: show what's left
+            part["end"] = min(part["end"] or now, now)
+        part = {"t0": now, "secs": secs or (lambda: None), "est": max(0.3, len(sentence) / CHARS_PER_SEC), "end": None}
         bullet = BULLET.match(sentence)
         words = sentence[bullet.end():].split() if bullet else sentence.split()
         if bullet or self.listing:           # a list item, or the first sentence after a list: a line of its own
-            self.words.append(("\n", at))
+            self.words.append(("\n", 0, part))
         if bullet:
-            self.words.append(("•", at))
+            self.words.append(("•", 0, part))
         self.listing = bool(bullet)
-        for i, w in enumerate(words):
-            self.words.append((w, at + i * max(0.3, len(sentence) / CHARS_PER_SEC) / len(words)))
+        total, before = sum(len(w) + 1 for w in words) or 1, 0
+        for w in words:                      # a long word takes longer to say: spread by characters, not word count
+            self.words.append((w, before / total, part))
+            before += len(w) + 1
+
+    @staticmethod
+    def at(frac, part):
+        t = part["t0"] + frac * (part["secs"]() or part["est"])
+        return min(t, part["end"]) if part["end"] else t
 
     def done(self):
-        return not self.words or time.monotonic() - self.words[-1][1] > FADE
+        return not self.words or time.monotonic() - self.at(*self.words[-1][1:]) > FADE
 
     def body(self, final=False):
         line, now = Text(), time.monotonic()
-        for w, at in self.words:
+        for w, frac, part in self.words:
+            at = self.at(frac, part)
             if not final and now < at:
                 break
             if w == "\n":
@@ -202,13 +213,13 @@ class _Above:
         return Group(*list(fading), self.status.renderable)
 
 
-def me_line(sentence, first, live=False):
+def me_line(sentence, first, live=False, secs=None):
     """One sentence of claudio's. A new block opens with the glyph; the rest of a block joins its paragraph.
-    Live, it fades in word by word; otherwise it prints whole on its own line."""
+    Live, it fades in word by word over its audio (secs, see Fade.add); otherwise it prints whole on its own line."""
     if live:
         if first or not fading:
             fading.append(Fade(first))
-        fading[-1].add(sentence)
+        fading[-1].add(sentence, secs)
         settle()
     else:
         f = Fade(first)
