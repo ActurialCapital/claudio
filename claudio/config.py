@@ -199,18 +199,48 @@ def allowed():
         return []
 
 
-def rule_for(tool, tool_input):
-    """The rule that allows a refused tool use, and its command in words: "gh issue view 727 -R x" gives
-    Bash(gh issue view:*), its leading plain words up to three, so a yes allows that kind of command, not all of gh."""
+def outside(tool_input, cwd, dirs):
+    """The folder a refused tool use reaches outside the working one and the allowed ones, or None: its git
+    repo when it is in one, else the nearest folder that exists. claude -p refuses those whatever the rules."""
+    import subprocess
+    text = " ".join(str(v) for v in tool_input.values())
+    for p in re.findall(r"(?:^|(?<=[\s\"'=]))(~?/[^\s\"';|&*?{}]+)", text):
+        path = os.path.expanduser(p).rstrip("/")
+        while path and not os.path.isdir(path):
+            path = os.path.dirname(path)
+        if not path or path == "/" or path.startswith("/dev") or any(
+                path == d or path.startswith(d.rstrip("/") + "/") for d in (cwd, *dirs)):
+            continue
+        try:
+            top = subprocess.run(["git", "-C", path, "rev-parse", "--show-toplevel"], capture_output=True,
+                                 text=True, timeout=3).stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            top = ""
+        return top or path
+    return None
+
+
+def rule_for(tool, tool_input, cwd=None):
+    """The rule that allows a refused tool use, and how to say what was refused. A folder outside the working one
+    is the rule when it is the reason; else for Bash, its leading plain words up to three, so "gh issue view 727
+    -R x" gives Bash(gh issue view:*) and a yes allows that kind of command, not all of gh."""
+    folder = outside(tool_input, cwd or os.getcwd(), allowed_dirs())
+    if folder:
+        return folder, "into " + folder.replace(os.path.expanduser("~"), "~", 1)
     if tool != "Bash":
-        return tool, tool
+        return tool, f"to use {tool}"
     words = []
     for w in str(tool_input.get("command", "")).split():
         if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
             break
         words.append(w)
     prefix = " ".join(words) or str(tool_input.get("command", "")).split(" ")[0]
-    return f"Bash({prefix}:*)", prefix
+    return f"Bash({prefix}:*)", f"to run `{prefix}`"
+
+
+def allowed_dirs():
+    """The folders in ALLOW (a line that is a path), given to the brain with --add-dir."""
+    return [os.path.expanduser(r) for r in allowed() if r.startswith(("/", "~"))]
 
 
 def allow(rule):

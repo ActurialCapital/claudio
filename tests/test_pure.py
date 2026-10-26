@@ -327,10 +327,23 @@ def test_two_live_blocks_settle_in_order():
         ui.console, ui.log = console, log
 
 
-def test_rule_for_allows_the_kind_of_command_not_the_whole_tool():
-    assert config.rule_for("Bash", {"command": "gh issue view 727 --repo a/b"}) == ("Bash(gh issue view:*)", "gh issue view")
-    assert config.rule_for("Bash", {"command": "curl -s https://x"}) == ("Bash(curl:*)", "curl")
-    assert config.rule_for("WebFetch", {"url": "https://x"}) == ("WebFetch", "WebFetch")
+def test_rule_for_allows_the_kind_of_command_not_the_whole_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    here = str(tmp_path)
+    assert config.rule_for("Bash", {"command": "gh issue view 727 --repo a/b"}, here) == ("Bash(gh issue view:*)", "to run `gh issue view`")
+    assert config.rule_for("Bash", {"command": "curl -s https://x 2>/dev/null"}, here) == ("Bash(curl:*)", "to run `curl`")
+    assert config.rule_for("WebFetch", {"url": "https://x"}, here) == ("WebFetch", "to use WebFetch")
+
+
+def test_rule_for_offers_the_folder_when_it_is_outside(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ALLOW", str(tmp_path / "allow"))
+    (tmp_path / "repo" / "src").mkdir(parents=True)
+    work = tmp_path / "work"
+    work.mkdir()
+    rule, what = config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))
+    assert rule == str(tmp_path / "repo" / "src") and what.startswith("into ")
+    (tmp_path / "allow").write_text(f"{tmp_path}/repo\n")      # allowed: the command is the reason now
+    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))[0] == "Bash(wc:*)"
 
 
 def test_voice_names_become_deepgram_models():

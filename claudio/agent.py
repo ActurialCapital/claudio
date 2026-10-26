@@ -33,7 +33,7 @@ def shown_block(buf, final=False):
 
 
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
-YES, NO = {"yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"}, {"no", "nope", "n", "dont", "deny", "never"}
+YES, NO = ("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"), ("no", "nope", "n", "dont", "deny", "never")
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
@@ -231,7 +231,8 @@ class Brain:
             "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
             "Bash(claudio set:*)",
             *(f"mcp__{name}" for name in mcp),
-            *config.allowed(),                # the user's own: ~/.config/claudio/allow
+            *(r for r in config.allowed() if not r.startswith(("/", "~"))),   # the user's own: ~/.config/claudio/allow
+            *(["--add-dir", *config.allowed_dirs()] if config.allowed_dirs() else []),    # and folders, from the same file
             *(["--model", cfg["model"]] if cfg["model"] != "default" else []),
             *(["--effort", cfg["effort"]] if cfg["effort"] else []),
             *(["--resume", resume] if resume else []),
@@ -934,24 +935,27 @@ async def main():
         rule, what = config.rule_for(denials[0].get("tool_name", ""), denials[0].get("tool_input") or {})
         if rule in config.allowed():
             return
-        pending.update(rule=rule, text=text)
-        start(f"I'm not allowed to run `{what}`. Allow it from now on? Say yes or no.", committed=True, fixed=True, event=True)
+        pending.update(rule=rule, text=text, left=1)     # it survives one turn in between: "what is wc?"
+        start(f"I'm not allowed {what}. Allow it from now on? Say yes or no.", committed=True, fixed=True, event=True)
 
     brain.on_denied = denied
 
     def answer(said):
         """The turn after an allow question: yes adds the rule and retries the request; no drops it. The note to
         show when it was the answer; None for anything else, which drops the question and is an ordinary turn."""
-        rule, pending["rule"] = pending["rule"], None
-        words = norm(said)
-        if not rule or not words or len(words) > 3:
+        rule, words = pending["rule"], norm(said)
+        if not rule:
             return None
-        if words[0] in YES:
+        if words and len(words) <= 3 and words[0] in YES + NO:
+            pending["rule"] = None
+            if words[0] in NO:
+                return f"not allowed: {rule}"
             config.allow(rule)                 # watch_config sees it, restarts the brain, then retries
             pending["retry"] = pending["text"]
             return f"allowed {rule}"
-        if words[0] in NO:
-            return f"not allowed: {rule}"
+        pending["left"] -= 1                   # a question about the question can come in between, once
+        if pending["left"] < 0:
+            pending["rule"] = None
         return None
 
     def set_mute(on):

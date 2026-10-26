@@ -52,7 +52,9 @@ Your Claude Code permission settings don't apply to it, and `claude -p` has no a
 
 - **yes** (or yeah, sure, okay, allow): `Bash(gh pr create:*)` is added to `allow`, the brain restarts with it, and your request runs again
 - **no**: nothing is added
-- **anything else**: the question is dropped and your words are an ordinary turn
+- **anything else**: an ordinary turn; the question still stands for one more, so you can ask what it means first
+
+When it's a folder outside the one you started in that was refused, claudio asks about the folder instead, the whole repo when it's in one: “I'm not allowed into ~/GitHub/ActurialCapital/claudio. Allow it from now on?”
 
 The rule covers the command's first plain words, up to three, so a yes to `gh pr create` doesn't allow all of `gh`. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
@@ -65,7 +67,11 @@ Put one [Claude Code permission rule](https://code.claude.com/docs/en/settings#p
 Bash(gh:*)
 # fetch web pages
 WebFetch
+# a folder outside the one you start claudio in
+~/GitHub/ActurialCapital/claudio
 ```
+
+A line that is a path is a folder the brain may read and search in, as well as the one you start claudio in: `claude -p` refuses anything outside those, whatever the other rules say.
 
 Saving the file, or `mcp.json`, restarts the brain with it, keeping the conversation. Anything you allow, the brain can run without asking, so allow only what you'd let it do unwatched. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
 
