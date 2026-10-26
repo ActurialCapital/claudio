@@ -332,6 +332,14 @@ def test_rule_for_allows_the_kind_of_command_not_the_whole_tool():
     assert config.rule_for("WebFetch", {"url": "https://x"}) == ("WebFetch", "WebFetch")
 
 
+def test_voice_names_become_deepgram_models():
+    assert config.check("voice", "Zeus") == ("aura-2-zeus-en", None)
+    assert config.check("voice", "ELECTRA") == ("aura-2-electra-en", None)
+    assert config.check("voice", "Elektra") == ("aura-2-electra-en", None)     # as heard
+    assert config.check("voice", "aura-asteria-en") == ("aura-asteria-en", None)
+    assert config.check("voice", "banana")[0] is None
+
+
 def test_allowed_reads_one_rule_per_line(tmp_path, monkeypatch):
     f = tmp_path / "allow"
     f.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n")

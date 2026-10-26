@@ -48,7 +48,7 @@
       "default": "aura-2-orion-en",
       "choices": [],
       "range": null,
-      "help": "any Deepgram Aura-2 voice",
+      "help": "any Deepgram Aura-2 voice: a name such as zeus, or a full model name",
       "secret": false,
       "env": "CLAUDIO_VOICE",
       "may_be_empty": false

@@ -1,6 +1,6 @@
 """Settings in ~/.config/claudio: config.json (the knobs), secrets.json (the keys, mode 600, never named to the
 brain) and prompt.md (the persona, yours to edit). Also the few paths and parsers both the agent and the CLI need."""
-import json, os, re, shutil, urllib.request
+import difflib, json, os, re, shutil, urllib.request
 
 DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "claudio")
 CONF = os.path.join(DIR, "config.json")
@@ -32,7 +32,7 @@ SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "model": "the brain's model, through your Claude Code login",
         "effort": "how hard the brain thinks before it answers",
-        "voice": "any Deepgram Aura-2 voice",
+        "voice": "any Deepgram Aura-2 voice: a name such as zeus, or a full model name",
         "ears": "Deepgram Flux model; flux-general-multi for other languages",
         "eager_eot": "confidence at which the brain starts on a turn early, before you have surely finished",
         "eot": "confidence at which your turn counts as finished",
@@ -114,6 +114,11 @@ def check(key, value):
         v = value.strip()
         if not v and key not in MAY_BE_EMPTY:
             return None, f"{key} cannot be empty"
+    if key == "voice" and not v.lower().startswith("aura-"):   # "Zeus", "ELECTRA", a misheard "Elektra": Deepgram's model name
+        near = difflib.get_close_matches(v.lower(), AURA, 1, 0.8)
+        if not near:
+            return None, f"voice must be an Aura-2 voice, one of {', '.join(AURA)}, not {v!r}"
+        v = f"aura-2-{near[0]}-en"
     if key in CHOICES and v not in CHOICES[key]:
         return None, f"{key} must be one of {', '.join(CHOICES[key])}, not {v!r}"
     if key in RANGES and not RANGES[key][0] <= v <= RANGES[key][1]:
