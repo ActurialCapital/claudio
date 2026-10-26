@@ -1224,7 +1224,7 @@ async def main():
     ui.attach(status["live"])
     status["live"].start()
     if not typed:
-        start("Hi, I'm listening.", committed=True, fixed=True)    # so you hear it's up, and the voice works
+        start("Hi, how can I help you?", committed=True, fixed=True)    # so you hear it's up, and the voice works
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch()]
     if not aec:
         tasks.append(shower())
