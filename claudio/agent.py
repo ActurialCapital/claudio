@@ -5,13 +5,13 @@ the Claude Code hooks (`claudio hook ...`) report what sessions did.
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import array, asyncio, contextlib, json, os, re, shutil, signal, subprocess, sys, threading, time
+import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, threading, time
 import sounddevice as sd, websockets
 from rich.spinner import SPINNERS
 from . import config, ui
 from .ui import console
 IN_RATE, OUT_RATE = 16000, 24000    # the plain path; the echo-cancelling helper runs both ways at 24000
-SENTENCE = re.compile(r"[.!?]['\")]?\s")
+SENTENCE = re.compile(r"[.!?]['\")]?\s|\n")   # a newline ends one too: list items often have no full stop
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
@@ -50,8 +50,9 @@ status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply"
           "level": 0, "latency": None}
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
-SLASH_HELP = ("clear starts a fresh conversation. model, effort and voice change the brain or the voice. "
-              "style plain, brief or caveman. status says the settings. mute and unmute. stop cuts a reply.")
+SLASH_HELP = ("Slash commands:\n- clear starts a fresh conversation.\n- model, effort and voice change the brain or the voice.\n"
+              "- style plain, brief or caveman.\n- status says the settings.\n- mute and unmute.\n- stop cuts a reply.")
+COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help"}
 STYLES = {
     "plain": "",
     "brief": "\n\nSTYLE OVERRIDE, brief: one sentence per reply, two at most when the answer has two parts. "
@@ -62,6 +63,21 @@ STYLES = {
                "Want Sales started?\" Never a full polite sentence.",
 }
 SLASH = re.compile(r"^(?:\w+\s+){0,2}slash\s+(\w+)\s*(.*)$")   # "slash effort low", "um slash mute"; not "add a slash command"
+
+
+def parse_slash(words):
+    """("style", "caveman") from "slash um i want a caveman"; None when it is no command."""
+    m = SLASH.search(words)
+    if not m:
+        return None
+    rest = f"{m.group(1)} {m.group(2)}".split()
+    at = next((i for i, w in enumerate(rest) if w in COMMANDS or w in STYLES), 0)   # past "um, I want a"
+    cmd, arg = rest[at], " ".join(rest[at + 1:])
+    if cmd in STYLES:                          # "slash caveman"
+        cmd, arg = "style", cmd
+    if cmd == "style":                         # misheard: "pavement" is caveman
+        arg = next((c[0] for w in arg.split() if (c := difflib.get_close_matches(w, STYLES, 1, 0.6))), arg)
+    return cmd, arg
 
 
 def state_text():
@@ -102,7 +118,8 @@ def system_prompt():
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
     persona = (open(config.PROMPT).read()
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
-               .replace("{KEYS}", ", ".join(keys)))
+               .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
+                                            for k in keys)))
     return (STYLES.get(cfg["style"], "").strip() + "\n\n" + persona
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\nSessions now:\n"
             + "\n".join(lines))
@@ -505,7 +522,7 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
             if i >= len(sentences):
                 break
             try:
-                await mouth.say(sentences[i][0])
+                await mouth.say(ui.BULLET.sub("", sentences[i][0]))
             except (websockets.ConnectionClosed, OSError):      # the socket dropped mid-reply: one new mouth, carry on
                 player.cancel()
                 mouth = await open_mouth()
@@ -561,12 +578,15 @@ async def reply(text, commit, ctl, fixed=False, handle=None):
 
             def emit(sentence):
                 nonlocal first
+                if not sentence.strip():       # a blank line between list items
+                    return
                 sentences.append((sentence, first))
                 new.set()
                 first = False
             try:
                 if fixed:
-                    emit(text)
+                    for line in text.split("\n"):    # a list: one line, one sentence, each its own bullet
+                        emit(line)
                     return
                 async for d in brain.turn(text):
                     if d is BLOCK_END:
@@ -773,11 +793,13 @@ async def main():
 
     def slash(words):
         """Spoken slash commands: "slash clear", "slash model sonnet"… True when handled."""
-        m = SLASH.search(words)
-        if not m:
+        parsed = parse_slash(words)
+        if not parsed:
             return False
-        cmd, arg = m.group(1), m.group(2).strip()
+        cmd, arg = parsed
         ui.note(f"/{cmd} {arg}".strip())
+        if cmd not in ("clear", "stop"):
+            cut(None)                          # a command over a reply stops it quietly; the note says why
         if cmd == "clear":
             cut("cleared")
             asyncio.create_task(fresh_start())
@@ -786,9 +808,10 @@ async def main():
         elif cmd == "stop":
             cut("stopped")
         elif cmd == "style" and arg in STYLES:
-            cut(None)
             config.set_key("style", arg)
             brain.changed.set()
+        elif cmd == "style":
+            start(f"I don't know style {arg}. Choose {', '.join(STYLES)}.", committed=True, fixed=True)
         elif cmd in ("model", "effort", "voice") and arg:
             value = arg.replace(" ", "-")
             if cmd == "voice" and not value.startswith("aura-"):

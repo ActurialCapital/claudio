@@ -1,5 +1,5 @@
 """The look: one wordmark, one status strip, one glyph per voice in the transcript."""
-import datetime, os, time
+import datetime, os, re, time
 from rich.console import Console, Group, RenderHook
 from rich.constrain import Constrain
 from rich.control import Control
@@ -100,19 +100,36 @@ CHARS_PER_SEC = 15              # ponytail: a guess at speaking pace, not the au
 FADE = 0.35                     # seconds for one word to go from dim to full
 SHADES = ["grey30", "grey50", "grey70", ""]
 fading = []                     # claudio's blocks still fading in, drawn above the status line until they settle
+BULLET = re.compile(r"^\s*[-*•]\s+")   # a list item from the brain: "- Silero starts turns"
 settling = {"now": False}       # settle() is printing: the hook must not flush the blocks still fading
+
+
+def hang(head, body):
+    """head, then body wrapping under itself rather than under head."""
+    grid = Table.grid()
+    grid.add_column(width=len(head.plain), no_wrap=True)
+    grid.add_column()
+    grid.add_row(head, body)
+    return grid
 
 
 class Fade:
     """One block of claudio's: its sentences run on as one paragraph, words appear at speaking pace, each dim to full."""
     def __init__(self, first):
         self.head = Text("◆ ", style="bold #2dd4bf") if first else Text("  ")
-        self.words = []          # (word, when it starts to show)
+        self.words = []          # (word, when it starts to show); "\n" breaks the line
+        self.listing = False
 
     def add(self, sentence):
         at = time.monotonic()    # its audio starts now, so the last sentence's audio is over: show what's left of it
         self.words = [(w, min(t, at)) for w, t in self.words]
-        words = sentence.split()
+        bullet = BULLET.match(sentence)
+        words = sentence[bullet.end():].split() if bullet else sentence.split()
+        if bullet or self.listing:           # a list item, or the first sentence after a list: a line of its own
+            self.words.append(("\n", at))
+        if bullet:
+            self.words.append(("•", at))
+        self.listing = bool(bullet)
         for i, w in enumerate(words):
             self.words.append((w, at + i * max(0.3, len(sentence) / CHARS_PER_SEC) / len(words)))
 
@@ -124,15 +141,22 @@ class Fade:
         for w, at in self.words:
             if not final and now < at:
                 break
+            if w == "\n":
+                if line:
+                    line.append("\n")
+                continue
             shade = "" if final else SHADES[min(len(SHADES) - 1, int((now - at) / FADE * len(SHADES)))]
-            line.append((" " if line else "") + w, style=shade)
+            line.append((" " if line and not line.plain.endswith("\n") else "") + w, style=shade)
         return line
 
     def render(self, final=False):
         grid = Table.grid()      # the glyph in its own column: wrapped lines hang under the text, not under it
         grid.add_column(width=2, no_wrap=True)
         grid.add_column()
-        grid.add_row(self.head, self.body(final))
+        for i, line in enumerate(self.body(final).split("\n")):
+            if line.plain.startswith("• "):    # a list item hangs under its own text too
+                line = hang(line[:2], line[2:])
+            grid.add_row(self.head if i == 0 else "", line)
         return Constrain(grid, width())
 
     def __rich__(self):

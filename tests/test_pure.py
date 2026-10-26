@@ -9,7 +9,7 @@ sys.modules["websockets.exceptions"].WebSocketException = Exception
 sys.modules["websockets"].ConnectionClosed = Exception
 
 from claudio import config
-from claudio.agent import SENTENCE, backchannel, norm
+from claudio.agent import SENTENCE, backchannel, norm, parse_slash
 from claudio.config import parse_surfaces
 
 
@@ -35,6 +35,19 @@ def test_sentences_keep_decimals_and_abbreviations_without_a_space():
 
 def test_sentences_allow_a_closing_quote_or_bracket():
     assert split('He said "go." Then left.') == ['He said "go."', "Then left."]
+
+
+def test_sentences_split_at_a_newline_for_list_items():
+    assert split("Three parts:\n- Silero\n- Kokoro.") == ["Three parts:", "- Silero", "- Kokoro."]
+
+
+def test_parse_slash_skips_filler_takes_bare_styles_and_fixes_misheard_ones():
+    assert parse_slash("slash um i want a caveman") == ("style", "caveman")
+    assert parse_slash("slash caveman") == ("style", "caveman")
+    assert parse_slash("slash style pavement") == ("style", "caveman")
+    assert parse_slash("slash model sonnet") == ("model", "sonnet")
+    assert parse_slash("slash banana") == ("banana", "")
+    assert parse_slash("can you add a slash command") is None
 
 
 def test_backchannel_is_short_or_only_filler():
