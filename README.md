@@ -58,6 +58,7 @@ flowchart LR
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
 | "slash style brief" · "caveman" · "plain" | how it talks: one sentence, caveman, or plain |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
+| "slash code colors off" | code blocks as plain text; "on" brings colours back |
 | "what did we do today?" | reads today's transcript and tells you |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
@@ -78,8 +79,9 @@ flowchart LR
 ```
 
 - `›` you, `◆` claudio, `▸` a session reporting back with the request it was for, `→` what the brain is reading or running, `⚙` a setting you changed, `·` a note, `!` a warning. Room noise and "mm-hm"s show dim.
-- 📊 The state line: a mic level, then listening, thinking, speaking, paused, muted, how long the last reply took to its first word, and what the orchestrator is up to, glanced from its pane every few seconds.
-- ⏱️ Each sentence appears as it is spoken, so the transcript keeps time with the voice. Lines wrap at 90 columns however wide the pane.
+- 📊 The state line: a spinner, a still `■` while muted, a mic level, then listening, thinking, speaking, paused, muted, how long the last reply took to its first word, and what the orchestrator is up to, glanced from its pane every few seconds.
+- ⏱️ Each sentence appears as it is spoken, its words fading in over its real audio, so the transcript keeps time with the voice. A thought is one paragraph; lines wrap at 90 columns however wide the pane.
+- 📋 When the shape fits, the screen carries more than the voice: bullets for parallel points, each read aloud; a table for a comparison and highlighted code, shown and never read, with a spoken line on what they show; **bold** and `code` for key words.
 - 🕰️ A dim rule with the time marks a gap of more than five minutes.
 - 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 - 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
@@ -106,7 +108,7 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it is the persona; edit it freely.
+`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it is the persona; edit it freely. The brain gets none of your Claude Code MCP servers; list any it should have in `mcp.json` beside them.
 
 The persona carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced triads, no inflated significance, at most one hedge, no chatbot wrapper, stop on the last fact. The `style` setting, plain, brief or caveman, switchable mid-session by voice, follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip without touching the prompt.
 
@@ -123,6 +125,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 | `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
+| `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
