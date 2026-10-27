@@ -12,6 +12,8 @@ tail -n 20 ~/.config/claudio/brain.log
 cat ~/.config/claudio/helper.log
 ```
 
+If `claudio` stops at start with `ModuleNotFoundError` after an update, a newer version needs a package your install doesn't have yet. Update with `uv tool upgrade claudio`; for an install from a local checkout, run `uv tool install --editable . --force` in it.
+
 ## Listening
 
 <Accordions type="multiple">
