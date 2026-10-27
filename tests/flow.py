@@ -126,6 +126,9 @@ class FakeProc:
         else:
             await self.say(REPLIES.get(SC, "It is noon. Have a nice day."))
         self.result()
+        if SC == "ended-twice" and "ready" in text:   # a Stop hook made it go on: a second reply, a second result
+            await self.say("Stale. ")
+            self.result()
 
     async def say(self, words):
         for i in range(0, len(words), 4):        # in 4-character pieces: a block or a style split anywhere
@@ -206,6 +209,7 @@ SCENARIOS = {   # name: (seconds to run, script)
     "allow-eager": (9, [(2.0, turn("StartOfTurn")), (2.2, turn("EagerEndOfTurn", "open a PR")),
                         (4.5, turn("EndOfTurn", "open a PR")), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes"))]),
     "allow-key": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")), ("key", (2.7, "2"))]),
+    "ended-twice": (5, [(1.0, turn("StartOfTurn")), (1.3, turn("EndOfTurn", "what time is it"))]),
     "allow-early": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
                         (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
     "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),

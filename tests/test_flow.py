@@ -5,7 +5,7 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
-             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
+             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table")
 
 
 @pytest.fixture(scope="module")
@@ -95,6 +95,12 @@ def test_one_key_answers_the_question(runs):
     lines, home = runs["allow-key"]
     assert first(lines, "ME 'May I") < first(lines, "KEY '2'") < first(lines, "YOU 'always'") < first(lines, "PERM allow")
     assert json.loads((home / "settings.json").read_text()) == {"permissions": {"allow": ["Bash(gh pr create:*)"]}}
+
+
+def test_a_turn_that_ended_twice_never_shifts_the_next_reply(runs):
+    lines, _ = runs["ended-twice"]
+    assert first(lines, "YOU 'what time is it'") < first(lines, "ME 'It is noon. '")
+    assert not any("Stale" in line for line in lines if line.startswith(("ME", "SAY")))
 
 
 def test_no_allows_nothing(runs):

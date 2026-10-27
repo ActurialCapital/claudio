@@ -229,10 +229,23 @@ def system_prompt():
             + "- Asked for a table: \"Here it is.\", then the table, and nothing after it: no summary, no take.\n"
             + "- Notes, lookups and opening the browser are your own jobs: never hand them to a session. "
               "\"In the browser\" means open it there and say only \"Opening it.\", no answer.\n"
+            + "- What you hear is speech to text and can be misheard: read an odd word as what was likely said "
+              "(\"seven notes saying hello\" is \"save a note saying hello\"), and never multiply work on a number "
+              "that may be a mishearing: ask.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
             + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
                "work to sessions, and run nothing that deletes, overwrites or pushes without the user's plain yes."
                if status["skip"] else ""))
+
+
+def real_claude():
+    """The claude binary itself. In a cmux pane, a cmux wrapper comes first on PATH and adds cmux's hooks, among them
+    an inbox one that hands the brain messages meant for claudio and ends its turn twice: every reply a turn late."""
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        path = os.path.join(d, "claude")
+        if os.access(path, os.X_OK) and "cmux" not in os.path.realpath(path) and ".cmuxterm" not in path:
+            return path
+    return shutil.which("claude") or "claude"
 
 
 def remembered_session():
@@ -268,7 +281,8 @@ class Brain:
         notes = [d for d in map(os.path.expanduser, config.NOTES) if os.path.isdir(d)]
         self.log = self.log or open(os.path.join(config.DIR, "brain.log"), "a")
         return ClaudeAgentOptions(
-            cli_path=shutil.which("claude") or "claude",
+            cli_path=real_claude(),
+            permission_mode=None if status["skip"] else "default",   # never a mode from elsewhere ("auto" asks no one)
             system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt()},
             setting_sources=[],
             strict_mcp_config=True,           # never the desktop's MCP servers: only those in mcp.json, if any
@@ -290,7 +304,8 @@ class Brain:
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
                 *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only
-            settings=config.SETTINGS if os.path.exists(config.SETTINGS) else None,   # the user's own rules
+            settings=json.dumps({**config._read(config.SETTINGS), "disableAllHooks": True}),   # the user's own rules;
+                                              # no hooks, theirs or cmux's: those are for sessions, not the brain
             add_dirs=[*notes, *config.allowed_dirs()],             # and folders
             can_use_tool=self.can_use,
             model=None if cfg["model"] == "default" else cfg["model"],
@@ -387,6 +402,10 @@ class Brain:
             self.busy = True
             tag = "" if cfg["style"] == "plain" or text.startswith("[event]") else f"({cfg['style']} style) "
             inbox, q = self.inbox, asyncio.Queue()
+            while not inbox.empty():           # left from an earlier turn (one that ended twice): never this reply
+                if (m := inbox.get_nowait()) is None:
+                    inbox.put_nowait(None)     # but a death stays news
+                    break
             self.q, self.text = q, text
             await self.client.query(tag + text)
 
