@@ -4,7 +4,7 @@ import json, os, re, subprocess, sys
 
 import pytest
 
-SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut",
+SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
 
 
@@ -69,7 +69,7 @@ def test_tables_and_code_are_shown_never_said_and_in_place(runs):
 def test_a_yes_inside_the_reply_lets_the_waiting_command_run_once(runs):
     lines, home = runs["allow-yes"]
     asked = first(lines, "ME 'May I run `gh pr create`?")
-    assert "BLOCK '- Yes, this once\\n- Always\\n- No'" in lines                   # the answers: bullets, on screen
+    assert "BLOCK '- **1** Yes, this once\\n- **2** Always\\n- **3** No'" in lines   # the answers: bullets, on screen
     assert first(lines, "ME 'Let me open it.") < asked < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
     assert "NOTE allowed once: Bash(gh pr create:*)" in lines
     assert first(lines, "PERM allow") < first(lines, "ME 'Opened it.'")         # the same reply goes on
@@ -89,6 +89,12 @@ def test_always_allows_it_now_and_from_now_on_without_a_restart(runs):
 def test_a_question_from_an_early_start_is_asked_once_the_turn_is_final(runs):
     lines, _ = runs["allow-eager"]
     assert first(lines, "YOU 'open a PR'") < first(lines, "ME 'May I") < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
+
+
+def test_one_key_answers_the_question(runs):
+    lines, home = runs["allow-key"]
+    assert first(lines, "ME 'May I") < first(lines, "KEY '2'") < first(lines, "YOU 'always'") < first(lines, "PERM allow")
+    assert json.loads((home / "settings.json").read_text()) == {"permissions": {"allow": ["Bash(gh pr create:*)"]}}
 
 
 def test_no_allows_nothing(runs):

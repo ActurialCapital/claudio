@@ -63,7 +63,7 @@ flowchart LR
 | "write a note: call Michael" | asks Desktop or Documents, then adds it to `notes.md` there, dated |
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
 | "open issue 727 in the browser" | opens it, or a Google search, and says only "Opening it." |
-| "yes", "always" or "no", when it asks to allow a command | yes runs it once; always also adds it to `settings.json`; the reply goes on |
+| "yes", "always" or "no" (or press 1, 2, 3), when it asks to allow a command | yes runs it once; always also adds it to `settings.json`; the reply goes on |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
 

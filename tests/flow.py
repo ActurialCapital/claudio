@@ -8,6 +8,8 @@ from claude_agent_sdk import Transport
 import websockets.exceptions, websockets.asyncio.client   # what the real connect() would have imported
 
 SC = sys.argv[1]
+KEYS = os.pipe()                          # the keyboard: a pipe the script types into, never the real terminal
+os.dup2(KEYS[0], 0)
 os.environ.pop("CMUX_SURFACE_ID", None)    # run from a cmux pane, it would read that pane's real inbox
 T0 = time.monotonic()
 LOG = []
@@ -177,7 +179,7 @@ class GoneMouth:
 agent.new_mouth = GoneMouth if SC == "mouth-gone" else FakeMouth
 
 
-# ---- the ears: Flux events on a script; ("sock", t) is a session reporting in over claudio's socket
+# ---- the ears: Flux events on a script; ("sock", t) is a session reporting in over claudio's socket, ("key", (t, text)) is typed
 def turn(event, transcript=""):
     return {"type": "TurnInfo", "event": event, "transcript": transcript}
 
@@ -203,6 +205,7 @@ SCENARIOS = {   # name: (seconds to run, script)
                       (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "slash stop"))]),
     "allow-eager": (9, [(2.0, turn("StartOfTurn")), (2.2, turn("EagerEndOfTurn", "open a PR")),
                         (4.5, turn("EndOfTurn", "open a PR")), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes"))]),
+    "allow-key": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")), ("key", (2.7, "2"))]),
     "allow-early": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),     # okay to the reply,
                         (1.3, turn("StartOfTurn")), (1.5, turn("EndOfTurn", "okay"))]),     # before the question
     "handoff-new": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "fix the login")), ("sock", 3.0)]),
@@ -228,6 +231,12 @@ class FakeEars:
     async def events(self):
         base = time.monotonic()
         for at, what in SCRIPT:
+            if at == "key":                    # ("key", t, text): typed at t
+                t, text = what
+                await asyncio.sleep(max(0, base + t - time.monotonic()))
+                log("KEY", repr(text))
+                os.write(KEYS[1], text.encode())
+                continue
             if at == "sock":
                 await asyncio.sleep(max(0, base + what - time.monotonic()))
                 r, w = await asyncio.open_unix_connection(config.SOCK)

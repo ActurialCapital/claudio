@@ -5,7 +5,7 @@ the Claude Code hooks (`claudio hook ...`) report what sessions did.
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, threading, time, warnings
+import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, termios, threading, time, tty, warnings
 import sounddevice as sd, websockets
 os.environ.setdefault("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")   # it would run `claude -v` before every start
 from claude_agent_sdk import (AssistantMessage, CanUseToolShadowedWarning, ClaudeAgentOptions, ClaudeSDKClient,
@@ -165,6 +165,8 @@ def parse_slash(words):
 
 def state_text():
     """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
+    if status.get("typed"):
+        return f"› {status['typed']}"          # typed while keys answer the question: unechoed, so shown here
     r = status["reply"]
     if status["muted"]:
         return "muted · say /unmute"
@@ -1089,7 +1091,8 @@ async def main():
             recent["key"] = None
             ui.note(f"allowed once: {rule or action}")
             return PermissionResultAllow()     # they asked about it, heard the answer, and said yes
-        question = f"May I {action}?\n- Yes, this once\n" + ("- Always\n" if rule else "") + "- No"
+        question = f"May I {action}?\n" + ("- **1** Yes, this once\n- **2** Always\n- **3** No" if rule
+                                            else "- **1** Yes, this once\n- **2** No")   # a key answers too
         ready = False                          # until it is on screen: an "okay" to the reply before it is no yes
         for _ in range(2):
             said = await asked(question, ready)
@@ -1218,7 +1221,7 @@ async def main():
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
             ask = "Skip every permission check until you quit? The brain could then run anything, unasked."
-            pending.update(rule=SKIP, ask=ask, options="- Yes\n- No", ready=False)   # only a yes right after it turns them off
+            pending.update(rule=SKIP, ask=ask, options="- **1** Yes\n- **2** No", ready=False)   # only a yes right after it turns them off
             start(ask, committed=True, fixed=True)
         elif cmd == "permissions":
             if status["skip"]:
@@ -1470,33 +1473,75 @@ async def main():
                 ears["ws"] = None        # closed on purpose (new ear settings): straight back
 
     lines = asyncio.Queue()
-    threading.Thread(target=lambda: [loop.call_soon_threadsafe(lines.put_nowait, l) for l in sys.stdin],
-                     daemon=True).start()              # a daemon, so exit never waits on a blocked read
+
+    def read_keys():
+        """What is typed, as it comes: a line at a time, or a key at a time while a question waits."""
+        with contextlib.suppress(OSError):
+            while chunk := os.read(0, 1024):
+                loop.call_soon_threadsafe(lines.put_nowait, chunk.decode(errors="ignore"))
+    threading.Thread(target=read_keys, daemon=True).start()   # a daemon, so exit never waits on a blocked read
+    term = {"saved": termios.tcgetattr(0) if os.isatty(0) else None, "keys": False}
+
+    def key_mode():
+        """One key answers while a question is on screen: the terminal sends keys as pressed, unechoed, then
+        lines again once it is answered."""
+        want = bool(term["saved"] and pending["ready"] and (pending["future"] or pending["rule"]))
+        if want != term["keys"]:
+            term["keys"] = want
+            if want:
+                tty.setcbreak(0)
+            else:
+                termios.tcsetattr(0, termios.TCSANOW, term["saved"])
+                status["typed"] = ""
 
     async def keys():
-        while line := await lines.get():
-            typed = line.strip()
-            if typed.startswith("/") and slash("slash " + typed[1:].lower()):
-                pass
-            elif typed and pending["future"]:   # typed, it answers the question at once
-                ui.you(typed)
-                if not pending["future"].done():
-                    pending["future"].set_result(typed)
-            elif typed:                         # a typed question is a turn, for when you cannot talk
-                ui.you(typed)
-                if note := answer(typed):
+        typed = ""
+        while chunk := await lines.get():
+            asking = pending["ready"] and (pending["future"] or pending["rule"])
+            pick = dict(re.findall(r"\*\*(\d)\*\* (\w+)", pending["options"])) if asking else {}
+            if not typed and chunk.strip() in pick:     # 1, 2 or 3: that answer, at once
+                said = pick[chunk.strip()].lower()
+                ui.you(said)
+                if pending["future"]:
+                    if not pending["future"].done():
+                        pending["future"].set_result(said)
+                elif note := answer(said):
                     ui.note(note)
+                    cut(None)
+                continue
+            for ch in chunk:
+                if ch in "\r\n":
+                    on_line(typed.strip())
+                    typed = ""
+                elif ch in "\x7f\b":
+                    typed = typed[:-1]
                 else:
-                    start(typed, committed=True)
-            elif cfg["push_to_talk"] and not status["gate_open"]:
-                status["gate_open"] = True
-                ui.note("mic open")
+                    typed += ch
+            status["typed"] = typed if term["keys"] else ""   # keys unechoed: shown on the state line
+
+    def on_line(typed):
+        if typed.startswith("/") and slash("slash " + typed[1:].lower()):
+            pass
+        elif typed and pending["future"]:   # typed, it answers the question at once
+            ui.you(typed)
+            if not pending["future"].done():
+                pending["future"].set_result(typed)
+        elif typed:                         # a typed question is a turn, for when you cannot talk
+            ui.you(typed)
+            if note := answer(typed):
+                ui.note(note)
             else:
-                cut()
+                start(typed, committed=True)
+        elif cfg["push_to_talk"] and not status["gate_open"]:
+            status["gate_open"] = True
+            ui.note("mic open")
+        else:
+            cut()
 
     async def tick():                      # the state line follows what is happening, four times a second
         while True:
             await asyncio.sleep(0.25)
+            key_mode()
             refresh()
             ui.settle()                    # a long block's spoken lines go to the transcript as it grows
 
@@ -1640,6 +1685,8 @@ async def main():
     except asyncio.CancelledError:
         pass                                   # Ctrl-C
     finally:
+        if term["keys"]:
+            termios.tcsetattr(0, termios.TCSANOW, term["saved"])   # quit mid-question: the shell gets its terminal back
         console.print(end="")                  # settle any fading line before the live area goes
         status["live"].stop()
         server.close()

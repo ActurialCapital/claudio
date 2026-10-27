@@ -59,11 +59,11 @@ It can't read `secrets.json` with Read, nor with a command that names it, and it
 Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is, never the whole of it, and shows the answers under it:
 
 > May I run `gh pr create`?
-> - Yes, this once
-> - Always
-> - No
+> - **1** Yes, this once
+> - **2** Always
+> - **3** No
 
-Answer by voice or by typing, in your own words: what counts is the last part that says yes or no, so “you don't need to spell that out. So yes, go ahead” is a yes.
+Press 1, 2 or 3 to answer at once, no Enter needed. Or answer by voice or by typing, in your own words: what counts is the last part that says yes or no, so “you don't need to spell that out. So yes, go ahead” is a yes.
 
 - **yes** (or yeah, sure, okay, go ahead, do it, you're allowed): it runs, this once, and the reply goes on
 - **always**: it runs, and `Bash(gh pr create:*)` is added to `settings.json`, for the rest of this run and every later one, with no restart
