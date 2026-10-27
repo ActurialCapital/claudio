@@ -4,7 +4,7 @@ import json, os, re, subprocess, sys
 
 import pytest
 
-SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-cut",
+SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "loose-table")
 
 
@@ -68,7 +68,8 @@ def test_tables_and_code_are_shown_never_said_and_in_place(runs):
 
 def test_a_yes_inside_the_reply_lets_the_waiting_command_run_once(runs):
     lines, home = runs["allow-yes"]
-    asked = first(lines, "ME \"I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.")
+    asked = first(lines, "ME 'May I run `gh pr create`?")
+    assert "BLOCK '- Yes, this once\\n- Always\\n- No'" in lines                   # the answers: bullets, on screen
     assert first(lines, "ME 'Let me open it.") < asked < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
     assert "NOTE allowed once: Bash(gh pr create:*)" in lines
     assert first(lines, "PERM allow") < first(lines, "ME 'Opened it.'")         # the same reply goes on
@@ -87,7 +88,7 @@ def test_always_allows_it_now_and_from_now_on_without_a_restart(runs):
 
 def test_a_question_from_an_early_start_is_asked_once_the_turn_is_final(runs):
     lines, _ = runs["allow-eager"]
-    assert first(lines, "YOU 'open a PR'") < first(lines, "ME \"I'm not allowed") < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
+    assert first(lines, "YOU 'open a PR'") < first(lines, "ME 'May I") < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
 
 
 def test_no_allows_nothing(runs):
@@ -96,9 +97,18 @@ def test_no_allows_nothing(runs):
     assert not (home / "settings.json").exists()
 
 
-def test_any_other_answer_refuses_and_reaches_the_brain(runs):
+def test_a_question_back_reaches_the_brain_and_a_yes_after_runs_it_unasked(runs):
     lines, _ = runs["allow-other"]
     assert any(line.startswith("PERM deny") and "what would that do" in line for line in lines)
+    assert first(lines, "PERM deny") < first(lines, "YOU 'ok do it'") < first(lines, "PERM allow")
+    assert sum(line.startswith("ME 'May I") for line in lines) == 1                # asked once, not twice
+
+
+def test_an_unclear_answer_is_asked_again_by_claudio_not_the_brain(runs):
+    lines, _ = runs["allow-unclear"]
+    again = first(lines, "ME 'Sorry, yes or no?")
+    assert first(lines, "YOU 'I said I said'") < again < first(lines, "PERM allow")
+    assert not any(line.startswith("PERM deny") for line in lines)
 
 
 def test_a_cut_while_asking_refuses_the_waiting_command(runs):
@@ -125,7 +135,7 @@ def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
 
 def test_an_okay_to_the_reply_before_the_question_allows_nothing(runs):
     lines, home = runs["allow-early"]
-    assert first(lines, "YOU 'okay'") < first(lines, "ME \"I'm not allowed")
+    assert first(lines, "YOU 'okay'") < first(lines, "ME 'May I")
     assert not any(line.startswith(("NOTE allowed", "PERM")) for line in lines)
     assert not (home / "settings.json").exists()
 

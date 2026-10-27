@@ -66,7 +66,7 @@ The persona asks the brain to say what it's about to do before each tool call. W
 </Accordion>
 <Accordion title="It says it isn't allowed to run something. How do I allow it?">
 
-Answer the question. When the brain needs a command its rules don't cover, the command waits and claudio asks, in the same reply: “I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.” Yes runs it once; always also adds the rule to `~/.config/claudio/settings.json`, for every later run; no, or a minute's silence, doesn't run it.
+Answer the question. When the brain needs a command its rules don't cover, the command waits and claudio asks, in the same reply, “May I run `gh pr create`?”, with yes, always and no listed under it. Yes runs it once; always also adds the rule to `~/.config/claudio/settings.json`, for every later run; no, or a minute's silence, doesn't run it.
 
 You can also edit that file yourself, in [Claude Code's settings format](https://code.claude.com/docs/en/settings#permission-settings), such as `{"permissions": {"allow": ["Bash(gh:*)", "WebFetch"]}}`; saving it restarts the brain. Telling the brain “I approve” does nothing on its own: only claudio's question can allow it. See [allow more](/docs/reference/files#allow-more).
 

@@ -115,7 +115,7 @@ class FakeProc:
         if SC == "handoff-new" and "fix the login" in text:    # hand it over by surface id, as the persona says
             self.emit({"type": "assistant", "message": {"model": "m", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {
                 "command": f'cmux agent message {NEW} --from Voice "[spoken by the user, transcribed by claudio] fix the login"'}}]}})
-        if SC.startswith("allow") and "open a PR" in text:   # a tool the rules don't cover: the SDK asks claudio
+        if SC.startswith("allow") and ("open a PR" in text or "do it" in text):   # a tool the rules don't cover: the SDK asks claudio
             await self.say("Let me open it. " * (4 if SC == "allow-early" else 1))
             self.perm = asyncio.get_running_loop().create_future()
             self.emit({"type": "control_request", "request_id": "perm", "request": {
@@ -193,8 +193,12 @@ SCENARIOS = {   # name: (seconds to run, script)
                       (2.5, turn("StartOfTurn")), (2.6, turn("EagerEndOfTurn", "yes")), (2.7, turn("EndOfTurn", "yes"))]),
     "allow-always": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                          (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "always"))]),
-    "allow-other": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
-                        (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "what would that do"))]),
+    "allow-other": (9, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                        (3.5, turn("StartOfTurn")), (3.7, turn("EndOfTurn", "what would that do")),
+                        (5.5, turn("StartOfTurn")), (5.7, turn("EndOfTurn", "ok do it"))]),
+    "allow-unclear": (9, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
+                          (3.5, turn("StartOfTurn")), (3.7, turn("EndOfTurn", "I said I said")),
+                          (5.5, turn("StartOfTurn")), (5.7, turn("EndOfTurn", "So, yes. You are allowed."))]),
     "allow-cut": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                       (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "slash stop"))]),
     "allow-eager": (9, [(2.0, turn("StartOfTurn")), (2.2, turn("EagerEndOfTurn", "open a PR")),

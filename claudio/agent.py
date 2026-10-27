@@ -67,7 +67,8 @@ BLOCK_END = object()          # a text block ended (a tool runs next): speak wha
 
 class Question(str):
     """claudio's own permission question, in the turn whose tool waits on it: said as one sentence of its own."""
-YES, NO = ("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "go"), ("no", "nope", "n", "dont", "deny", "never")
+YES, NO = (("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "allowed", "go", "fine", "alright", "please", "do"),
+           ("no", "nope", "n", "dont", "deny", "never", "not", "stop"))
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
 cfg, surfaces = {}, {}
@@ -103,7 +104,7 @@ def clear_audio():
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
           "level": 0, "latency": None, "skip": False}
-pending = {"rule": None, "ask": "", "ready": False, "future": None}   # the skip question, or a tool waiting on one: answerable once shown   # skip: no permission checks, this run only, never saved
+pending = {"rule": None, "ask": "", "options": "", "ready": False, "future": None}   # the skip question, or a tool waiting on one: answerable once shown   # skip: no permission checks, this run only, never saved
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n"
@@ -768,12 +769,15 @@ def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block, blocks = sentences[k]
-        if (pending["rule"] or pending["future"]) and text.strip() == pending["ask"]:
+        asking = (pending["rule"] or pending["future"]) and text.strip() == pending["ask"]
+        if asking:
             pending["ready"] = True            # the question is being asked: now a yes answers it
         for b in blocks:
             ui.block(b, colors=cfg.get("code_colors", True))
         if text:
             ui.me_line(text, first_of_block, live=bool(status["live"]), secs=secs)
+        if asking and pending.get("options"):
+            ui.block(pending["options"])       # its answers, as bullets under it: on screen, not said
 
 
 async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
@@ -840,7 +844,7 @@ async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
                         split(final=True)
                         flush()
                         first = True
-                        emit(d)                # one item, on a line of its own: show() knows it by its text
+                        emit(d.split("\n")[0] + "\n")     # said; show() knows it by its text and adds the answers
                         buf, first, bol = "", True, True
                         continue
                     if d is BLOCK_END:
@@ -910,6 +914,41 @@ def norm(s):
 def backchannel(said):
     words = norm(said)
     return len(words) < 2 or all(w in BACKCHANNEL for w in words)
+
+
+def intent(said):
+    """What an answer to claudio's permission question means: yes, always, no, a question back, or unclear. Read
+    from the last part that says yes or no, so "you don't need to spell it. So yes, you are allowed" is a yes."""
+    parts = [p for p in re.split(r"(?<=[.!?;])\s+|\.\.\.+", said.strip()) if p.strip()]
+    words = lambda p: norm(p.replace("no problem", "fine").replace("no worries", "fine"))
+    for part in reversed(parts):
+        w = words(part)
+        if any(x in NO for x in w):
+            return "no"
+        if any(x in ("but", "wait", "what", "why", "how", "first") for x in w) or (part is parts[-1] and part.rstrip().endswith("?")):
+            return "question"
+        if "always" in w:
+            return "always"
+        if any(x in YES for x in w):
+            return "yes"
+    return "question" if said.rstrip().endswith("?") else "unclear"
+
+
+def described(tool, tool_input, rule, what):
+    """What claudio asks about, as said: "run gh pr create", "open claudio-vert.vercel", never a whole command."""
+    if rule and rule.startswith("/"):
+        return f"go into the {os.path.basename(rule)} folder"
+    if rule:
+        return what.removeprefix("to ")
+    if tool == "Bash":
+        cmd = str(tool_input.get("command", ""))
+        site = ui.URL.search(cmd)
+        words = [w for w in cmd.split() if re.fullmatch(r"[a-z][\w.-]*", w)][:2]
+        if words[:1] == ["open"] and site:
+            return f"open {site[1].rsplit('.', 1)[0]}"
+        return f"run `{' '.join(words) or 'a command'}`" + (f" for {site[1].rsplit('.', 1)[0]}" if site else "")
+    path = tool_input.get("file_path") or tool_input.get("notebook_path")
+    return f"use {tool} on {os.path.basename(path)}" if path else f"use {tool}"
 
 
 async def shower_typed():
@@ -1035,34 +1074,33 @@ async def main():
         refresh()
 
 
+    recent = {"key": None, "at": 0.0}       # the command last refused with a question in reply: a yes can run it
+
     async def ask(tool, tool_input):
         """A tool use the rules refuse: claudio, not the brain, asks the user, inside the reply that wants it, while
         the call waits, so nothing the brain reads can say yes. yes: this once. always: from now on, as a rule claudio
-        made (never sh -c or a bare Write: those are once only). no, anything else, a cut or a minute's silence:
-        not run, and the brain hears what was said."""
+        made (never sh -c or a bare Write: those are once only). no, a cut or a minute's silence: not run. Unclear:
+        asked once more. A question back ("what would that do?") goes to the brain, and a yes to its answer runs that
+        same command without asking again."""
         rule, what = config.rule_for(tool, tool_input)
-        if not rule:
-            target = str(tool_input.get("command") or tool_input.get("file_path") or "")
-            what = f"to run `{' '.join(target.split())[:80]}`" if tool == "Bash" else f"to use {tool} on {target}".strip()
-        question = f"I'm not allowed {what}. May I? Say yes{', always,' if rule else ''} or no."
-        future = loop.create_future()
-        pending.update(future=future, ask=question, ready=False)
-        brain.say(question)
-        try:
-            said = await asyncio.wait_for(future, 60)
-        except asyncio.TimeoutError:
-            said = None
-        finally:
-            pending.update(future=None, ask="", ready=False)
-        words = norm(said or "")
-        short = bool(words) and len(words) <= 3
-        if said is None:
-            ui.note(f"not allowed: {rule or what}")
-            return PermissionResultDeny(message="The user did not answer, so it did not run. Say so in a few words.")
-        if short and words[0] in NO:
-            ui.note(f"not allowed: {rule or what}")
-            return PermissionResultDeny(message="The user said no. Say in a few words that you won't.")
-        if short and rule and "always" in words:
+        action = described(tool, tool_input, rule, what)
+        key = (tool, json.dumps(tool_input, sort_keys=True))
+        if recent["key"] == key and time.time() - recent["at"] < 120 and intent(brain.text) in ("yes", "always"):
+            recent["key"] = None
+            ui.note(f"allowed once: {rule or action}")
+            return PermissionResultAllow()     # they asked about it, heard the answer, and said yes
+        question = f"May I {action}?\n- Yes, this once\n" + ("- Always\n" if rule else "") + "- No"
+        ready = False                          # until it is on screen: an "okay" to the reply before it is no yes
+        for _ in range(2):
+            said = await asked(question, ready)
+            answer = intent(said or "")
+            if answer != "unclear" or said is None:
+                break
+            question, ready = "Sorry, yes or no?", True   # they are answering already: take the next words
+        if said is None or answer == "no":
+            ui.note(f"not allowed: {rule or action}")
+            return PermissionResultDeny(message="The user said no, or nothing, so it did not run. Say so in a few words.")
+        if answer == "always" and rule:
             config.allow(rule)                 # for later runs; this one has it from the update below
             ui.note(f"allowed {rule}")
             m = re.fullmatch(r"([^(]+)(?:\((.*)\))?", rule)
@@ -1070,10 +1108,25 @@ async def main():
                 PermissionUpdate(type="addDirectories", directories=[rule], destination="session") if rule.startswith("/")
                 else PermissionUpdate(type="addRules", rules=[PermissionRuleValue(m[1], m[2])], behavior="allow",
                                       destination="session")])
-        if short and (words[0] in YES or "always" in words):
-            ui.note(f"allowed once: {rule or what}")
+        if answer in ("yes", "always"):
+            ui.note(f"allowed once: {rule or action}")
             return PermissionResultAllow()
-        return PermissionResultDeny(message=f"Not run: asked, the user said \"{said}\" instead. Answer that.")
+        recent.update(key=key, at=time.time())
+        return PermissionResultDeny(message=f"Not run yet: asked, the user said \"{said}\". Answer that in a few words; "
+                                            "if they then say yes, run the same command again.")
+
+    async def asked(question, ready):
+        """Say the question in the reply speaking now; the user's words, or None for a cut or a minute's silence."""
+        future = loop.create_future()
+        said, _, options = question.partition("\n")
+        pending.update(future=future, ask=said, options=options, ready=ready)
+        brain.say(question)
+        try:
+            return await asyncio.wait_for(future, 60)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            pending.update(future=None, ask="", options="", ready=False)
 
     brain.on_ask = ask
 
@@ -1164,8 +1217,8 @@ async def main():
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
-            ask = "Skip every permission check until you quit? The brain could then run anything, unasked. Say yes or no."
-            pending.update(rule=SKIP, ask=ask, ready=False)   # only a yes right after it turns them off
+            ask = "Skip every permission check until you quit? The brain could then run anything, unasked."
+            pending.update(rule=SKIP, ask=ask, options="- Yes\n- No", ready=False)   # only a yes right after it turns them off
             start(ask, committed=True, fixed=True)
         elif cmd == "permissions":
             if status["skip"]:

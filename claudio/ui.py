@@ -111,10 +111,21 @@ INLINE_STYLE = ("bold", "cyan", "italic")
 settling = {"now": False}       # settle() is printing: the hook must not flush the blocks still fading
 
 
+URL = re.compile(r"https?://(?:www\.)?([^/\s\"'`)>]+?)(?:[/?#][^\s\"'`)>]*?)?(?=[.,;:!?]*(?:[\s\"'`)>]|$))")
+ID = re.compile(r"\b[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\b|\b(?=[0-9A-Fa-f]*\d)[0-9A-Fa-f]{8,}\b|\b\d{7,}\b")
+
+
+def plain(text):
+    """Said, not spelled: a web address as its site's name, github.com/x/y as "github"; a session id, a hash or a
+    long number dropped. ponytail: a regex, so a long number someone wants read out is dropped too."""
+    text = ID.sub("", URL.sub(lambda m: m[1].rsplit(".", 1)[0], text))
+    return re.sub(r" +([,.?!])", r"\1", re.sub(r"[ \t]{2,}", " ", text))
+
+
 def spoken(text):
-    """What the voice says: the sentence without its bullet or markup."""
+    """What the voice says: the sentence without its bullet or markup, links and ids as plain()."""
     said = INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), BULLET.sub("", text))
-    return re.sub(r"(?<![\w/])/(?=[a-z])", "slash ", said)   # "/clear" is said "slash clear", as the user says it
+    return plain(re.sub(r"(?<![\w/])/(?=[a-z])", "slash ", said))   # "/clear" is said "slash clear", as the user says it
 
 
 def sayable(text):

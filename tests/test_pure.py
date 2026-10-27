@@ -413,6 +413,33 @@ def test_replies_are_new_messages_from_others():
     assert [m["id"] for m in config.replies(msgs, me, 100)] == ["a"]
 
 
+def test_links_and_ids_are_said_by_name_never_spelled():
+    from claudio.ui import spoken
+    assert spoken("Opening https://claudio-vert.vercel.app/ now.") == "Opening claudio-vert.vercel now."
+    assert spoken("See https://github.com/ActurialCapital/claudio/pull/3.") == "See github."
+    assert spoken("Surface 34E60333-B8F3-450A-94A6-83AB14618643 is done.") == "Surface is done."
+    assert spoken("It costs 12 dollars in 2026.") == "It costs 12 dollars in 2026."
+
+
+def test_a_permission_answer_is_read_by_what_it_means():
+    from claudio.agent import intent
+    cases = {"Yes.": "yes", "ok do it": "yes", "no problem, go ahead": "yes", "always": "always", "no": "no",
+             "please don't": "no", "what would that do": "question", "is that safe?": "question",
+             "yes but first tell me why": "question", "I said I said": "unclear",
+             "Yeah. You don't need to spell the long numbers. So, yes, I give... you are allowed.": "yes"}
+    for said, meant in cases.items():
+        assert intent(said) == meant, said
+
+
+def test_the_question_names_the_thing_never_the_whole_command():
+    from claudio.agent import described
+    cmd = 'cmux new-split right --surface 34E60333-B8F3-450A-94A6-83AB14618643 --command "open https://claudio-vert.vercel.app/"'
+    assert described("Bash", {"command": cmd}, None, "") == "run `cmux new-split` for claudio-vert.vercel"
+    assert described("Bash", {"command": 'open "https://claudio-vert.vercel.app/"'}, None, "") == "open claudio-vert.vercel"
+    assert described("Bash", {"command": "gh pr create -t x"}, "Bash(gh pr create:*)", "to run `gh pr create`") == "run `gh pr create`"
+    assert described("Write", {"file_path": "/x/notes.md"}, None, "") == "use Write on notes.md"
+
+
 def test_an_allow_file_moves_into_settings_once_and_always_adds_to_it(tmp_path, monkeypatch):
     allow, settings = tmp_path / "allow", tmp_path / "settings.json"
     allow.write_text("# GitHub, all of it\nBash(gh:*)\n\nWebFetch  # docs pages\n~/src/other\n")

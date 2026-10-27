@@ -56,14 +56,22 @@ It can't read `secrets.json` with Read, nor with a command that names it, and it
 
 ### When it needs more
 
-Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply: “I'm not allowed to run `gh pr create`. May I? Say yes, always, or no.” Answer by voice or by typing:
+Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is, never the whole of it, and shows the answers under it:
 
-- **yes** (or yeah, sure, okay, allow): it runs, this once, and the reply goes on
+> May I run `gh pr create`?
+> - Yes, this once
+> - Always
+> - No
+
+Answer by voice or by typing, in your own words: what counts is the last part that says yes or no, so “you don't need to spell that out. So yes, go ahead” is a yes.
+
+- **yes** (or yeah, sure, okay, go ahead, do it, you're allowed): it runs, this once, and the reply goes on
 - **always**: it runs, and `Bash(gh pr create:*)` is added to `settings.json`, for the rest of this run and every later one, with no restart
-- **no**, or no answer within a minute: it doesn't run, and the brain says so
-- **anything else**, such as “what would that do?”: it doesn't run, and the brain answers what you said
+- **no** (or don't, stop, not now), or no answer within a minute: it doesn't run, and the brain says so
+- **a question back**, such as “what would that do?”: it doesn't run yet, and the brain answers you; say yes to that answer and the same command runs without being asked about again
+- **anything unclear**: claudio asks once more, “Sorry, yes or no?”
 
-Talking while it asks doesn't pause it, and a reply you cut off answers no. When it's a folder outside the one you started in, claudio asks about the folder instead, the whole repo when it's in one: “I'm not allowed into ~/GitHub/ActurialCapital/claudio.”
+Talking while it asks doesn't pause it, and a reply you cut off answers no. When it's a folder outside the one you started in, claudio asks about the folder instead, the whole repo when it's in one: “May I go into the claudio folder?”
 
 The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
