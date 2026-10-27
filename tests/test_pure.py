@@ -474,6 +474,7 @@ def test_rule_for_never_offers_a_cmux_command_that_runs_any_program(tmp_path, mo
 def test_persona_is_the_package_plus_the_users_additions(tmp_path, monkeypatch):
     mine = tmp_path / "prompt.md"
     monkeypatch.setattr(config, "PROMPT", str(mine))
+    monkeypatch.setattr(config, "LEARNED", str(tmp_path / "learned.md"))   # none learned: not the real one
     base = open(config.PACKAGED_PROMPT).read()
     mine.write_text(base)                              # a shipped persona copied here, never edited
     config.WARNINGS.clear(); config._persona_file()
@@ -483,3 +484,16 @@ def test_persona_is_the_package_plus_the_users_additions(tmp_path, monkeypatch):
     mine.write_text(base + "\nAlways answer in French.\n")   # a whole persona, edited: still used, with a warning
     config.WARNINGS.clear(); config._persona_file()
     assert config.persona().endswith("Always answer in French.\n") and config.WARNINGS
+
+
+def test_learned_rules_end_the_persona_once_each(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROMPT", str(tmp_path / "prompt.md"))
+    monkeypatch.setattr(config, "LEARNED", str(tmp_path / "learned.md"))
+    assert config.learn("  'seven'  is usually\n'save' ") == "'seven' is usually 'save'"   # one line, however it came
+    config.learn("- 'seven' is usually 'save'")                                             # already there: not twice
+    config.learn("vbt is the vectorbtpro repo")
+    assert (tmp_path / "learned.md").read_text() == "- 'seven' is usually 'save'\n- vbt is the vectorbtpro repo\n"
+    assert config.persona().endswith("which win over anything above:\n- 'seven' is usually 'save'\n"
+                                     "- vbt is the vectorbtpro repo")
+    with pytest.raises(SystemExit):
+        config.learn("  ")

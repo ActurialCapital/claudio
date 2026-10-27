@@ -300,7 +300,7 @@ class Brain:
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
-                "Bash(claudio set:*)",
+                "Bash(claudio set:*)", "Bash(claudio learn:*)",
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
                 *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only

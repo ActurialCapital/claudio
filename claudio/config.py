@@ -8,6 +8,7 @@ PROMPT = os.path.join(DIR, "prompt.md")
 PACKAGED_PROMPT = os.path.join(os.path.dirname(__file__), "prompt.md")
 SECRETS_FILE = os.path.join(DIR, "secrets.json")
 SESSION = os.path.join(DIR, "session")
+LEARNED = os.path.join(DIR, "learned.md")   # what the brain learned from the user's corrections, a rule a line
 MCP = os.path.join(DIR, "mcp.json")      # MCP servers for the brain, as in a .mcp.json; none when it is absent
 SETTINGS = os.path.join(DIR, "settings.json")   # the brain's own permission rules, in Claude Code's settings format
 ALLOW = os.path.join(DIR, "allow")       # the older one-rule-per-line file, moved into SETTINGS once
@@ -335,7 +336,31 @@ def _persona_file():
 
 
 def persona():
-    """What the brain is told about itself: the package's persona, then the user's additions."""
+    """What the brain is told about itself: the package's persona, the user's additions, then what it learned."""
+    try:
+        learned = open(LEARNED).read().strip()
+    except OSError:
+        learned = ""
+    return _persona() + (f"\n\nWhat you learned from the user's corrections, which win over anything above:\n{learned}"
+                         if learned else "")
+
+
+def learn(rule):
+    """Add one rule to LEARNED, on its own line; one already there is not added twice."""
+    rule = " ".join(rule.split()).lstrip("- ")
+    if not rule:
+        raise SystemExit("claudio learn takes a rule, such as \"'seven' is usually 'save'\"")
+    try:
+        rules = open(LEARNED).read().splitlines()
+    except OSError:
+        rules = []
+    if f"- {rule}" not in rules:     # ponytail: grows unbounded; trim or distil old rules if the prompt gets long
+        with open(LEARNED, "a") as f:
+            f.write(f"- {rule}\n")
+    return rule
+
+
+def _persona():
     base = open(PACKAGED_PROMPT).read()
     try:
         mine = open(PROMPT).read()

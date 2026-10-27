@@ -89,6 +89,7 @@ flowchart LR
 - 🕰️ A dim rule with the time marks a gap of more than five minutes.
 - 📓 Every conversation is kept in `~/.config/claudio/transcripts/YYYY-MM-DD.md`.
 - 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
+- 🧠 Gets better with use: correct it once ("seven" means "save", "vbt" is that repo) and it keeps the rule in `learned.md` for every future conversation.
 - ✍️ Add to the persona in `prompt.md` and the brain restarts with it, memory kept; claudio's own rules come from the package, so updates still reach you.
 
 ## 🔬 Under the hood
@@ -132,7 +133,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
-`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
+`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it; edit `learned.md` to undo) · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 
 A `.claudio.json` in a project root overrides any of these for that project, `{"orchestrator": "Core"}` being the usual one.
 

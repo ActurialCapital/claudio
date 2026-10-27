@@ -79,6 +79,16 @@ Deletes the remembered brain session, so the next start is a fresh conversation.
 
 It does not delete the transcripts, which the brain can still read when you ask about past days. In a running claudio, say “slash clear” instead.
 
+## `claudio learn <rule>`
+
+Adds one rule to `learned.md`, which goes at the end of the persona from the next brain start, and prints `learned: <rule>`. A rule already there isn't added twice. The brain runs it itself when you correct it; you can run it too:
+
+```bash
+claudio learn "'seven' is usually 'save'"
+```
+
+To unlearn something, edit or empty `~/.config/claudio/learned.md`. `claudio forget` leaves it alone.
+
 ## `claudio set <key> <value>`
 
 Checks one setting, saves it to the global `config.json`, and prints the result:

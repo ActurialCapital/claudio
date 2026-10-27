@@ -15,6 +15,7 @@ claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
 claudio uninstall   remove them
 claudio forget      drop the brain's memory of past conversations
+claudio learn <rule>        add a rule the brain keeps across conversations, to learned.md
 claudio open <link or note>  open a web link, or a .md/.txt note in ~/Desktop or ~/Documents
 claudio set <key> <value>   change one setting:
                             KEYS
@@ -220,6 +221,8 @@ def main():
             subprocess.run(["osascript", *(a for line in CLOSE.splitlines() for a in ("-e", line)), target])
         else:                                  # a note in TextEdit, never whatever .md opens with (Xcode…)
             subprocess.run(["open", target] if "://" in target else ["open", "-e", target])
+    elif args[0] == "learn" and len(args) == 2:   # the brain's way to keep a correction: it can't edit its own files
+        print(f"learned: {config.learn(args[1])}")
     elif args[0] == "set" and len(args) == 3:
         print(f"{args[1]} = {config.set_key(args[1], args[2])}")
     elif args[0] == "hook" and len(args) == 2:

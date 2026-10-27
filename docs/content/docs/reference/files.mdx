@@ -12,6 +12,7 @@ claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio`
 | `prompt.md` | your additions to the [persona](/docs/configure/persona), added after claudio's own rules from the package |
 | `transcripts/YYYY-MM-DD.md` | each day's conversation, one line each with the time to the second: your turns, its replies and what it showed, session reports, the commands the brain ran, setting changes, notes and warnings |
 | `session` | the remembered brain session id and when it started |
+| `learned.md` | rules the brain kept from your corrections, one a line, added to the end of the persona; edit or empty it freely |
 | `mcp.json` | optional: MCP servers for the brain, in the same format as a project's `.mcp.json` |
 | `settings.json` | optional: more tools and folders for the brain, in Claude Code's settings format; "always" adds to it |
 | `allow.bak` | the older one-rule-per-line `allow` file, kept after its rules moved into `settings.json` |
@@ -39,6 +40,7 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
 - **cmux**: `agent message`, `surface list`, `read-screen` and `send-key`, and `new-workspace`, `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - **claudio set**, to change a setting when you ask
+- **claudio learn**, to keep a correction of yours in `learned.md`
 - **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and check that a file exists with `test`
 - **`claudio open`** and **`claudio close`**: a web link in your browser, or a `.md` or `.txt` note from those folders in TextEdit, never an app, a script or anything else; closing a note saves it and quits TextEdit when it was the last window. The first close asks macOS for permission to control TextEdit
 - **the web**: WebSearch and WebFetch

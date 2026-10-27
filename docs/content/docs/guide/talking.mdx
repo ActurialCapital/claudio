@@ -99,4 +99,10 @@ To start over:
 - Run `claudio forget` to start fresh on the next run
 - Run `claudio set memory false` to turn memory off
 
+### What it learns
+
+When you correct it in a way that should hold next time, such as a word it keeps mishearing, what a name means, or how you like something done, the brain keeps the correction as a one-line rule with [`claudio learn`](/docs/reference/cli#claudio-learn-rule). The rules go in `learned.md` and come back at every start, even after `claudio forget` or a week away, so claudio gets better the more you correct it. It learns only from your own words, not from a web page, a file or a session.
+
+To see or undo what it learned, open `~/.config/claudio/learned.md` and edit or empty it. The change takes effect at the next start.
+
 For "what did we do today" or "what did I ask yesterday", the brain reads that day's [transcript file](/docs/guide/on-screen#find-past-conversations) instead of relying on its memory, which mixes up days.
