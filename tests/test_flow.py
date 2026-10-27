@@ -6,7 +6,7 @@ import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
-             "session-yes", "session-key", "unlearn", "two-done")
+             "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit")
 
 
 @pytest.fixture(scope="module")
@@ -196,3 +196,14 @@ def test_two_sessions_finishing_at_once_are_both_narrated_in_order(runs):
     said = [line for line in lines if line.startswith("SAY 'It is noon.")]
     assert len(said) == 2                                        # each narration spoken whole: none cut, none lost
     assert "NOTE replaced" not in lines and "NOTE cut" not in lines
+
+
+def test_the_greeting_waits_for_the_mic_so_its_first_words_are_heard(runs):
+    lines, _ = runs["mic-late"]
+    assert first(lines, "MIC up") < first(lines, "SAY 'Hi, how can I help you?")
+
+
+def test_slash_quit_says_bye_then_quits(runs):
+    lines, _ = runs["quit"]
+    assert first(lines, "KEY '/quit") < first(lines, "SAY 'Bye.") < first(lines, "NOTE bye")
+    assert not any(line.startswith("FLUX") for line in lines)      # quit before the next event came

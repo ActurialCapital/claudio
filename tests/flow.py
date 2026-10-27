@@ -58,8 +58,13 @@ if SC.startswith("session"):              # a session's pane: its permission pro
 
 # ---- sound devices: the speaker drains `out` in real time
 class FakeIn:
-    def __init__(self, *a, **k): pass
-    def __enter__(self): return self
+    def __init__(self, *a, callback=None, **k): self.cb = callback
+    def __enter__(self):
+        if SC != "mic-late":                   # mic-late: like AirPods switching to headset mode, nothing yet
+            self.cb(b"\x00" * 960, 480, None, None)   # the mic is up: a first chunk of silence
+        else:
+            asyncio.get_running_loop().call_later(1.5, lambda: (log("MIC up"), self.cb(b"\x00" * 960, 480, None, None)))
+        return self
     def __exit__(self, *a): pass
     def start(self): pass
 
@@ -231,6 +236,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
+    "mic-late": (4, []),
+    "quit": (7, [("key", (1.0, "/quit\n")), (4.5, turn("StartOfTurn"))]),   # gone before 4.5 s
     "two-done": (9, [("sock", 2.0), ("sock", 2.1)]),
     "unlearn": (6, [("learned", (1.0, "- a\n- b\n")), ("learned", (3.0, "- b\n"))]),
     "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),

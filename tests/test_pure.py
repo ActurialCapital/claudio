@@ -66,6 +66,7 @@ def test_parse_slash_skips_filler_takes_bare_styles_and_fixes_misheard_ones():
     assert parse_slash("slash permission skip") == ("permissions", "skip")
     assert parse_slash("slash skip permission")[0] == "permissions"      # the handler finds "skip" in the words
     assert parse_slash("type slash help in the session") is None
+    assert parse_slash("slash quit") == ("quit", "") and parse_slash("slash exit please") == ("exit", "please")
 
 
 def test_shown_block_takes_a_whole_table_or_fence_and_waits_while_unsure():

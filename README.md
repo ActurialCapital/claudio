@@ -56,6 +56,7 @@ flowchart LR
 | "open a session called Core" | new cmux workspace running `claude` |
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
+| "slash quit" · "slash exit" | says bye and quits |
 | "slash style brief" · "caveman" · "plain" | how it talks: one sentence, caveman, or plain |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | "slash code colors off" | code blocks as plain text; "on" brings colours back |
@@ -67,9 +68,9 @@ flowchart LR
 | "yes", "always" or "no" (or 1, 2, 3), when a session asks for permission | picks that option in the session's pane; no presses Escape; it never picks a mode switch |
 | "forget the rule about seven" | drops that learned rule |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
-| type a line | a turn, for when you can't talk |
+| type a line | a turn, for when you can't talk; what you type shows on the state line |
 
-<kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> quits · typed `/mute`, `/effort low`, `/clear` work too
+<kbd>Enter</kbd> cuts a reply · <kbd>Ctrl</kbd>+<kbd>C</kbd> or `/quit` quits · typed `/mute`, `/effort low`, `/clear` work too
 
 ## 🖥️ On screen
 

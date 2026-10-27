@@ -118,9 +118,10 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
               "- `/permissions skip` or `ask`: no checks until you quit, or checks again.\n"
+              "- `/quit` or `/exit` says bye and quits.\n"
               "- `/help` says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours",
-            "permissions"}
+            "permissions", "quit", "exit"}
 SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
     "plain": "",
@@ -166,7 +167,7 @@ def parse_slash(words):
 def state_text():
     """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
     if status.get("typed"):
-        return f"› {status['typed']}"          # typed while keys answer the question: unechoed, so shown here
+        return f"› {status['typed']}▏"         # typed: unechoed, so shown here
     r = status["reply"]
     if status["muted"]:
         return "muted · say /unmute"
@@ -1023,6 +1024,7 @@ async def main():
     loop = asyncio.get_running_loop()
     voices = asyncio.create_task(asyncio.to_thread(config.fetch_aura, cfg["deepgram_api_key"]))   # for "slash voice"; kept so it isn't collected
     mic = asyncio.Queue()
+    mic_up = asyncio.Event()      # the first mic audio: the audio route is up, so what is played is heard
     helper_holder = {"proc": None}  # the echo-cancelling helper, when it runs
     fallback_streams = {"streams": None}   # the plain mic and speaker, if the helper died
     ears = {"ws": None}            # the Flux socket, when connected
@@ -1279,6 +1281,16 @@ async def main():
                   f"- Voice {ui.short_voice(cfg['voice'])}.\n- Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
         elif cmd == "help":
             start(SLASH_HELP, committed=True, fixed=True)
+        elif cmd in ("quit", "exit"):
+            start("Bye.", committed=True, fixed=True)
+            said = latest["handle"]["task"]
+
+            async def leave():              # once it is said, as Ctrl-C would
+                with contextlib.suppress(asyncio.CancelledError):
+                    await said
+                if work["task"]:
+                    work["task"].cancel()
+            asyncio.create_task(leave())
         else:
             start(f"I don't know slash {cmd}. {SLASH_HELP}", committed=True, fixed=True)
         return True
@@ -1429,6 +1441,7 @@ async def main():
     async def send_mic():
         while True:
             b = await mic.get()
+            mic_up.set()
             ws = ears["ws"]
             if ws is None:
                 continue
@@ -1549,9 +1562,9 @@ async def main():
     term = {"saved": termios.tcgetattr(0) if os.isatty(0) else None, "keys": False}
 
     def key_mode():
-        """One key answers while a question is on screen: the terminal sends keys as pressed, unechoed, then
-        lines again once it is answered."""
-        want = bool(term["saved"] and pending["ready"] and (pending["future"] or pending["rule"]))
+        """The terminal sends keys as pressed, unechoed, and what is typed shows on the state line: its own echo
+        would be drawn over by the state line. While a question is on screen, one key answers it."""
+        want = bool(term["saved"])
         if want != term["keys"]:
             term["keys"] = want
             if want:
@@ -1581,9 +1594,12 @@ async def main():
                     typed = ""
                 elif ch in "\x7f\b":
                     typed = typed[:-1]
-                else:
+                elif ch == "\x15":            # Ctrl-U: the whole line
+                    typed = ""
+                elif ch.isprintable() and not chunk.startswith("\x1b"):   # not an arrow key's escape sequence
                     typed += ch
-            status["typed"] = typed if term["keys"] else ""   # keys unechoed: shown on the state line
+            status["typed"] = typed           # keys unechoed: shown on the state line
+            refresh()
 
     def on_line(typed):
         if typed.startswith("/") and slash("slash " + typed[1:].lower()):
@@ -1680,8 +1696,14 @@ async def main():
     status["live"] = console.status("[dim]listening[/]")
     ui.attach(status["live"])
     status["live"].start()
+    async def greet():
+        """So you hear it's up, and the voice works; once the mic is: opening it switches Bluetooth headphones
+        (AirPods) to headset mode, about 1.3 s, and what plays meanwhile is lost, "Hi, how" with it."""
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(mic_up.wait(), 3)
+        start("Hi, how can I help you?", committed=True, fixed=True)
     if not typed:
-        start("Hi, how can I help you?", committed=True, fixed=True)    # so you hear it's up, and the voice works
+        asyncio.create_task(greet())
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch()]
     if not aec:
         tasks.append(shower())

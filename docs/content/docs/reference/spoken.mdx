@@ -16,6 +16,7 @@ Say “slash” and a command, such as “slash stop”, or type `/stop` and pre
 | `unmute` | | says “I'm listening again.” |
 | `status` | | says the orchestrator, model, effort, Aura voice and memory |
 | `help` | | says the list of commands |
+| `quit` (or `exit`) | | says “Bye.” and quits, as <kbd>Ctrl</kbd>+<kbd>C</kbd> does once it is said |
 | `model` | `default`, `sonnet`, `opus` or `haiku` | saves the model; the brain restarts and says it is back |
 | `effort` | `low`, `medium` or `high` | saves the effort; the brain restarts and says it is back |
 | `style` | `plain`, `brief` or `caveman` | saves the [style](/docs/configure/persona#switch-the-style); the brain restarts and says it is back |
@@ -49,9 +50,10 @@ While muted, typed lines still work as turns.
 | Key | Effect |
 |---|---|
 | <kbd>Enter</kbd> on an empty line | cuts the reply; with push to talk, opens the mic when it is closed |
-| a typed line, then <kbd>Enter</kbd> | a turn, as if you had said it |
+| a typed line, then <kbd>Enter</kbd> | a turn, as if you had said it; while you type, the line shows on the state line as `› …▏` |
+| <kbd>Backspace</kbd> · <kbd>Ctrl</kbd>+<kbd>U</kbd> | deletes a character · the whole typed line |
 | `/` and a command, then <kbd>Enter</kbd> | a slash command |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd> | quits |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd>, or `/quit` | quits |
 
 ## Backchannels
 
