@@ -103,6 +103,6 @@ To start over:
 
 When you correct it in a way that should hold next time, such as a word it keeps mishearing, what a name means, or how you like something done, the brain keeps the correction as a one-line rule with [`claudio learn`](/docs/reference/cli#claudio-learn-rule). The rules go in `learned.md` and come back at every start, even after `claudio forget` or a week away, so claudio gets better the more you correct it. It learns only from your own words, not from a web page, a file or a session.
 
-To drop a rule, say so ("forget the rule about seven"): the brain runs [`claudio unlearn`](/docs/reference/cli#claudio-unlearn-words) with a few words from it, and asks which one if several match. To see or edit them all, open `~/.config/claudio/learned.md`. A change to the file takes effect at the next start.
+To drop a rule, say so ("forget the rule about seven"): the brain runs [`claudio unlearn`](/docs/reference/cli#claudio-unlearn-words) with a few words from it, and asks which one if several match. To see or edit them all, open `~/.config/claudio/learned.md`. A dropped rule takes effect at once: claudio restarts the brain after its current reply, memory kept. A rule you add there by hand applies from the next start.
 
 For "what did we do today" or "what did I ask yesterday", the brain reads that day's [transcript file](/docs/guide/on-screen#find-past-conversations) instead of relying on its memory, which mixes up days.

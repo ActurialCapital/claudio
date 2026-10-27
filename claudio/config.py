@@ -271,7 +271,8 @@ def rule_for(tool, tool_input, cwd=None):
         if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
             break
         words.append(w)
-    if not words or words[0] in WRAPPERS or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface")):
+    if (not words or words[0] in WRAPPERS or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface"))
+            or words[:3] == ["cmux", "workspace", "create"]):
         return None, ""                        # VAR=x, sh -c, python -c, cmux new-split --command…: any command at all
     prefix = " ".join(words)
     return f"Bash({prefix}:*)", f"to run `{prefix}`"
@@ -354,6 +355,7 @@ def learn(rule):
         rules = open(LEARNED).read().splitlines()
     except OSError:
         rules = []
+    os.makedirs(DIR, exist_ok=True)
     if f"- {rule}" not in rules:     # ponytail: grows unbounded; trim or distil old rules if the prompt gets long
         with open(LEARNED, "a") as f:
             f.write(f"- {rule}\n")
@@ -405,6 +407,40 @@ def set_key(key, value):
     cfg[key] = v
     save(cfg)
     return v
+
+
+def permission_keys(screen):
+    """A session's permission prompt as its screen shows it: what to type for each answer claudio can give, or {}
+    when no prompt shows. yes: the plain Yes. always: the Yes that keeps allowing it, never one that switches mode.
+    no: Escape, which every prompt takes."""
+    opts = re.findall(r"^\s*(?:❯\s*)?(\d)\.\s+(.+)$", screen, re.M)
+    yes = next((k for k, v in opts if v.strip() == "Yes"), None)
+    if not yes or "Do you want" not in screen:
+        return {}
+    keys = {"yes": yes, "no": "escape"}
+    if always := next((k for k, v in opts if v.startswith("Yes, ") and "mode" not in v
+                       and ("always" in v or "don't ask again" in v)), None):
+        keys["always"] = always
+    return keys
+
+
+def question(screen):
+    """The question a session's pane shows (AskUserQuestion), or None, and never a permission prompt:
+    {"multi": checkboxes, "options": {n: label}, "other": n of "Type something" or None, "rows": n of rows above
+    Submit}. "Chat about this" is never an option."""
+    if "Enter to select" not in screen or permission_keys(screen):
+        return None
+    rows = re.findall(r"^\s*(?:❯\s*)?(\d)\.\s+(\[.\]\s+)?(.+?)\s*$", screen, re.M)
+    if not rows:
+        return None
+    options, other = {}, None
+    for n, box, label in rows:
+        if label.startswith("Type something"):
+            other = n
+        elif label != "Chat about this":
+            options[n] = label
+    return {"multi": any(box for _, box, _ in rows), "options": options, "other": other,
+            "rows": len(options) + (other is not None)}
 
 
 def parse_surfaces(text):

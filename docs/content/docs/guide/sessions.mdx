@@ -103,7 +103,7 @@ Say yes, always or no, or press 1, 2 or 3. claudio itself, not the brain, reads 
 
 ### A session asks you to choose
 
-When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then selects that option in the session's pane: it presses `down` once per option before yours, then `enter`, with `cmux send-key --force`. You can always pick it in the pane yourself instead.
+When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then answers in the session's pane with [`claudio choose`](/docs/reference/cli#claudio-choose-surface-n). The brain decides which option you meant; `claudio choose` checks a question is on screen (never a permission prompt) and that the option exists, then types its number. For a question that takes several, name them all and it ticks each and submits. For an answer in your own words, it types them into "Type something". With several questions it answers each in turn and submits the review. You can always pick it in the pane yourself instead.
 
 ```transcript
 ▸ Sequencer  asks you to choose

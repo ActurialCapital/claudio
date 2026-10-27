@@ -231,6 +231,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
+    "two-done": (9, [("sock", 2.0), ("sock", 2.1)]),
+    "unlearn": (6, [("learned", (1.0, "- a\n- b\n")), ("learned", (3.0, "- b\n"))]),
     "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),
                  (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "yes")),
                  (5.0, turn("StartOfTurn")), (5.2, turn("EndOfTurn", "slash permissions ask"))]),
@@ -248,6 +250,7 @@ class FakeEars:
 
     async def events(self):
         base = time.monotonic()
+        at_sock = ["first", "second"]          # each Stop says which it was
         for at, what in SCRIPT:
             if at == "key":                    # ("key", t, text): typed at t
                 t, text = what
@@ -255,12 +258,18 @@ class FakeEars:
                 log("KEY", repr(text))
                 os.write(KEYS[1], text.encode())
                 continue
+            if at == "learned":                # ("learned", (t, text)): learned.md holds this from t
+                t, text = what
+                await asyncio.sleep(max(0, base + t - time.monotonic()))
+                log("LEARNED", repr(text))
+                open(config.LEARNED, "w").write(text)
+                continue
             if at == "sock":
                 await asyncio.sleep(max(0, base + what - time.monotonic()))
                 r, w = await asyncio.open_unix_connection(config.SOCK)
                 surface = NEW if SC == "handoff-new" else "abcd1234"
                 ev = ({"event": "Notification", "kind": "permission_prompt", "message": "Claude needs your permission to use Bash"}
-                      if SC.startswith("session") else {"event": "Stop", "text": "done"})
+                      if SC.startswith("session") else {"event": "Stop", "text": f"done {at_sock.pop(0)}"})
                 w.write((json.dumps({"session": "other", "surface": surface, **ev}) + "\n").encode())
                 await w.drain()
                 w.close()

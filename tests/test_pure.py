@@ -432,7 +432,7 @@ def test_a_permission_answer_is_read_by_what_it_means():
 
 
 def test_a_session_prompt_is_answered_by_its_text_never_by_a_mode_switch():
-    from claudio.agent import permission_keys
+    from claudio.config import permission_keys
     bash = (" Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and always allow access to /tmp/x from this project\n"
             "   3. Yes, and switch to auto mode · auto mode handles these prompts for you\n   4. No\n\n Esc to cancel")
     assert permission_keys(bash) == {"yes": "1", "always": "2", "no": "escape"}
@@ -479,7 +479,8 @@ def test_rule_for_never_offers_claudios_own_folder_for_good(tmp_path, monkeypatc
 
 def test_rule_for_never_offers_a_cmux_command_that_runs_any_program(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
-    for cmd in ("cmux new-split right --surface A --command htop", "cmux new-workspace --name x", "cmux new-surface"):
+    for cmd in ("cmux new-split right --surface A --command htop", "cmux new-workspace --name x", "cmux new-surface",
+                "cmux workspace create --name x --command htop"):
         assert config.rule_for("Bash", {"command": cmd}, str(tmp_path))[0] is None, cmd
 
 
@@ -523,3 +524,37 @@ def test_unlearn_drops_exactly_one_rule_or_none(tmp_path, monkeypatch):
     assert (tmp_path / "learned.md").read_text() == "- vbt is the vectorbtpro repo\n- vbt tests run with pytest\n"
     with pytest.raises(SystemExit):
         config.unlearn(" ")                                       # nothing said: nothing dropped
+
+
+def test_a_sessions_question_is_read_from_its_pane_and_a_permission_prompt_never_is():
+    from claudio.config import question
+    single = ("Color?\n\n❯ 1. red\n     Red\n  2. green\n     Green\n  3. blue\n     Blue\n  4. Type something.\n"
+              "────────\n  5. Chat about this\n\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel")
+    assert question(single) == {"multi": False, "options": {"1": "red", "2": "green", "3": "blue"}, "other": "4", "rows": 4}
+    multi = ("Toppings?\n\n❯ 1. [ ] cheese\n         Cheese\n  2. [✔] ham\n  3. [ ] olives\n  4. [ ] Type something\n"
+             "     Submit\n────────\n  5. Chat about this\n\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel")
+    assert question(multi) == {"multi": True, "options": {"1": "cheese", "2": "ham", "3": "olives"}, "other": "4", "rows": 4}
+    prompt = " Do you want to proceed?\n ❯ 1. Yes\n   2. No\n\n Esc to cancel · Tab to amend"
+    assert question(prompt) is None and question(prompt + "\nEnter to select") is None   # a permission prompt: never
+    assert question("") is None
+
+
+def test_choose_ticks_reaches_submit_and_refuses_what_isnt_an_option(monkeypatch):
+    import subprocess
+    from claudio import cli
+    multi = ("Toppings?\n\n❯ 1. [ ] cheese\n  2. [ ] ham\n  3. [ ] olives\n  4. [ ] Type something\n     Submit\n"
+             "  5. Chat about this\n\nEnter to select")
+    at_submit = multi.replace("❯ 1.", "  1.").replace("     Submit", "❯    Submit")
+    screens, sent = [multi, at_submit, "Ready to submit your answers?"], []
+    def run(cmd, **k):
+        if cmd[1] == "read-screen":
+            return subprocess.CompletedProcess(cmd, 0, screens.pop(0) if len(screens) > 1 else screens[0], "")
+        sent.append(f"{cmd[1]} {cmd[-1]}")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    monkeypatch.setattr(cli.subprocess, "run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    assert cli.choose("S", "1,3") == "cheese, olives"
+    assert sent == ["send 1", "send 3", *["send-key down"] * 4, "send-key enter", "send 1"]   # ticks, Submit, review
+    screens[:] = [multi]
+    with pytest.raises(SystemExit, match="1 cheese, 2 ham, 3 olives"):
+        cli.choose("S", "5")                                  # Chat about this: never

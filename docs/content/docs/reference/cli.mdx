@@ -91,13 +91,23 @@ claudio learn "'seven' is usually 'save'"
 
 ## `claudio unlearn <words>`
 
-Drops the one rule in `learned.md` that contains these words, in any case, and prints `unlearned: <rule>`. When none match, or several do, it drops nothing, lists the matches and exits with an error. The brain runs it when you ask it to forget a rule:
+Drops the one rule in `learned.md` that contains these words, in any case, and prints `unlearned: <rule>`. A running claudio restarts its brain without the rule after the current reply. When none match, or several do, it drops nothing, lists the matches and exits with an error. The brain runs it when you ask it to forget a rule:
 
 ```bash
 claudio unlearn "seven"
 ```
 
 You can also edit or empty `~/.config/claudio/learned.md` yourself.
+
+## `claudio choose <surface> <n>`
+
+Answers the multiple-choice question a session's pane shows, and prints `chose: <option>`. The brain runs it once you have said your choice. It reads the pane first and refuses with an error when no question shows, when it is a permission prompt, or when a number isn't one of the options, listing them. Options count from 1. A question that takes several gets them with commas: each is ticked, then Submit is pressed. `--other` types your own words into "Type something". After the last of several questions it submits the review screen.
+
+```bash
+claudio choose 6913B2BC-A641-4DAA-9E9A-60536E06F5D5 2
+claudio choose 6913B2BC-A641-4DAA-9E9A-60536E06F5D5 1,3
+claudio choose 6913B2BC-A641-4DAA-9E9A-60536E06F5D5 --other "a hamster"
+```
 
 ## `claudio set <key> <value>`
 

@@ -38,9 +38,10 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch`
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
-- **cmux**: `agent message`, `surface list`, `read-screen` and `send-key`, and `new-workspace`, `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
+- **cmux**: `agent message`, `surface list` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - **claudio set**, to change a setting when you ask
 - **claudio learn** and **claudio unlearn**, to keep a correction of yours in `learned.md`, or drop one
+- **claudio choose**, to answer a session's multiple-choice question with the option you picked
 - **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and check that a file exists with `test`
 - **`claudio open`** and **`claudio close`**: a web link in your browser, or a `.md` or `.txt` note from those folders in TextEdit, never an app, a script or anything else; closing a note saves it and quits TextEdit when it was the last window. The first close asks macOS for permission to control TextEdit
 - **the web**: WebSearch and WebFetch

@@ -6,7 +6,7 @@ import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
-             "session-yes", "session-key")
+             "session-yes", "session-key", "unlearn", "two-done")
 
 
 @pytest.fixture(scope="module")
@@ -180,3 +180,19 @@ def test_a_key_says_no_to_a_sessions_prompt_with_escape(runs):
     lines, _ = runs["session-key"]
     assert first(lines, "ME 'Allow it for ws1?") < first(lines, "KEY '3'") < first(lines, "PRESS send-key --surface abcd1234 --force escape")
     assert "NOTE not allowed" in lines and not any(line.startswith("PRESS send ") for line in lines)
+
+
+def test_a_dropped_rule_restarts_the_brain_an_added_one_does_not(runs):
+    lines, _ = runs["unlearn"]
+    starts = [i for i, line in enumerate(lines) if line.startswith("START")]
+    assert len(starts) == 2 and starts[1] > first(lines, "LEARNED '- b")      # once at start, once for the drop
+    assert "NOTE learned rules changed; brain restarting" in lines
+
+
+def test_two_sessions_finishing_at_once_are_both_narrated_in_order(runs):
+    lines, _ = runs["two-done"]
+    brain = [line for line in lines if line.startswith("BRAIN '[event]")]
+    assert len(brain) == 2 and lines.index(brain[0]) < lines.index(brain[1])
+    said = [line for line in lines if line.startswith("SAY 'It is noon.")]
+    assert len(said) == 2                                        # each narration spoken whole: none cut, none lost
+    assert "NOTE replaced" not in lines and "NOTE cut" not in lines

@@ -317,6 +317,10 @@
       "help": "drop the one learned rule with these words"
     },
     {
+      "usage": "claudio choose <surface> <n>[,<n>\u2026] | --other \"<words>\"",
+      "help": "answer the question a session shows"
+    },
+    {
       "usage": "claudio open <link or note>",
       "help": "open a web link, or a .md/.txt note in ~/Desktop or ~/Documents"
     },

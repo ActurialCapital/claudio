@@ -1,5 +1,5 @@
 """claudio: the command. No arguments runs the voice; `setup` is the first-launch wizard."""
-import json, os, shutil, subprocess, sys, urllib.request
+import json, os, re, shutil, subprocess, sys, time, urllib.request
 from rich.prompt import Confirm, IntPrompt, Prompt
 from . import config, ui
 from .ui import console
@@ -17,6 +17,7 @@ claudio uninstall   remove them
 claudio forget      drop the brain's memory of past conversations
 claudio learn <rule>        add a rule the brain keeps across conversations, to learned.md
 claudio unlearn <words>     drop the one learned rule with these words
+claudio choose <surface> <n>[,<n>…] | --other "<words>"   answer the question a session shows
 claudio open <link or note>  open a web link, or a .md/.txt note in ~/Desktop or ~/Documents
 claudio set <key> <value>   change one setting:
                             KEYS
@@ -186,6 +187,42 @@ def forget():
     console.print("  forgotten; the next start is a fresh conversation")
 
 
+def choose(surface, picks, other=None):
+    """Answer the question a session's pane shows: picks, option numbers ("2", or "1,3" when it takes several), or
+    other, its own words in "Type something". The brain decides what the user meant; this checks it is a question
+    (never a permission prompt) and an option it has, then types it. Several questions: one call each, in order."""
+    screen = lambda: subprocess.run([config.CMUX, "read-screen", "--surface", surface, "--lines", "40"],
+                                    capture_output=True, text=True, timeout=4).stdout
+    def press(how, what):                      # --force: cmux sends nothing into a dialog without it
+        subprocess.run([config.CMUX, how, "--surface", surface, "--force", what], capture_output=True, timeout=4)
+    q = config.question(screen())
+    if not q:
+        raise SystemExit("no question shows in that pane")
+    nums = [] if other else [n.strip() for n in picks.split(",") if n.strip()]
+    if other and (q["multi"] or not q["other"]):
+        raise SystemExit("that question takes no words of your own")
+    if not other and (not nums or any(n not in q["options"] for n in nums) or (len(nums) > 1 and not q["multi"])):
+        raise SystemExit(f"choose {'one or more' if q['multi'] else 'one'} of: "
+                         + ", ".join(f"{n} {label}" for n, label in q["options"].items()))
+    if other:
+        press("send", q["other"])
+        press("send", other)
+        press("send-key", "enter")
+    else:
+        for n in nums:
+            press("send", n)                   # one picks it; with checkboxes, one ticks it
+        if q["multi"]:
+            for _ in range(q["rows"]):
+                press("send-key", "down")      # ponytail: from the first row, where a question opens
+            if not re.search(r"^\s*❯\s*Submit", screen(), re.M):
+                raise SystemExit("ticked, but Submit wasn't reached; press it in the pane")
+            press("send-key", "enter")
+    time.sleep(0.5)                            # the pane moves on before the next call reads it
+    if "Ready to submit your answers?" in screen():
+        press("send", "1")                     # the last of several: the review screen, submitted
+    return other or ", ".join(q["options"][n] for n in nums)
+
+
 CLOSE = """on run argv
 if application "TextEdit" is running then
 tell application "TextEdit"
@@ -224,6 +261,10 @@ def main():
             subprocess.run(["open", target] if "://" in target else ["open", "-e", target])
     elif args[0] == "learn" and len(args) == 2:   # the brain's way to keep a correction: it can't edit its own files
         print(f"learned: {config.learn(args[1])}")
+    elif args[0] == "choose" and len(args) == 3:
+        print(f"chose: {choose(args[1], args[2])}")
+    elif args[0] == "choose" and len(args) == 4 and args[2] == "--other":
+        print(f"chose: {choose(args[1], '', args[3])}")
     elif args[0] == "unlearn" and len(args) == 2:
         print(f"unlearned: {config.unlearn(args[1])}")
     elif args[0] == "set" and len(args) == 3:

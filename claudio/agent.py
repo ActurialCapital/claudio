@@ -291,15 +291,15 @@ class Brain:
                         **({"dangerously-skip-permissions": None} if status["skip"] else {})},   # the user's choice, this run only
             disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})", "Bash(*secret*)",   # the keys, by a command that names them
                               *(f"{t}(//{config.DIR.lstrip('/')}/**)" for t in ("Edit", "Write")),   # nor grant itself rules
-                              "Bash(cmux new-workspace *--layout*)", "Bash(cmux new-workspace *--env*)"],   # their own commands
+                              *(f"Bash(cmux {c} *--{f}*)" for c in ("new-workspace", "workspace create") for f in ("layout", "env"))],   # their own commands
             allowed_tools=[
                 "Read", "Grep", "Glob",
                 "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
-                *(f"Bash(cmux {c} * --command claude)" for c in ("new-workspace", "new-split", "new-surface")),   # any other: asked
-                "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
+                *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
+                "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)", "Bash(claudio learn:*)", "Bash(claudio unlearn:*)",
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
@@ -394,7 +394,7 @@ class Brain:
                         to = m_.group(1) or m_.group(2)      # a surface id: the workspace it is in, which events carry
                         to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to.upper())
                         self.handoffs[to] = (time.time(), asked[-1] if asked else "")
-                    if "claudio set" in cmd:
+                    if "claudio set" in cmd or "claudio unlearn" in cmd:
                         self.changed.set()
 
     async def turn(self, text):
@@ -972,21 +972,6 @@ def described(tool, tool_input, rule, what):
     return f"use {tool} on {os.path.basename(path)}" if path else f"use {tool}"
 
 
-def permission_keys(screen):
-    """A session's permission prompt as its screen shows it: what to type for each answer claudio can give, or {}
-    when no prompt shows. yes: the plain Yes. always: the Yes that keeps allowing it, never one that switches mode.
-    no: Escape, which every prompt takes."""
-    opts = re.findall(r"^\s*(?:❯\s*)?(\d)\.\s+(.+)$", screen, re.M)
-    yes = next((k for k, v in opts if v.strip() == "Yes"), None)
-    if not yes or "Do you want" not in screen:
-        return {}
-    keys = {"yes": yes, "no": "escape"}
-    if always := next((k for k, v in opts if v.startswith("Yes, ") and "mode" not in v
-                       and ("always" in v or "don't ask again" in v)), None):
-        keys["always"] = always
-    return keys
-
-
 async def shower_typed():
     while True:
         await asyncio.sleep(0.05)
@@ -1195,7 +1180,7 @@ async def main():
     async def press(surface, keys, meant):
         """Answer a session's permission prompt by typing in its pane, only while that same prompt still shows."""
         def go():
-            if permission_keys(pane(surface, 18)) != keys:
+            if config.permission_keys(pane(surface, 18)) != keys:
                 return False
             how = ["send-key", "escape"] if meant == "no" else ["send", keys[meant]]   # a digit is text to cmux, not a key
             return subprocess.run([CMUX, how[0], "--surface", surface, "--force", how[1]],   # --force: into a dialog
@@ -1327,7 +1312,7 @@ async def main():
                     else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
             screen = await loop.run_in_executor(None, pane, full, 18)
-            keys = permission_keys(screen)
+            keys = config.permission_keys(screen)
             ours = keys and not pending["future"] and (not pending["rule"] or pending["press"])   # not over another question
             text = (f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}\n"
                     + ("Claudio asks the user yes or no right after you." if ours else "The user answers on its keyboard."))
@@ -1347,6 +1332,13 @@ async def main():
         return (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={rate['in']}"
                 f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}&eot_timeout_ms={cfg['eot_timeout_ms']}")
 
+    def learned():
+        """The rules in learned.md, as a set of lines."""
+        try:
+            return set(open(config.LEARNED).read().splitlines())
+        except OSError:
+            return set()
+
     def mtime(path):
         """When the file last changed, or None while it is missing (moved aside, being replaced)."""
         try:
@@ -1358,6 +1350,7 @@ async def main():
         global cfg
         stamp = mtime(config.CONF)
         persona = mtime(config.PROMPT)
+        rules = learned()
         access = (mtime(config.SETTINGS), mtime(config.MCP))
         last = dict(cfg)                       # the file as last loaded: what a change is told against
         while True:
@@ -1372,6 +1365,11 @@ async def main():
                 await brain.restart()
                 start("[event] Your persona prompt was just edited and you were restarted with it. "
                       "Say in a few words that you are back.", committed=True, event=True)
+            now = learned()
+            if rules - now:                    # a rule dropped (unlearn, an edit): a brain without it, after this turn;
+                ui.note("learned rules changed; brain restarting")   # one added it knows already, so no restart
+                await brain.restart()
+            rules = now
             now = (mtime(config.SETTINGS), mtime(config.MCP))
             if now != access:                  # settings.json or mcp.json edited: a brain that has them
                 ours = now[0] == config.written and now[1] == access[1]   # claudio's own "always": the brain has it
