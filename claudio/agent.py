@@ -104,7 +104,7 @@ def clear_audio():
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
           "level": 0, "latency": None, "skip": False}
-pending = {"rule": None, "ask": "", "options": "", "ready": False, "future": None}   # the skip question, or a tool waiting on one: answerable once shown   # skip: no permission checks, this run only, never saved
+pending = {"rule": None, "ask": "", "options": "", "ready": False, "future": None, "press": None}   # the skip question, a session's permission prompt (press), or a tool waiting on one: answerable once shown   # skip: no permission checks, this run only, never saved
 BARS = " ▁▂▃▄▅▆▇"
 SPIN, MUTED = SPINNERS["dots"]["frames"], ["■"]
 SLASH_HELP = ("Slash commands:\n"
@@ -300,7 +300,7 @@ class Brain:
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
-                "Bash(claudio set:*)", "Bash(claudio learn:*)",
+                "Bash(claudio set:*)", "Bash(claudio learn:*)", "Bash(claudio unlearn:*)",
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
                 *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only
@@ -972,6 +972,21 @@ def described(tool, tool_input, rule, what):
     return f"use {tool} on {os.path.basename(path)}" if path else f"use {tool}"
 
 
+def permission_keys(screen):
+    """A session's permission prompt as its screen shows it: what to type for each answer claudio can give, or {}
+    when no prompt shows. yes: the plain Yes. always: the Yes that keeps allowing it, never one that switches mode.
+    no: Escape, which every prompt takes."""
+    opts = re.findall(r"^\s*(?:❯\s*)?(\d)\.\s+(.+)$", screen, re.M)
+    yes = next((k for k, v in opts if v.strip() == "Yes"), None)
+    if not yes or "Do you want" not in screen:
+        return {}
+    keys = {"yes": yes, "no": "escape"}
+    if always := next((k for k, v in opts if v.startswith("Yes, ") and "mode" not in v
+                       and ("always" in v or "don't ask again" in v)), None):
+        keys["always"] = always
+    return keys
+
+
 async def shower_typed():
     while True:
         await asyncio.sleep(0.05)
@@ -1158,6 +1173,17 @@ async def main():
         words = norm(said)
         if not pending["rule"] or not pending["ready"]:   # not yet asked: an "okay" to the reply before it is no yes
             return None
+        if pending["press"]:                   # a session's permission prompt: read by intent, like claudio's own
+            surface, keys, at = pending["press"]
+            meant = intent(said)
+            if meant == "question" and time.time() - at < 120:
+                return None                    # the brain answers it; a yes after still counts, for two minutes
+            pending.update(rule=None, press=None)
+            meant = "yes" if meant == "always" and "always" not in keys else meant
+            if meant not in keys:
+                return None                    # anything else: an ordinary turn; the prompt waits on its keyboard
+            asyncio.create_task(press(surface, keys, meant))
+            return {"yes": "allowed once", "always": "always allowed", "no": "not allowed"}[meant]
         pending["rule"] = None
         if words and len(words) <= 3 and words[0] in YES:
             asyncio.create_task(skipping(True))
@@ -1165,6 +1191,21 @@ async def main():
         if words and len(words) <= 3 and words[0] in NO:
             return f"not allowed: {SKIP}"
         return None
+
+    async def press(surface, keys, meant):
+        """Answer a session's permission prompt by typing in its pane, only while that same prompt still shows."""
+        def go():
+            if permission_keys(pane(surface, 18)) != keys:
+                return False
+            how = ["send-key", "escape"] if meant == "no" else ["send", keys[meant]]   # a digit is text to cmux, not a key
+            return subprocess.run([CMUX, how[0], "--surface", surface, "--force", how[1]],   # --force: into a dialog
+                                  capture_output=True, timeout=4).returncode == 0
+        try:
+            ok = await loop.run_in_executor(None, go)
+        except (OSError, subprocess.TimeoutExpired):
+            ok = False
+        if not ok:
+            ui.warn("that prompt is no longer on screen; nothing was pressed")
 
     async def skipping(on):
         """Permission checks off (a yes to /permissions skip) or on again: a brain that has them, same memory."""
@@ -1286,13 +1327,21 @@ async def main():
                     else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
             screen = await loop.run_in_executor(None, pane, full, 18)
-            text = f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}"
+            keys = permission_keys(screen)
+            ours = keys and not pending["future"] and (not pending["rule"] or pending["press"])   # not over another question
+            text = (f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}\n"
+                    + ("Claudio asks the user yes or no right after you." if ours else "The user answers on its keyboard."))
         elif ev["event"] == "AskUserQuestion" and ev.get("questions"):
             text = f"[event] {ws} (surface {full}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
             return
         ui.event(ws, ev["event"], asked if ev["event"] == "Stop" else "")
         start(text, committed=True, event=True)
+        if ev["event"] == "Notification" and ours:   # then claudio asks, and types the answer into that pane
+            ask = f"Allow it for {ws}?"
+            options = "- **1** Yes\n" + ("- **2** Always\n- **3** No" if "always" in keys else "- **2** No")
+            pending.update(rule=f"{ws}'s permission", ask=ask, options=options, ready=False, press=(full, keys, time.time()))
+            start(ask, committed=True, event=True, fixed=True)
 
     def flux_url():
         return (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={rate['in']}"

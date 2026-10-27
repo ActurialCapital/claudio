@@ -92,14 +92,18 @@ When a session stops at a permission prompt, claudio reads its screen and tells 
 
 ```transcript
 ▸ Sequencer  needs permission
-◆ Sequencer wants to run git push origin feature-44. Answer it in its pane.
+◆ Sequencer wants to run git push origin feature-44.
+◆ Allow it for Sequencer?
+  - 1 Yes
+  - 2 Always
+  - 3 No
 ```
 
-Answer the prompt in that session's pane. claudio never answers a permission prompt.
+Say yes, always or no, or press 1, 2 or 3. claudio itself, not the brain, reads your answer and types it into that session's pane: yes picks the prompt's plain Yes, always picks the option that keeps allowing it (offered only when the prompt has one), and no presses Escape. It never picks an option that switches the session's mode. Before typing, it checks the same prompt is still on screen; if you answered it in the pane meanwhile, nothing is pressed. Ask a question back ("what does that do?") and the brain answers; a yes in the next two minutes still counts. Say anything else and the prompt waits for you in its pane.
 
 ### A session asks you to choose
 
-When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then selects that option in the session's pane: it presses `down` once per option before yours, then `enter`, with `cmux send-key`. You can always pick it in the pane yourself instead.
+When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then selects that option in the session's pane: it presses `down` once per option before yours, then `enter`, with `cmux send-key --force`. You can always pick it in the pane yourself instead.
 
 ```transcript
 ▸ Sequencer  asks you to choose

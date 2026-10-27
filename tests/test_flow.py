@@ -5,7 +5,8 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
-             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table")
+             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
+             "session-yes", "session-key")
 
 
 @pytest.fixture(scope="module")
@@ -163,3 +164,19 @@ def test_a_table_without_outer_bars_is_shown_not_read(runs):
     said = [line for line in lines if line.startswith("SAY") and "Hi, how can" not in line]
     assert said == ["SAY 'Here it is.\\n'"]
     assert first(lines, "BLOCK 'Change | Type") > first(lines, "ME 'Here it is.")
+
+
+def test_a_sessions_permission_prompt_is_answered_by_voice_into_its_pane(runs):
+    lines, _ = runs["session-yes"]
+    assert any(line.startswith("BRAIN '[event] ws1 asks for permission") for line in lines)
+    assert "BLOCK '- **1** Yes\\n- **2** Always\\n- **3** No'" in lines
+    asked = first(lines, "ME 'Allow it for ws1?")
+    assert asked < first(lines, "YOU 'yes go ahead'") < first(lines, "PRESS send --surface abcd1234 --force 1")
+    assert "NOTE allowed once" in lines
+    assert sum(line.startswith("BRAIN") for line in lines) == 2     # the warm-up and the event: the yes is not a turn
+
+
+def test_a_key_says_no_to_a_sessions_prompt_with_escape(runs):
+    lines, _ = runs["session-key"]
+    assert first(lines, "ME 'Allow it for ws1?") < first(lines, "KEY '3'") < first(lines, "PRESS send-key --surface abcd1234 --force escape")
+    assert "NOTE not allowed" in lines and not any(line.startswith("PRESS send ") for line in lines)

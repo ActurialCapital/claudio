@@ -360,6 +360,23 @@ def learn(rule):
     return rule
 
 
+def unlearn(words):
+    """Drop the one rule in LEARNED that contains these words, any case. None or several match: nothing is dropped,
+    and the SystemExit says which, so the brain can ask."""
+    words = " ".join(words.split()).lower()
+    try:
+        rules = open(LEARNED).read().splitlines()
+    except OSError:
+        rules = []
+    hits = [r for r in rules if words and words in r.lower()]
+    if len(hits) != 1:
+        raise SystemExit(f"no learned rule has \"{words}\"" if not hits
+                         else "several learned rules match; say which:\n" + "\n".join(hits))
+    with open(LEARNED, "w") as f:
+        f.writelines(r + "\n" for r in rules if r != hits[0])
+    return hits[0].removeprefix("- ")
+
+
 def _persona():
     base = open(PACKAGED_PROMPT).read()
     try:

@@ -45,7 +45,7 @@ flowchart LR
 
 - 💬 **Discussing?** The brain answers itself, reading the project when it needs facts.
 - 🛠️ **Work?** It sends the task to your orchestrator through cmux's agent inbox and says so.
-- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words, with the request it was for, and reads out questions and permission prompts with the actual command. You answer those on the keyboard.
+- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words, with the request it was for, and reads out questions and permission prompts with the actual command. Answer by voice (yes, always, no, or the option you want) or with 1, 2, 3; claudio types it into that session's pane.
 
 ## 🎙️ Say
 
@@ -64,6 +64,8 @@ flowchart LR
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
 | "open issue 727 in the browser" | opens it, or a Google search, and says only "Opening it." |
 | "yes", "always" or "no" (or press 1, 2, 3), when it asks to allow a command | yes runs it once; always also adds it to `settings.json`; the reply goes on |
+| "yes", "always" or "no" (or 1, 2, 3), when a session asks for permission | picks that option in the session's pane; no presses Escape; it never picks a mode switch |
+| "forget the rule about seven" | drops that learned rule |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk |
 
@@ -133,7 +135,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
-`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it; edit `learned.md` to undo) · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
+`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it) · `claudio unlearn <words>` drops the one learned rule with those words · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 
 A `.claudio.json` in a project root overrides any of these for that project, `{"orchestrator": "Core"}` being the usual one.
 

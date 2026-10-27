@@ -42,6 +42,18 @@ listed = []
 agent.sessions = lambda: listed.append(1) or {"abcd1234": ("ws1", None, None, "abcd1234"),
                                               **({NEW[:8]: ("Login", None, None, NEW)} if len(listed) > 1 else {})}
 agent.helper = lambda: None
+PROMPT = (" Bash command\n   rm -rf build\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and always allow access to build/"
+          "\n   3. Yes, and switch to auto mode\n   4. No\n\n Esc to cancel")
+if SC.startswith("session"):              # a session's pane: its permission prompt on screen, and the keys typed into it
+    import subprocess
+    real_run = subprocess.run
+    def fake_run(cmd, *a, **k):
+        if cmd[0] != config.CMUX:
+            return real_run(cmd, *a, **k)
+        if cmd[1] in ("send", "send-key"):
+            log("PRESS", " ".join(cmd[1:]))
+        return subprocess.CompletedProcess(cmd, 0, PROMPT if cmd[1] == "read-screen" else "", "")
+    agent.subprocess.run = fake_run
 
 
 # ---- sound devices: the speaker drains `out` in real time
@@ -187,8 +199,8 @@ def turn(event, transcript=""):
     return {"type": "TurnInfo", "event": event, "transcript": transcript}
 
 SCENARIOS = {   # name: (seconds to run, script)
-    "mouth-gone": (5, [(0.1, turn("StartOfTurn")), (0.5, turn("EagerEndOfTurn", "what time is it")),
-                       (3.5, turn("EndOfTurn", "what time is it"))]),
+    "mouth-gone": (7, [(2.0, turn("StartOfTurn")), (2.4, turn("EagerEndOfTurn", "what time is it")),   # after the greeting:
+                       (4.4, turn("EndOfTurn", "what time is it"))]),   # a pause of it would race its 3 s resume
     "race-event": (9, [(0.1, turn("StartOfTurn")), ("sock", 0.3), (1.6, turn("EagerEndOfTurn", "wait stop")),
                        (1.9, turn("TurnResumed")), (2.5, turn("EndOfTurn", "wait stop and tell me the weather"))]),
     "resumed": (5, [(0.1, turn("StartOfTurn")), (0.5, turn("EagerEndOfTurn", "what is the time")),
@@ -217,6 +229,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "allow-no": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
+    "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
+    "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
     "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),
                  (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "yes")),
                  (5.0, turn("StartOfTurn")), (5.2, turn("EndOfTurn", "slash permissions ask"))]),
@@ -245,7 +259,9 @@ class FakeEars:
                 await asyncio.sleep(max(0, base + what - time.monotonic()))
                 r, w = await asyncio.open_unix_connection(config.SOCK)
                 surface = NEW if SC == "handoff-new" else "abcd1234"
-                w.write((json.dumps({"event": "Stop", "session": "other", "surface": surface, "text": "done"}) + "\n").encode())
+                ev = ({"event": "Notification", "kind": "permission_prompt", "message": "Claude needs your permission to use Bash"}
+                      if SC.startswith("session") else {"event": "Stop", "text": "done"})
+                w.write((json.dumps({"session": "other", "surface": surface, **ev}) + "\n").encode())
                 await w.drain()
                 w.close()
                 continue

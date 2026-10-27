@@ -313,6 +313,10 @@
       "help": "add a rule the brain keeps across conversations, to learned.md"
     },
     {
+      "usage": "claudio unlearn <words>",
+      "help": "drop the one learned rule with these words"
+    },
+    {
       "usage": "claudio open <link or note>",
       "help": "open a web link, or a .md/.txt note in ~/Desktop or ~/Documents"
     },

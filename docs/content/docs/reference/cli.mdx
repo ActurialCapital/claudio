@@ -87,7 +87,17 @@ Adds one rule to `learned.md`, which goes at the end of the persona from the nex
 claudio learn "'seven' is usually 'save'"
 ```
 
-To unlearn something, edit or empty `~/.config/claudio/learned.md`. `claudio forget` leaves it alone.
+`claudio forget` leaves it alone.
+
+## `claudio unlearn <words>`
+
+Drops the one rule in `learned.md` that contains these words, in any case, and prints `unlearned: <rule>`. When none match, or several do, it drops nothing, lists the matches and exits with an error. The brain runs it when you ask it to forget a rule:
+
+```bash
+claudio unlearn "seven"
+```
+
+You can also edit or empty `~/.config/claudio/learned.md` yourself.
 
 ## `claudio set <key> <value>`
 

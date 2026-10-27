@@ -23,7 +23,7 @@ Not unless you allow it. Out of the box the brain can read and search files, run
 </Accordion>
 <Accordion title="Can it answer a session's prompts for me?">
 
-- **Permission prompts**: no. It reads the prompt out and tells you which session asked; you answer in that session's pane. The brain is told never to press keys for a permission prompt.
+- **Permission prompts**: only with your answer. It reads the prompt out, then asks you yes, always or no; claudio's own code, never the brain, types what you said into that session's pane, after checking the prompt is still there. Nothing a session prints can answer it.
 - **Multiple-choice questions**: yes. It reads the options aloud, you say which one, it confirms, then selects it in the session's pane with `cmux send-key`.
 
 </Accordion>

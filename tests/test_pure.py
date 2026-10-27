@@ -431,6 +431,18 @@ def test_a_permission_answer_is_read_by_what_it_means():
         assert intent(said) == meant, said
 
 
+def test_a_session_prompt_is_answered_by_its_text_never_by_a_mode_switch():
+    from claudio.agent import permission_keys
+    bash = (" Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and always allow access to /tmp/x from this project\n"
+            "   3. Yes, and switch to auto mode · auto mode handles these prompts for you\n   4. No\n\n Esc to cancel")
+    assert permission_keys(bash) == {"yes": "1", "always": "2", "no": "escape"}
+    edit = (" Do you want to make this edit to a.py?\n ❯ 1. Yes\n   2. Yes, allow all edits during this session (shift+tab)\n"
+            "   3. No, and tell Claude what to do differently (esc)")
+    assert permission_keys(edit) == {"yes": "1", "no": "escape"}      # a mode, not a rule: never "always"
+    assert permission_keys("❯ 1. Yes\n  2. No") == {}                  # a numbered list, not a prompt
+    assert permission_keys("") == {}
+
+
 def test_the_question_names_the_thing_never_the_whole_command():
     from claudio.agent import described
     cmd = 'cmux new-split right --surface 34E60333-B8F3-450A-94A6-83AB14618643 --command "open https://claudio-vert.vercel.app/"'
@@ -497,3 +509,17 @@ def test_learned_rules_end_the_persona_once_each(tmp_path, monkeypatch):
                                      "- vbt is the vectorbtpro repo")
     with pytest.raises(SystemExit):
         config.learn("  ")
+
+
+def test_unlearn_drops_exactly_one_rule_or_none(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "LEARNED", str(tmp_path / "learned.md"))
+    with pytest.raises(SystemExit, match="no learned rule"):
+        config.unlearn("seven")                                   # no file yet
+    for rule in ("'seven' is usually 'save'", "vbt is the vectorbtpro repo", "vbt tests run with pytest"):
+        config.learn(rule)
+    with pytest.raises(SystemExit, match="several"):
+        config.unlearn("vbt")                                     # two match: ask which, drop none
+    assert config.unlearn("  SEVEN ") == "'seven' is usually 'save'"
+    assert (tmp_path / "learned.md").read_text() == "- vbt is the vectorbtpro repo\n- vbt tests run with pytest\n"
+    with pytest.raises(SystemExit):
+        config.unlearn(" ")                                       # nothing said: nothing dropped
