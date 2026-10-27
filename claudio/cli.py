@@ -184,6 +184,16 @@ def forget():
     console.print("  forgotten; the next start is a fresh conversation")
 
 
+CLOSE = """on run argv
+if application "TextEdit" is running then
+tell application "TextEdit"
+close (every document whose path is (item 1 of argv)) saving yes
+if (count of documents) is 0 then quit
+end tell
+end if
+end run"""   # the path as an argument, never in the script: a quote in a file name can't break out
+
+
 def main():
     args = sys.argv[1:]
     if not args or args == ["--dangerously-skip-permissions"]:
@@ -201,12 +211,15 @@ def main():
         doctor()
     elif args[0] == "forget":
         forget()
-    elif args[0] == "open" and len(args) == 2:   # the brain's only way to open something: a link or a note
+    elif args[0] in ("open", "close") and len(args) == 2:   # the brain's only way to open something: a link or a note
         target = config.openable(args[1])
-        if not target:
-            raise SystemExit(f"claudio open takes a web link or a .md/.txt note in {' or '.join(config.NOTES)}, "
-                             f"not {args[1]!r}")
-        subprocess.run(["open", target])
+        if not target or (args[0] == "close" and "://" in target):
+            raise SystemExit(f"claudio {args[0]} takes {'a web link or ' if args[0] == 'open' else ''}a .md/.txt note "
+                             f"in {' or '.join(config.NOTES)}, not {args[1]!r}")
+        if args[0] == "close":                 # its TextEdit window, saved; TextEdit too when it was the last
+            subprocess.run(["osascript", *(a for line in CLOSE.splitlines() for a in ("-e", line)), target])
+        else:                                  # a note in TextEdit, never whatever .md opens with (Xcode…)
+            subprocess.run(["open", target] if "://" in target else ["open", "-e", target])
     elif args[0] == "set" and len(args) == 3:
         print(f"{args[1]} = {config.set_key(args[1], args[2])}")
     elif args[0] == "hook" and len(args) == 2:

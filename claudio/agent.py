@@ -288,7 +288,7 @@ class Brain:
                 "Bash(cmux send-key:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)",
                 *(f"mcp__{name}" for name in mcp),
-                "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(test:*)",   # looking things up; opening a link or a note
+                "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
                 *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only
             settings=config.SETTINGS if os.path.exists(config.SETTINGS) else None,   # the user's own rules
             add_dirs=[*notes, *config.allowed_dirs()],             # and folders
