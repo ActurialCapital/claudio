@@ -247,6 +247,7 @@ SCENARIOS = {   # name: (seconds to run, script)
     "voice-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),
     "local-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a spanish woman"))]),
     "eleven-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),   # the mouth's own voice
+    "code-changed": (9, [(1.0, turn("StartOfTurn")), (1.2, turn("EndOfTurn", "what is the time")), ("code", 1.5)]),
     "voice-calm": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice calm"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
@@ -295,6 +296,11 @@ class FakeEars:
                 log("LEARNED", repr(text))
                 open(config.LEARNED, "w").write(text)
                 continue
+            if at == "code":                   # ("code", t): claudio's code changes at t
+                await asyncio.sleep(max(0, base + what - time.monotonic()))
+                log("CODE", "changed")
+                CODE[0] += 1
+                continue
             if at == "sock":
                 await asyncio.sleep(max(0, base + what - time.monotonic()))
                 r, w = await asyncio.open_unix_connection(config.SOCK)
@@ -310,6 +316,8 @@ class FakeEars:
             yield json.dumps(what)
         await asyncio.Event().wait()
 agent.websockets.connect = FakeEars
+CODE = [1]
+agent.code_stamp = lambda: CODE[0]
 
 
 async def run():

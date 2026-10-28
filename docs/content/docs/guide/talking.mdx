@@ -97,6 +97,8 @@ Typing works alongside talking, for when you can't talk:
 
 The brain resumes your last conversation when you start claudio again, if it's less than 7 days old. The banner shows `memory on` when it resumed and `memory fresh` when it didn't. If the old conversation can't be resumed, claudio starts fresh and says so.
 
+When claudio's own code changes under it (an update, or an edit to an install from a local checkout), it restarts itself once nothing is being said, asked or heard, and says “Restarted with new code.” The conversation carries on, and permission checks stay as they were. A change to its built-in prompt alone restarts only the brain.
+
 To start over:
 
 - Say "slash clear" to start a fresh conversation now

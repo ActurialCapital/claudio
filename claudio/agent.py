@@ -5,7 +5,7 @@ the Claude Code hooks (`claudio hook ...`) report what sessions did.
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, termios, threading, time, tty, unicodedata, urllib.parse, warnings
+import array, asyncio, contextlib, difflib, glob, json, os, re, shutil, signal, subprocess, sys, termios, threading, time, tty, unicodedata, urllib.parse, warnings
 import sounddevice as sd, websockets
 os.environ.setdefault("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")   # it would run `claude -v` before every start
 from claude_agent_sdk import (AssistantMessage, CanUseToolShadowedWarning, ClaudeAgentOptions, ClaudeSDKClient,
@@ -1072,6 +1072,7 @@ async def shower_typed():
 
 async def main():
     global cfg, surfaces
+    restarted = os.environ.pop("CLAUDIO_RESTARTED", None)   # run() started this one over, with new code
     cfg = config.load()
     ui.layout["split"] = cfg["layout"] == "split"
     for w in config.WARNINGS:
@@ -1153,6 +1154,11 @@ async def main():
 
     def paused():
         return live() and current["ctl"]["paused"].is_set()
+
+    def idle():
+        """Nothing said, asked or being heard: a restart would cut nothing."""
+        return (not live() and not brain.busy and not status.get("in_turn") and not status.get("typed")
+                and not pending["rule"] and not pending["future"] and not pending["press"] and not out)
 
     def drop_audio():
         clear_audio()
@@ -1577,12 +1583,25 @@ async def main():
         persona = mtime(config.PROMPT)
         rules = learned()
         access = (mtime(config.SETTINGS), mtime(config.MCP))
+        shipped, code, code_at = mtime(config.PACKAGED_PROMPT), code_stamp(), None
         last = dict(cfg)                       # the file as last loaded: what a change is told against
         while True:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(brain.changed.wait(), 1.0)
             brain.changed.clear()
             await asyncio.sleep(0.2)          # let `claudio set` finish writing
+            now = mtime(config.PACKAGED_PROMPT)
+            if now is not None and now != shipped:        # claudio's own persona, updated: new brain, same memory
+                shipped = now
+                ui.note("claudio's prompt changed; brain restarting")
+                await brain.restart()
+            now = code_stamp()
+            if now != code:                    # claudio's code changed: wait for the last file of the change
+                code, code_at = now, time.monotonic()
+            if code_at and time.monotonic() - code_at > 2 and idle():
+                status["restart"] = True       # once nothing is said or asked: start over, run() re-runs claudio
+                work["task"].cancel()
+                return
             now = mtime(config.PROMPT)
             if now is not None and now != persona:        # the persona was edited: new brain, same memory
                 persona = now
@@ -1677,6 +1696,8 @@ async def main():
         said = ev.get("transcript", "").strip()
         shown = said                       # as heard, name and all; the brain gets said, the name dropped
         words = " ".join(norm(said))
+        if ev["event"] in ("StartOfTurn", "EndOfTurn"):
+            status["in_turn"] = ev["event"] == "StartOfTurn"   # the user is talking: no restart under them
         if ev["event"] == "StartOfTurn":
             called["turn"] = time.monotonic() < called["until"]   # begun soon after the name alone, or a turn for me
         if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
@@ -1942,7 +1963,7 @@ async def main():
         (AirPods) to headset mode, about 1.3 s, and what plays meanwhile is lost, "Hi, how" with it."""
         with contextlib.suppress(asyncio.TimeoutError):
             await asyncio.wait_for(mic_up.wait(), 3)
-        start("Hi, how can I help you?", committed=True, fixed=True)
+        start("Restarted with new code." if restarted else "Hi, how can I help you?", committed=True, fixed=True)
     if not typed:
         asyncio.create_task(greet())
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch()]
@@ -2032,10 +2053,19 @@ async def main():
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
         console.print()
-        ui.note("bye")
+        ui.note("restarting with the new code" if status.get("restart") else "bye")
+
+
+def code_stamp():
+    """When claudio's own code last changed: a new one restarts it (see watch_config)."""
+    return max((os.path.getmtime(f) for f in glob.glob(os.path.join(os.path.dirname(__file__), "*.py"))), default=0)
 
 
 def run(skip=False):
     status["skip"] = skip                      # claudio --dangerously-skip-permissions
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())
+    if status.get("restart"):                  # the same claudio, new code: same arguments, checks as they were
+        args = [a for a in sys.argv if a != "--dangerously-skip-permissions"]
+        os.environ["CLAUDIO_RESTARTED"] = "1"
+        os.execv(sys.executable, [sys.executable, *args, *(["--dangerously-skip-permissions"] if status["skip"] else [])])
