@@ -133,7 +133,7 @@ def test_an_unknown_voice_lists_them_on_screen_and_saves_nothing(runs):
     lines, home = runs["voice-banana"]
     said = [line for line in lines if line.startswith("SAY")]
     assert said[-1] == "SAY 'Banana is not recognised as a voice. The voices are as follows:\\n'"
-    assert "- zeus" in lines[first(lines, "BLOCK")]
+    assert "| zeus | American | adult | masculine |" in lines[first(lines, "BLOCK")]
     assert not (home / "config.json").exists()
 
 
@@ -143,8 +143,8 @@ def test_a_voice_asked_for_by_its_features_is_the_one_that_has_them(runs):
     assert json.loads((home / "config.json").read_text())["voice"] == "aura-2-pandora-en"
     lines, home = runs["voice-calm"]                       # several: those, with their tags, and nothing saved
     assert [line for line in lines if line.startswith("SAY")][-1] == "SAY '6 voices are calm:\\n'"
-    assert "- athena: American, mature, feminine, calm" in lines[first(lines, "BLOCK")]
-    assert "- zeus" not in lines[first(lines, "BLOCK")]
+    assert "| athena | American | mature | feminine | calm, smooth, professional, storytelling |" in lines[first(lines, "BLOCK")]
+    assert "| zeus |" not in lines[first(lines, "BLOCK")]
     assert not (home / "config.json").exists()
 
 

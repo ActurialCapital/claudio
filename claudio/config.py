@@ -308,6 +308,15 @@ def kokoro_voices():
     return {n: f"{KOKORO_ACCENTS[n[0]]}, {'feminine' if n[1] == 'f' else 'masculine'}" for n in KOKORO}
 
 
+def described(name, tags):
+    """A voice as table cells: name, accent, age, gender, the rest. "American, adult, feminine, warm, IVR"."""
+    words = tags.split(", ")
+    gender = next((w for w in words if w in ("feminine", "masculine", "neutral")), "")
+    rest = [w for w in words[1:] if w != gender]
+    age = rest.pop(0) if rest and re.fullmatch(r"(young |middle )?(adult|aged)|young|mature|old", rest[0]) else ""
+    return [name, words[0], age, gender, ", ".join(rest)]
+
+
 SAME = {"female": "feminine", "woman": "feminine", "women": "feminine", "lady": "feminine", "girl": "feminine",
         "male": "masculine", "man": "masculine", "men": "masculine", "guy": "masculine", "boy": "masculine",
         "old": "mature", "older": "mature", "english": "british", "chinese": "mandarin", "portuguese": "brazilian"}

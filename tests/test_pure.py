@@ -445,6 +445,8 @@ def test_voices_are_found_by_their_features():
     assert config.like("can you list the voices", config.AURA) == ([], [])     # asks for nothing
     assert config.like("female", config.AURA)[1] == config.like("feminine", config.AURA)[1]   # "male" is not in it
     assert "masculine" not in config.like("female", config.AURA)[0]
+    assert config.described("zeus", config.AURA["zeus"]) == ["zeus", "American", "adult", "masculine", "deep, trustworthy, smooth, IVR"]
+    assert config.described("af_heart", "American, feminine") == ["af_heart", "American", "", "feminine", ""]
     kokoro = config.kokoro_voices()
     assert kokoro["af_heart"] == "American, feminine" and kokoro["zm_yunxi"] == "Mandarin, masculine"
     assert config.like("british man", kokoro)[1] == ["bm_daniel", "bm_fable", "bm_george", "bm_lewis"]

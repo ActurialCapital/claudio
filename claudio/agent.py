@@ -1336,7 +1336,12 @@ async def main():
             said = f"{arg.capitalize()} is not recognised as a voice. The voices are as follows:"
         else:                                  # a sentence, or nothing: just the list
             said = "The voices are as follows:"
-        start(said, committed=True, fixed=True, screen="\n".join(f"- {n}: {voices[n]}" for n in found or voices))
+        rows = [config.described(n, voices[n]) for n in found or voices]
+        cols = ["Voice", "Accent", "Age", "Gender", "Sounds"]
+        if not any(r[2] for r in rows):        # Kokoro's names give no age
+            cols, rows = cols[:2] + cols[3:], [r[:2] + r[3:] for r in rows]
+        start(said, committed=True, fixed=True,   # a table: several criteria, side by side
+              screen="\n".join(f"| {' | '.join(r)} |" for r in [cols, ["---"] * len(cols), *rows]))
         return None
 
     def slash(words):
