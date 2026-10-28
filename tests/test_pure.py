@@ -649,6 +649,9 @@ def test_split_put_your_turn_on_the_right_and_narrow_falls_back():
         assert line.rstrip().endswith("lights off ‹") and line.startswith(" " * 60) and "›" not in line   # pushed right
         ui.console = Console(file=io.StringIO(), width=50)
         ui.you("lights off")
+        assert "lights off ‹" in ui.console.file.getvalue()                 # a pane of 50 still splits
+        ui.console = Console(file=io.StringIO(), width=49)
+        ui.you("lights off")
         assert "› lights off" in ui.console.file.getvalue()                 # too narrow for a box
         ui.console = Console(file=io.StringIO(), width=80)
         ui.you("lights off ")

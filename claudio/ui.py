@@ -104,7 +104,7 @@ def you(text, tentative=False):
         console.rule(f"[dim]{now:%H:%M}[/]", style="dim", align="left")     # a gap of more than five minutes
     if not tentative:
         last_turn["at"] = now
-    if layout["split"] and console.width >= 60:     # narrower, the right side leaves too little room: the plain line
+    if layout["split"] and console.width >= 50:     # narrower, the right side leaves too little room: the plain line
         console.print()
         grid = Table.grid(padding=(0, 0, 0, 1))         # a block on the right, its lines starting at one edge
         grid.add_column(max_width=width() * 7 // 10)
@@ -253,7 +253,7 @@ class Fade:
             if line.plain.startswith("• "):    # a list item hangs under its own text too
                 line = hang(line[:2], line[2:])
             grid.add_row(self.head if i == 0 and not base else "", line)
-        split = layout["split"] and console.width >= 60   # split: a column on the left, as wide as yours on the right
+        split = layout["split"] and console.width >= 50   # split: a column on the left, as wide as yours on the right
         return Constrain(grid, 2 + width() * 7 // 10 if split else width())
 
     def lines(self, final=False, base=None):
