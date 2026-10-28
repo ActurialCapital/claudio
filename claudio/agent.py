@@ -313,7 +313,9 @@ class Brain:
                               "Bash(claudio choose *--other*)"],   # words typed into a pane: asked, so you see them
             allowed_tools=[
                 "Read", "Grep", "Glob",
-                "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
+                "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)",
+                *(f"Bash(git branch{f})" for f in ("", " -a", " -r", " -v", " -vv", " --show-current")), "Bash(git branch --list:*)",
+                                              # listing only: -D, -m, -f and the rest change branches, so they are asked
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
