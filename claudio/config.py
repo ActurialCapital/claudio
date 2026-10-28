@@ -270,6 +270,30 @@ def fetch_aura(key):
         AURA.update(sorted((n, ", ".join(w for w in t.split(", ") if w)) for n, t in voices.items()))
 
 
+ELEVEN, ELEVEN_IDS = {}, {}   # the account's ElevenLabs voices: "adam" to its description, and to its id
+
+
+def fetch_elevenlabs(key):
+    """Fill ELEVEN from the account's voice library, when it can be reached. Blocking: run it off the event loop.
+    "Adam - Dominant, Firm", male, American, middle_aged: adam, "American, middle aged, masculine, …, dominant, firm"."""
+    try:
+        req = urllib.request.Request("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key})
+        found = json.load(urllib.request.urlopen(req, timeout=10)).get("voices", [])
+        voices = {}
+        for v in found:
+            name, _, more = v["name"].partition(" - ")
+            la = v.get("labels") or {}
+            words = [la.get("accent", "").title(), la.get("age", "").replace("_", " "),
+                     {"female": "feminine", "male": "masculine"}.get(la.get("gender"), la.get("gender", "")),
+                     la.get("descriptive", ""), la.get("use_case", "").replace("_", " "), *more.lower().split(", ")]
+            voices[name.strip().lower()] = (v["voice_id"], ", ".join(dict.fromkeys(w.strip() for w in words if w.strip())))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return
+    ELEVEN.clear(); ELEVEN_IDS.clear()
+    for name, (vid, tags) in sorted(voices.items()):
+        ELEVEN[name], ELEVEN_IDS[name] = tags, vid
+
+
 KOKORO = ("af_alloy af_aoede af_bella af_heart af_jessica af_kore af_nicole af_nova af_river af_sarah af_sky am_adam am_echo "
           "am_eric am_fenrir am_liam am_michael am_onyx am_puck am_santa bf_alice bf_emma bf_isabella bf_lily bm_daniel "
           "bm_fable bm_george bm_lewis ef_dora em_alex em_santa ff_siwis hf_alpha hf_beta hm_omega hm_psi if_sara im_nicola "
@@ -291,10 +315,11 @@ SAME = {"female": "feminine", "woman": "feminine", "women": "feminine", "lady": 
 
 def like(said, voices):
     """The features asked for ("a British woman" is british, feminine) and the voices that have them all.
-    A word no voice has (a, voice, with) asks for nothing."""
+    A word no voice has, even as its SAME (a, voice, with), asks for nothing."""
     words = {n: set(re.findall(r"[a-z]+", t.lower())) for n, t in voices.items()}
     known = set().union(*words.values())
-    want = list(dict.fromkeys(w for w in (SAME.get(w, w) for w in re.findall(r"[a-z]+", said.lower())) if w in known))
+    said = (w if w in known else SAME.get(w, w) for w in re.findall(r"[a-z]+", said.lower()))   # "old" where a voice is old
+    want = list(dict.fromkeys(w for w in said if w in known))
     return want, [n for n in voices if want and set(want) <= words[n]]
 
 

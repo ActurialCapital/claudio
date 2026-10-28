@@ -1119,6 +1119,7 @@ async def main():
 
     loop = asyncio.get_running_loop()
     voices = asyncio.create_task(asyncio.to_thread(config.fetch_aura, cfg["deepgram_api_key"]))   # for "slash voice"; kept so it isn't collected
+    eleven = cfg["elevenlabs_api_key"] and asyncio.create_task(asyncio.to_thread(config.fetch_elevenlabs, cfg["elevenlabs_api_key"]))
     mic = asyncio.Queue()
     mic_up = asyncio.Event()      # the first mic audio: the audio route is up, so what is played is heard
     helper_holder = {"proc": None}  # the echo-cancelling helper, when it runs
@@ -1403,6 +1404,13 @@ async def main():
             if n := pick(arg, config.kokoro_voices()):
                 config.set_key("local_voice", n)
                 start(f"Local voice {n}.", committed=True, fixed=True)
+        elif cmd == "elevenlabs_voice" and arg and not re.fullmatch(r"[A-Za-z0-9]{20}", arg):   # a name or features, not an id
+            if not config.ELEVEN:
+                start("I don't have the ElevenLabs voices: it needs the ElevenLabs key, and ElevenLabs reachable at the start.",
+                      committed=True, fixed=True)
+            elif n := arg.lower() if arg.lower() in config.ELEVEN else pick(arg, config.ELEVEN):
+                config.set_key("elevenlabs_voice", config.ELEVEN_IDS[n])
+                start(f"{n.capitalize()} from now on.", committed=True, fixed=True)
         elif cmd in SETTINGS and cmd not in COMMANDS:   # every other setting: "slash barge in off", "slash eot 0.8"
             label, kind = cmd.replace("_", " ").replace("eot", "EOT"), type(config.DEFAULTS[cmd])
             label = label[0].upper() + label[1:]

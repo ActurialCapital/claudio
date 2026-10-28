@@ -92,7 +92,9 @@ A running claudio reloads the settings and the key from `secrets.json`, and the 
 
 ### Pick an ElevenLabs voice
 
-`elevenlabs_voice` takes an ElevenLabs voice id, not a name. Copy the id from your ElevenLabs voice library:
+By voice, say a name from your ElevenLabs voice library, or what you want, as for Aura: “slash elevenlabs voice Adam”, “slash elevenlabs voice a British woman”. claudio reads the library when it starts, with each voice's accent, age, gender, style and use, and the words after its name, so `Adam - Dominant, Firm` is `dominant` and `firm`. One voice that fits becomes the voice; several are listed on screen.
+
+From the shell, `elevenlabs_voice` takes the voice id, not a name. Copy it from the library:
 
 ```bash
 claudio set elevenlabs_voice pNInz6obpgDQGcFmaJgB

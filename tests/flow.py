@@ -36,8 +36,12 @@ def fake_load():
     c.update(deepgram_api_key="x", memory=False, narrate="all", mouth="deepgram")
     if SC == "called":
         c.update(address_me=True, name="Roger")
+    if SC == "eleven-british":
+        c.update(elevenlabs_api_key="y")
     return c
 config.load = fake_load
+config.fetch_elevenlabs = lambda key: (config.ELEVEN.update(alice="British, middle aged, feminine", adam="American, masculine"),
+                                       config.ELEVEN_IDS.update(alice="Xb7hH8MSUJpSbSDYk0k2", adam="pNInz6obpgDQGcFmaJgB"))
 config.SOCK = os.path.join(tempfile.mkdtemp(), "s")     # a unix socket path must stay under 104 characters
 os.makedirs(config.DIR, exist_ok=True)
 NEW = "9F8E7D6C-1111-2222-3333-444455556666"     # a session opened after claudio started: listed from the 2nd look on
@@ -238,6 +242,7 @@ SCENARIOS = {   # name: (seconds to run, script)
                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
     "voice-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),
+    "eleven-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash elevenlabs voice a british woman"))]),
     "voice-calm": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice calm"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),

@@ -1,5 +1,5 @@
 """The pure parts: what would break silently. No network, no audio, no claude."""
-import json, os, sys, types
+import io, json, os, sys, types
 
 # agent imports sounddevice and websockets at module load; stub them so the pure functions import anywhere
 for name in ("sounddevice", "websockets", "websockets.exceptions"):
@@ -448,6 +448,22 @@ def test_voices_are_found_by_their_features():
     kokoro = config.kokoro_voices()
     assert kokoro["af_heart"] == "American, feminine" and kokoro["zm_yunxi"] == "Mandarin, masculine"
     assert config.like("british man", kokoro)[1] == ["bm_daniel", "bm_fable", "bm_george", "bm_lewis"]
+
+
+def test_elevenlabs_voices_are_found_by_their_labels(monkeypatch):
+    found = {"voices": [{"name": "Adam - Dominant, Firm", "voice_id": "pNInz6obpgDQGcFmaJgB", "labels": {
+                 "accent": "american", "age": "middle_aged", "gender": "male", "use_case": "social_media"}},
+             {"name": "Bill - Wise, Mature, Balanced", "voice_id": "pqHfZKP75CvOlQylNhV4", "labels": {
+                 "accent": "american", "age": "old", "gender": "male", "descriptive": "crisp"}},
+             {"name": "Alice - Clear, Engaging Educator", "voice_id": "Xb7hH8MSUJpSbSDYk0k2", "labels": {
+                 "accent": "british", "age": "middle_aged", "gender": "female"}}]}
+    monkeypatch.setattr(config.urllib.request, "urlopen", lambda req, timeout: io.BytesIO(json.dumps(found).encode()))
+    monkeypatch.setattr(config, "ELEVEN", {}); monkeypatch.setattr(config, "ELEVEN_IDS", {})
+    config.fetch_elevenlabs("key")
+    assert config.ELEVEN["adam"] == "American, middle aged, masculine, social media, dominant, firm"
+    assert config.ELEVEN_IDS["alice"] == "Xb7hH8MSUJpSbSDYk0k2"
+    assert config.like("a british woman", config.ELEVEN)[1] == ["alice"]
+    assert config.like("an old man", config.ELEVEN) == (["old", "masculine"], ["bill"])   # old as said: a voice is old
 
 
 def test_replies_are_new_messages_from_others():
