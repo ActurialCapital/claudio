@@ -36,7 +36,7 @@ claudio also uses these paths:
 The brain is one `claude` process, run through the Claude Agent SDK and started in the directory you ran claudio from. It loads no Claude Code settings files, so the permissions, hooks and environment in your `settings.json` files do not apply to it. It does read `CLAUDE.md` files, both the project's and your own, like any Claude Code session. It may use only:
 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
-- **git**: `status`, `log`, `diff` and `branch` (listing only: `-a`, `-r`, `-v`, `--show-current`, `--list`; deleting or renaming a branch is asked about); `log` and `diff` never with `--no-index`, `--output` or `--ext-diff`, which would reach any file
+- **git**: `status`, `log`, `diff` and `branch` (listing only: `-a`, `-r`, `-v`, `-vv`, `--show-current`, `--list`; deleting or renaming a branch is asked about); `log` and `diff` never with `--no-index`, `--output` or `--ext-diff`, which would reach any file
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
 - **cmux**: `agent message`, `surface list` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - **claudio set**, to change a setting when you ask
