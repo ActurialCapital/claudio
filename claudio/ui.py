@@ -32,26 +32,37 @@ def log(line):
     except OSError:
         pass
 
-SUN = "#DF3F00"                  # the website's dithered sun
+SUN = ("#6B1E00", "#DF3F00", "#FA8023")   # the website's sun: its shadow, its dark-mode and its light-mode orange
 TAGLINE = "[not dim not italic]Talk, and your sessions [bold #fff383]work[/].[/]"   # the site's headline, "work" in its yellow
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
 
 
-def sun(n=12):
-    """The mark: a sphere lit from the top left, 4x4 Bayer-dithered, two pixels per half-block character
-    so they come out square. Same maths as the site's components/sun-mark.tsx."""
+def sun(n=16):
+    """The mark: a sphere lit from the top left, as the site's components/sun-mark.tsx draws it, but whole: each
+    pixel is one of three oranges, 4x4 Bayer-dithered between them, so the edge stays round at this size. Two
+    pixels per half-block character, so they come out square. One Text per row."""
     bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 
-    def on(x, y):
+    def colour(x, y):
         nx, ny = (x + .5) / (n / 2) - 1, (y + .5) / (n / 2) - 1
         r2 = nx * nx + ny * ny
         if r2 > 1:
-            return False
-        lit = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98)
-        return .18 + .82 * lit > (bayer[(y % 4) * 4 + x % 4] + .5) / 16
-    cell = {(True, True): "█", (True, False): "▀", (False, True): "▄", (False, False): " "}
-    return ["".join(cell[on(x, y), on(x, y + 1)] for x in range(n)) for y in range(0, n, 2)]
+            return None
+        v = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98) * (len(SUN) - 1)
+        i = int(v) + (v % 1 > (bayer[(y % 4) * 4 + x % 4] + .5) / 16)
+        return SUN[min(i, len(SUN) - 1)]
+    rows = []
+    for y in range(0, n, 2):
+        row = Text()
+        for x in range(n):
+            top, bottom = colour(x, y), colour(x, y + 1)
+            if top:
+                row.append("▀", style=f"{top} on {bottom}" if bottom else top)
+            else:
+                row.append("▄" if bottom else " ", style=bottom or "")
+        rows.append(row)
+    return rows
 
 
 def wordmark(subtitle=TAGLINE, name="claudio"):
@@ -59,7 +70,8 @@ def wordmark(subtitle=TAGLINE, name="claudio"):
     t, rows = Text(), sun()
     mid = len(rows) // 2
     for i, row in enumerate(rows):
-        t.append("  " + row, style=SUN)
+        t.append("  ")
+        t.append_text(row)
         if i == mid - 1:
             t.append(f"   {name}", style="bold")
         elif i == mid:

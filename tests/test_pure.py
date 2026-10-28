@@ -334,7 +334,7 @@ def test_every_setting_has_a_description():
 def test_sun_mark_is_a_square_block_of_equal_rows():
     from claudio import ui
     rows = ui.sun()
-    assert len(rows) == 6 and {len(r) for r in rows} == {12} and any(r.strip() for r in rows)
+    assert len(rows) == 8 and {r.cell_len for r in rows} == {16} and any(r.plain.strip() for r in rows)
 
 
 def test_set_key_returns_the_value_and_prints_nothing(tmp_path, monkeypatch, capsys):
