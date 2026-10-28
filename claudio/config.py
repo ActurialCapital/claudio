@@ -406,6 +406,7 @@ def rule_for(tool, tool_input, cwd=None):
         words.append(w)
     if (not words or words[0] in WRAPPERS or len(words) == 1   # one word, then a flag: git -C x, find -exec, any command
             or words[:2] == ["claudio", "learn"]           # a rule for every later run: asked, each one
+            or words[:3] == ["cmux", "agent", "message"]   # a send: asked, each one, never always
             or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface"))
             or words[:3] == ["cmux", "workspace", "create"]):
         return None, ""                        # VAR=x, sh -c, python -c, cmux new-split --command…: any command at all

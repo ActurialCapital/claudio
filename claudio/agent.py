@@ -269,8 +269,9 @@ def system_prompt():
               "(\"seven notes saying hello\" is \"save a note saying hello\"), and never multiply work on a number "
               "that may be a mishearing: ask.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
-            + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
-               "work to sessions, now without asking first: send it, and say what you handed over and to whom. Run "
+            + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Hand work "
+               "to a session when the user's words say to, with no yes or no from claudio: say what you handed over "
+               "and to whom. A question or an unclear turn is no order: answer it, or ask. Run "
                "nothing that deletes, overwrites or pushes without the user's plain yes."
                if status["skip"] else ""))
 
@@ -341,8 +342,9 @@ class Brain:
                                               # listing only: -D, -m, -f and the rest change branches, so they are asked
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
-                "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux tree:*)", "Bash(cmux read-screen:*)",
+                "Bash(cmux surface list:*)", "Bash(cmux tree:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
+                # not cmux agent message: claudio asks the user before each send, a yes or no the brain can't give
                 "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)", "Bash(claudio unlearn:*)", "Bash(claudio restart)",   # not learn: a rule for every later run is asked
                 *(f"mcp__{name}" for name in mcp),
@@ -1054,6 +1056,13 @@ def described(tool, tool_input, rule, what):
     """What claudio asks about, as said: "run gh pr create", "open claudio-vert.vercel", never a whole command."""
     if rule and rule.startswith("/"):
         return f"go into the {os.path.basename(rule)} folder"
+    cmd = str(tool_input.get("command", "")) if tool == "Bash" else ""
+    if m := re.match(r'\s*cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):   # a send: what, and to which session
+        to = m[1] or m[2]
+        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), "a session")
+        said = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
+        words = re.sub(r"^\[spoken by the user, transcribed by claudio\]\s*", "", said[-1] if said else "")
+        return f'send "{words}" to {to}' if words else f"send a message to {to}"
     if rule:
         return what.removeprefix("to ")
     if tool == "Bash":
@@ -1105,7 +1114,7 @@ async def main():
                             for k, v in cfg.items() if k in config.DEFAULTS and k not in config.SECRETS
                             and k not in ("orchestrator", "model", "effort", "style", "voice", "memory",
                                           "elevenlabs_voice", "local_voice")},
-                         **({"permissions": "SKIPPED"} if status["skip"] else {})},
+                         "permissions": "off" if status["skip"] else "on"},
                   hints="Enter cuts · Ctrl-C quits · claudio setup")
         ui.to_bottom()          # now, so "warming up the brain" is at the bottom too; before the key reader, which would
                                 # take the terminal's answer and leave this read blocked

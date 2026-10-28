@@ -38,7 +38,8 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch` (listing only: `-a`, `-r`, `-v`, `-vv`, `--show-current`, `--list`; deleting or renaming a branch is asked about); `log` and `diff` never with `--no-index`, `--output` or `--ext-diff`, which would reach any file
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
-- **cmux**: `agent message`, `surface list` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
+- **cmux**: `surface list`, `tree` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
+- Not **cmux agent message**: claudio asks you before each send, every time, and “always” isn't offered
 - **claudio set**, to change a setting when you ask
 - **claudio unlearn**, to drop a rule from `learned.md`; **claudio learn**, to keep a correction, is asked about each time, with the command on screen, since a rule lasts for every later run
 - **claudio choose**, to answer a session's multiple-choice question with the option you picked; with `--other`, words typed into the pane, it is asked about

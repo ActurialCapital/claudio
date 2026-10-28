@@ -23,13 +23,17 @@ To use a different orchestrator in one project, put a `.claudio.json` in that pr
 
 ## Hand work to a session
 
-When you ask for work, the brain sends it to the orchestrator through cmux's agent inbox and tells you so:
+When you ask for work, the brain sends it to the orchestrator through cmux's agent inbox. With permission checks on, claudio itself asks first, and only your yes sends it; there's no “always” for sends:
 
 ```transcript
 › rebase 44 on main and run the tests
+◆ May I send "rebase 44 on main and run the tests" to Sequencer?
+› yes
 ◆ Sending that to Sequencer.
   → cmux agent message
 ```
+
+A question is never an order: “should I merge?” gets the brain's view, not a send. With [permission checks off](/docs/reference/cli#claudio---dangerously-skip-permissions), it sends without that question.
 
 The message starts with a marker, so the session knows the words are yours and not the brain's:
 
@@ -40,6 +44,8 @@ The message starts with a marker, so the session knows the words are yours and n
 The brain passes on your words and any detail you gave. It never puts the marker on something you didn't say.
 
 To send work elsewhere, name the session: "ask Core to update the changelog". The brain addresses the session's own pane, not its workspace, so a handoff never lands in claudio's pane when claudio runs in the orchestrator's workspace.
+
+Name a session by its tab name, as cmux shows it, or by its Claude session title; the brain knows both. It knows cmux's words too: a window holds workspaces (which can sit in a workspace group in the sidebar), a workspace is split into panes, and a pane holds tabs, terminals or browsers. It gets the layout at start, and runs `cmux tree` again whenever you name or ask about a tab, pane, workspace or group, so a tab opened or renamed since is found.
 
 A session can answer back with `cmux agent message --reply-to`. The reply lands in claudio's own cmux inbox; claudio checks it every few seconds and reads it to you, with a `▸ <session>  replied` line, unless it's muted or `narrate` is `none`.
 

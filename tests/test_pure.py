@@ -745,3 +745,13 @@ def test_a_link_fades_in_whole_not_word_by_word():
     assert [w.plain for w, *_ in f.words] == ["Read", "the JEPA overview", "today."]
     assert "link https://example.com/a" in str(f.words[1][0].spans[0].style)
 
+
+
+def test_a_send_is_asked_each_time_by_what_and_to_whom(monkeypatch):
+    from claudio import agent
+    monkeypatch.setattr(agent, "surfaces", parse_surfaces(SURFACES))
+    cmd = ('cmux agent message 12BA24EB-6732-4999-BB16-7EE5AF2D35EE --from "Roger" '
+           '"[spoken by the user, transcribed by claudio] Merge and continue."')
+    rule, what = config.rule_for("Bash", {"command": cmd})
+    assert rule is None                                      # no "always": every send is asked
+    assert agent.described("Bash", {"command": cmd}, rule, what) == 'send "Merge and continue." to Sequencer'
