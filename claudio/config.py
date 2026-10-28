@@ -487,10 +487,11 @@ def parse_surfaces(text):
 
 
 def replies(messages, me, since):
-    """From claudio's queued inbox, newest first: the messages to read out. Not its own (a handoff that came back
-    to its pane), not ones from before it started."""
-    return [m for m in messages if str(m.get("sender_surface_id", "")).upper() != me.upper()
-            and m.get("created_at", 0) >= since]
+    """From what `cmux agent inbox --surface <claudio's pane>` lists, newest first: the messages to read out. That
+    listing also holds what the pane sent (the brain's handoffs, still on their way), so only those to it, from
+    another, since it started."""
+    return [m for m in messages if str(m.get("recipient_surface_id", "")).upper() == me.upper()
+            and str(m.get("sender_surface_id", "")).upper() != me.upper() and m.get("created_at", 0) >= since]
 
 
 def surfaces():

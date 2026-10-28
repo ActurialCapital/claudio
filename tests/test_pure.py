@@ -409,9 +409,10 @@ def test_voice_names_become_deepgram_models():
 
 def test_replies_are_new_messages_from_others():
     me = "136B82D3-8ACD"
-    msgs = [{"id": "a", "sender_surface_id": "34E60333", "created_at": 200},
-            {"id": "b", "sender_surface_id": me.lower(), "created_at": 200},     # a handoff that came back to its own pane
-            {"id": "c", "sender_surface_id": "34E60333", "created_at": 50}]      # from before claudio started
+    msgs = [{"id": "a", "sender_surface_id": "34E60333", "recipient_surface_id": me, "created_at": 200},
+            {"id": "b", "sender_surface_id": me.lower(), "recipient_surface_id": me, "created_at": 200},   # its own, back
+            {"id": "d", "sender_surface_id": me, "recipient_surface_id": "3C557F2B", "created_at": 200},  # a handoff on its way
+            {"id": "c", "sender_surface_id": "34E60333", "recipient_surface_id": me, "created_at": 50}]   # before it started
     assert [m["id"] for m in config.replies(msgs, me, 100)] == ["a"]
 
 

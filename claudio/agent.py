@@ -1717,21 +1717,24 @@ async def main():
 
     async def inbox_watch():
         """Replies to claudio's messages land in its own pane's cmux inbox: read them out, like a session's report."""
-        me, since = os.environ.get("CMUX_SURFACE_ID"), time.time()
+        me, since, heard = os.environ.get("CMUX_SURFACE_ID"), time.time(), set()
         if not me:
             return
 
         def take():
-            """The queued messages, marked read by the same call that lists them: none can slip in between."""
+            """The queued messages, never marked read: the listing also holds the brain's handoffs on their way, and
+            marking those read would stop cmux delivering them to a session still starting up."""
             try:
-                out = subprocess.run([CMUX, "agent", "inbox", "--surface", me, "--state", "queued", "--mark-read",
-                                      "--json"], capture_output=True, text=True, timeout=5).stdout
+                out = subprocess.run([CMUX, "agent", "inbox", "--surface", me, "--state", "queued", "--json"],
+                                     capture_output=True, text=True, timeout=5).stdout
                 return json.loads(out).get("messages", [])
             except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
                 return []
         while True:
             await asyncio.sleep(3)
-            for m in reversed(config.replies(await loop.run_in_executor(None, take), me, since)):   # oldest first
+            new = [m for m in config.replies(await loop.run_in_executor(None, take), me, since) if m.get("id") not in heard]
+            heard.update(m.get("id") for m in new)    # ponytail: ids kept for the run; a few a day
+            for m in reversed(new):                   # oldest first
                 if status["muted"] or cfg["narrate"] == "none":
                     continue
                 ui.event(m.get("sender_name") or "a session", "Reply")
