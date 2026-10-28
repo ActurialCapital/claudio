@@ -132,6 +132,8 @@ def check(key, value):
             v = f"aura-2-{near[0]}-en"
     if key == "name" and not 1 <= len(re.sub(r"[^a-z0-9 ]", "", v.lower()).split()) <= 3:
         return None, f"name must be one to three words, not {v!r}"   # none would match every turn under address_me
+    if key == "name" and re.search(r'["\\`$]', v):
+        return None, f"name cannot hold \" \\ ` or $, not {v!r}"      # it goes in the brain's quoted --from
     if key in CHOICES and isinstance(v, str):
         v = v.lower()                          # CLAUDIO_LAYOUT=Split, "Sonnet"
     if key in CHOICES and v not in CHOICES[key]:

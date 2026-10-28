@@ -129,6 +129,9 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/colors` on or off, for code.\n"
               "- `/layout` inline or split.\n"
               "- `/name` and a new one, such as Roger: what I answer to.\n"
+              "- `/address me` on or off: only turns that start with my name count.\n"
+              "- `/` and any other setting, as it reads, then a value: `/barge in off`, `/push to talk on`, "
+              "`/narrate all`, `/eot 0.8`. A setting alone says what it is; one that is on or off flips.\n"
               "- `/status` says the settings.\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
@@ -136,7 +139,8 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/quit` or `/exit` says bye and quits.\n"
               "- `/help` says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours", "layout",
-            "name", "permissions", "quit", "exit"}
+            "name", "address", "permissions", "quit", "exit"}
+SETTINGS = sorted((k for k in config.DEFAULTS if k not in config.SECRETS), key=lambda k: -k.count("_"))   # longest first
 SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
     "plain": "",
@@ -156,12 +160,22 @@ LEAD = "|".join(["um", "uh", "ok", "okay", "so", "hey", "and", "well", "please",
 SLASH = re.compile(rf"^(?:(?:{LEAD})\s+){{0,2}}slash\s+(\w+)\s*(.*)$")   # "um slash mute", an echoed "mute slash mute"; not "add a slash command"
 
 
+def slash_words(said):
+    """norm, but a decimal point kept: "Slash EOT 0.8." is "slash eot 0.8"."""
+    return " ".join(re.sub(r"(?<!\d)\.|\.(?!\d)|[^a-z0-9. ]", "", said.lower()).split())
+
+
 def parse_slash(words):
     """("style", "caveman") from "slash um i want a caveman"; None when it is no command."""
     m = SLASH.search(words)
     if not m:
         return None
     rest = f"{m.group(1)} {m.group(2)}".split()
+    for i in range(len(rest)):                 # a setting as it reads, past "um": "slash barge in off", "slash eot 0.8"
+        if rest[i] in COMMANDS:
+            break                              # its own command: "slash voice zeus"
+        if k := next((k for k in SETTINGS if rest[i:i + k.count("_") + 1] == k.split("_")), None):
+            return k, " ".join(rest[i + k.count("_") + 1:])
     if rest[0] not in COMMANDS:                # misheard: "slash e fort", "slash efort", "slash colours" spelt oddly
         for n in (1, 2):                      # one word first: "permission skip" keeps its "skip"
             near = difflib.get_close_matches("".join(rest[:n]), COMMANDS, 1, 0.75)
@@ -220,6 +234,7 @@ def system_prompt():
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
     persona = (config.persona()
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
+               .replace("{FROM}", "Voice" if cfg["name"].lower() == "claudio" else cfg["name"])   # who relayed it, in the session's inbox
                .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
                                             for k in keys)))
     commands = SLASH_HELP.split("\n", 1)[1]
@@ -979,6 +994,15 @@ def addressed(said, name):
     return said if got == want else None           # the name alone: kept, so the brain skips it
 
 
+def address(said, name, called):
+    """Under address_me: (the turn for the brain, or None; whether it was the name alone). A turn that starts
+    within a few seconds of the name alone (called) is for it unnamed: "Roger." … "What's the sequencer doing?"."""
+    rest = addressed(said, name)
+    if rest is not None and fold(rest) == fold(name):
+        return None, True
+    return (said if rest is None and called else rest), False
+
+
 def backchannel(said):
     words = norm(said)
     return len(words) < 2 or all(w in BACKCHANNEL for w in words)
@@ -1101,6 +1125,7 @@ async def main():
     fallback_streams = {"streams": None}   # the plain mic and speaker, if the helper died
     ears = {"ws": None}            # the Flux socket, when connected
     later = {"resume": None}       # the timer that resumes a paused reply nobody interrupted after all
+    called = {"at": -99.0, "turn": False, "told": False}   # under address_me: when the name was said alone; this turn came after it
 
     def on_mic(indata, frames, t, status_):
         loop.call_soon_threadsafe(mic.put_nowait, bytes(indata))
@@ -1302,11 +1327,12 @@ async def main():
         if not parsed:
             return False
         cmd, arg = parsed
-        ui.note(f"/{cmd} {arg}".strip())
+        ui.note(f"/{cmd.replace('_', ' ')} {arg}".strip())
         if cmd not in ("clear", "stop"):
             cut(None)                          # a command over a reply stops it quietly; the note says why
-        key = {"colors": "code_colors", "colours": "code_colors"}.get(cmd, cmd)
-        if key in config.DEFAULTS and (arg or cmd in ("colors", "colours", "layout")) and (src := config.overridden(key)):
+        key = {"colors": "code_colors", "colours": "code_colors", "address": "address_me"}.get(cmd, cmd)
+        if key in config.DEFAULTS and (arg or cmd in ("colors", "colours", "layout", "address")
+                                       or isinstance(config.DEFAULTS[key], bool)) and (src := config.overridden(key)):
             start(f"{key.replace('_', ' ').capitalize()} is set by {src} here, so I left it.", committed=True, fixed=True)
             return True                        # saved, it would change nothing here, and every other project
         if cmd == "clear":
@@ -1351,6 +1377,37 @@ async def main():
             on = said in config.TRUE if said else not cfg["code_colors"]
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
+        elif cmd == "address":                 # "slash address me on"; alone, it flips it
+            said = next((w for w in arg.split() if w in config.TRUE + config.FALSE), None)
+            on = said in config.TRUE if said else not cfg["address_me"]
+            config.set_key("address_me", on)
+            start(f"Only turns that start with {cfg['name']} now." if on else "Every turn counts now.",
+                  committed=True, fixed=True)
+        elif cmd in SETTINGS and cmd not in COMMANDS:   # every other setting: "slash barge in off", "slash eot 0.8"
+            label, kind = cmd.replace("_", " ").replace("eot", "EOT"), type(config.DEFAULTS[cmd])
+            label = label[0].upper() + label[1:]
+            if kind is bool:                   # on or off; alone, it flips
+                said = next((w for w in arg.split() if w in config.TRUE + config.FALSE), None)
+                value = said in config.TRUE if said else not cfg[cmd]
+            elif not arg:                      # "slash narrate" alone: what it is, and the choices
+                choices = f"; choose {', '.join(config.CHOICES[cmd])}" if cmd in config.CHOICES else ""
+                start(f"{label} is {cfg[cmd]}{choices}.", committed=True, fixed=True)
+                return True
+            elif cmd in config.CHOICES:        # "handed off" is handed-off
+                value = next((c for c in config.CHOICES[cmd] if c.replace("-", " ") in arg), arg)
+            elif kind in (int, float):         # "2500 please"
+                value = next((w for w in arg.split() if re.fullmatch(r"\d+(\.\d+)?", w)), arg)
+            elif cmd == "orchestrator":        # heard lower case: the workspace as cmux spells it
+                value = next((w for w in config.workspaces() if w.lower() == arg), arg)
+            else:                              # "flux general multi", "af heart": as the setting spells it
+                value = arg.replace(" ", {"ears": "-", "local_voice": "_"}.get(cmd, " "))
+            value, why = config.check(cmd, value)
+            if why:
+                start(f"{why.replace('_', ' ')}.", committed=True, fixed=True)
+                return True
+            config.set_key(cmd, value)         # the reload applies it, as `claudio set` would
+            shown = ("on" if value else "off") if kind is bool else value
+            start(f"{label} {shown}.", committed=True, fixed=True)
         elif cmd == "layout":                  # "slash layout split"; alone, it flips it
             said = next((w for w in arg.split() if w in config.CHOICES["layout"]), None)
             new = said or ("inline" if cfg["layout"] == "split" else "split")
@@ -1567,11 +1624,26 @@ async def main():
 
     def heard(ev):
         said = ev.get("transcript", "").strip()
+        shown = said                       # as heard, name and all; the brain gets said, the name dropped
         words = " ".join(norm(said))
+        if ev["event"] == "StartOfTurn":
+            called["turn"] = time.monotonic() - called["at"] < 8   # begun within 8 s of the name alone
         if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
-            if (rest := addressed(said, cfg["name"])) is None:
-                if ev["event"] == "EndOfTurn":
-                    ui.you(said, tentative=True)    # heard, not for me: dim
+            rest, alone = address(said, cfg["name"], called["turn"])
+            if ev["event"] == "EndOfTurn":
+                if called["turn"]:
+                    called["at"] = -99.0               # the turn the name opened is over: the next needs the name again
+                called["turn"] = False
+                if alone:
+                    ui.you(shown)
+                    ui.note("listening")
+                    called["at"] = time.monotonic()
+                elif rest is None:
+                    ui.you(shown, tentative=True)    # heard, not for me: dim
+                    if not called["told"]:          # once a run: why it is dim
+                        ui.note(f"not for me: start with {cfg['name']}")
+                        called["told"] = True
+            if rest is None:
                 return
             said = rest
             words = " ".join(norm(said))
@@ -1584,18 +1656,18 @@ async def main():
             if ev["event"] == "EndOfTurn" and cfg["push_to_talk"]:
                 status["gate_open"] = False
             if ev["event"] == "EndOfTurn" and said:   # a tool waits on the question: no pause, no eager start, no cut
-                ui.you(said, tentative=not pending["ready"])   # before the question is out, nothing answers it
+                ui.you(shown, tentative=not pending["ready"])   # before the question is out, nothing answers it
                 if pending["ready"] and not pending["future"].done():
                     pending["future"].set_result(said)
             return
         if ev["event"] == "EndOfTurn" and said and not paused() and (note := answer(said)):   # paused: a backchannel
-            ui.you(said)
+            ui.you(shown)
             ui.note(note)
             cut(None)                          # the question, if it was still being asked: answered
             return
         if ev["event"] == "EndOfTurn" and SLASH.search(words):
-            ui.you(said)
-            slash(words)
+            ui.you(shown)
+            slash(slash_words(said))
             return
         match ev["event"]:
             case "StartOfTurn":
@@ -1618,22 +1690,22 @@ async def main():
                     status["gate_open"] = False
                 if paused():
                     if said and not backchannel(said):     # a real interruption: this is the new turn
-                        ui.you(said)
+                        ui.you(shown)
                         cut(None)
                         start(said, committed=True)
                     else:
                         if said:
-                            ui.you(said, tentative=True)   # a backchannel: dim, and the reply goes on
+                            ui.you(shown, tentative=True)   # a backchannel: dim, and the reply goes on
                         resume()
                 elif said:
                     L = latest["handle"]
                     if (L and not L["task"].done() and not L["task"].cancelling() and not L["commit"].is_set()
                             and norm(L["text"]) == norm(said)):
-                        ui.you(said)
+                        ui.you(shown)
                         L["commit"].set()      # the eager reply for these words, speaking or still queued
                         L["committed_at"] = time.monotonic()
                     else:
-                        ui.you(said)
+                        ui.you(shown)
                         start(said, committed=True)
 
     async def listen_forever():

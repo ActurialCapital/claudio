@@ -61,6 +61,8 @@ flowchart LR
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | "slash code colors off" | code blocks as plain text; "on" brings colours back |
 | "slash name Roger" | it answers to Roger and calls itself that |
+| "slash address me on" · "off" | only turns that start with its name count, for a room with other people |
+| "slash barge in off" · "slash push to talk on" · "slash eot 0.8" | any setting, said as it reads; alone, one that is on or off flips |
 | "what did we do today?" | reads today's transcript and tells you |
 | "write a note: call Michael" | asks Desktop or Documents, then adds it to `notes.md` there, dated |
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
@@ -131,7 +133,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
 | `barge_in` | `true` | talking over it pauses it |
 | `push_to_talk` | `false` | the mic stays closed until you press Enter, for one turn |
-| `address_me` | `false` | only turns that start with its name count, for a room with other people |
+| `address_me` | `false` | only turns that start with its name count, for a room with other people; the name alone opens the next turn |
 | `memory` | `true` | resume the last conversation, up to a week old |
 | `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
 | `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |

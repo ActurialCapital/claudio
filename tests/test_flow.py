@@ -6,7 +6,7 @@ import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
-             "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont")
+             "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont", "called", "slash-setting")
 
 
 @pytest.fixture(scope="module")
@@ -213,3 +213,22 @@ def test_slash_quit_says_bye_then_quits(runs):
     lines, _ = runs["quit"]
     assert first(lines, "KEY '/quit") < first(lines, "SAY 'Bye.") < first(lines, "NOTE bye")
     assert not any(line.startswith("FLUX") for line in lines)      # quit before the next event came
+
+
+def test_the_name_alone_opens_the_next_turn_and_only_that_one(runs):
+    lines, _ = runs["called"]
+    assert "NOTE listening" in lines
+    assert lines.count("NOTE not for me: start with Roger") == 1   # why it is dim, once
+    asked = [line for line in lines if line.startswith("BRAIN")]
+    assert any("what day is it" in line for line in asked)
+    assert "YOU 'Roger, and now?'" in lines and any("BRAIN 'and now?'" in line for line in asked)   # shown named, sent bare
+    assert not any("what time is it" in line or "Roger" in line or "weather" in line for line in asked)
+
+
+def test_any_setting_is_a_slash_command_said_as_it_reads(runs):
+    lines, home = runs["slash-setting"]
+    said = [line for line in lines if line.startswith("SAY")]
+    assert "SAY 'Barge in off.\\n'" in said and "SAY 'EOT 0.8.\\n'" in said
+    saved = json.load(open(home / "config.json"))
+    assert saved["barge_in"] is False and saved["eot"] == 0.8
+    assert not any(line.startswith("BRAIN") and "barge" in line.lower() for line in lines)   # no brain needed

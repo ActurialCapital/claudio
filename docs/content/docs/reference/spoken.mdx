@@ -24,8 +24,10 @@ Say “slash” and a command, such as “slash stop”, or type `/stop` and pre
 | `colors` (or `colours`, “code colors”) | `on`, `off`, or none to flip | saves `code_colors`: code blocks highlighted, or as plain text; says “Code colours off.” |
 | `layout` | `inline`, `split`, or none to flip | saves `layout`: your turns as `› text`, or on the right; says “Layout split.” |
 | `name` | one to three words, such as `roger` | saves `name`: what it answers to under `address_me` and calls itself; the brain restarts and says “Back, as Roger.” Alone, it says the name it has |
+| `address me` | `on`, `off`, or none to flip | saves `address_me`: only turns that start with its name count; says “Only turns that start with Roger now.” or “Every turn counts now.” |
+| any other [setting](/docs/configure/settings), as it reads: `barge in`, `push to talk`, `narrate`, `eot timeout ms`… | its value; `on`/`off` or none to flip one that is on or off | saves it, as `claudio set` would, and says it back: “Barge in off.”, “EOT 0.8.” A setting alone says its value and choices |
 
-The `model`, `effort`, `style`, `voice`, `colors`, `layout` and `name` changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
+The `model`, `effort`, `style`, `voice`, `colors`, `layout`, `name`, `address me` and other setting changes are saved to `config.json`, like [`claudio set`](/docs/reference/cli#claudio-set-key-value). `clear` does not delete the transcripts.
 
 While muted, typed lines still work as turns.
 
@@ -75,4 +77,4 @@ Work the brain hands to a session starts with this marker, so the session knows 
 [spoken by the user, transcribed by claudio]
 ```
 
-The message goes through `cmux agent message` with `--from Voice`.
+The message goes through `cmux agent message` with `--from Voice`, or `--from` its [name](/docs/configure/listening#rooms-with-other-people) when you gave it one, so the session's inbox shows who relayed it.

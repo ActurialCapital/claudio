@@ -77,7 +77,7 @@ With `address_me` on, only turns that start with “claudio” count:
 claudio set address_me true
 ```
 
-“claudio, what's the sequencer doing?” works: the name is dropped before the brain sees the turn. Any other turn is shown dim and ignored. Slash commands need the name too: “claudio, slash mute”.
+“claudio, what's the sequencer doing?” works: the name is dropped before the brain sees the turn. Any other turn is shown dim and ignored, and the first one says why: `· not for me: start with claudio`. “slash address me off” (said with the name) turns it off. Slash commands need the name too: “claudio, slash mute”.
 
 To be called something else, give it a name of one to three words. It answers to that name and calls itself by it, and the ears are told to listen for it:
 
@@ -86,6 +86,8 @@ claudio set name nyx
 ```
 
 Or say “slash name Nyx”.
+
+Say the name alone (“Nyx.”) and it shows `· listening`: a turn you start within 8 seconds counts without the name, so “Nyx.” then “What's the sequencer doing?” works.
 
 Other voices still pause a reply while `barge_in` is on. The reply carries on about 3 seconds after they stop.
 

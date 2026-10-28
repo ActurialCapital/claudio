@@ -10,7 +10,7 @@ sys.modules["websockets"].ConnectionClosed = Exception
 
 import pytest
 from claudio import config
-from claudio.agent import SENTENCE, addressed, backchannel, norm, parse_slash, shown_block
+from claudio.agent import SENTENCE, address, addressed, backchannel, norm, parse_slash, slash_words, shown_block
 from claudio.ui import spoken
 
 
@@ -128,7 +128,20 @@ def test_a_turn_counts_only_when_it_starts_with_the_name():
     assert addressed("Zoe, what's up?", "Zoé") == "what's up?"        # the accent lost in the transcript
     assert addressed("Mary Jane, hi", "Mary-Jane") == "hi"
     assert addressed("R2 D2, go", "R2-D2") == "go"
+    assert address("Roger.", "roger", False) == (None, True)          # the name alone: opens the next turn
+    assert address("what's up", "roger", True) == ("what's up", False)  # that next turn, unnamed
+    assert address("Roger, what's up", "roger", True) == ("what's up", False)
+    assert address("what's up", "roger", False) == (None, False)      # unnamed, uncalled: not for it
+    assert config.check("name", 'Ro"ger')[0] is None                  # it goes in a quoted shell argument
+    assert config.check("name", "O'Neil") == ("O'Neil", None)
     assert parse_slash("slash name roger") == ("name", "roger")
+    assert parse_slash("slash address me on") == ("address", "me on")
+    assert parse_slash("slash barge in off") == ("barge_in", "off")      # every setting, as it reads
+    assert parse_slash("slash um push to talk on") == ("push_to_talk", "on")
+    assert parse_slash("slash eot timeout ms 2500") == ("eot_timeout_ms", "2500")
+    assert parse_slash(slash_words("Slash EOT 0.8.")) == ("eot", "0.8")
+    assert parse_slash("slash narrate handed off") == ("narrate", "handed off")
+    assert parse_slash("slash voice zeus") == ("voice", "zeus")          # its own command still wins
     assert parse_slash("slash my name is roger") == ("name", "is roger")   # the handler drops the "is"
     assert config.check("name", "  Nyx ") == ("Nyx", None)
     assert config.check("name", "!!!")[0] is None
