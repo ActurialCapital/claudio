@@ -52,7 +52,7 @@ flowchart LR
 | | |
 |---|---|
 | "what's the sequencer doing?" | reads that pane, sums it up |
-| "rebase 44 and run the tests" | hands it to the orchestrator |
+| "rebase 44 and run the tests" | asks, then hands it to the orchestrator |
 | "open a session called Core" | new cmux workspace running `claude` |
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
