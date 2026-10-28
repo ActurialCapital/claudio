@@ -241,11 +241,12 @@ SCENARIOS = {   # name: (seconds to run, script)
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
     "mic-late": (4, []),
     "quit": (7, [("key", (1.0, "/quit\n")), (4.5, turn("StartOfTurn"))]),   # gone before 4.5 s
-    "called": (10, [(2.0, turn("StartOfTurn")), (2.2, turn("EndOfTurn", "what time is it")),   # not for it
+    "called": (12, [(2.0, turn("StartOfTurn")), (2.2, turn("EndOfTurn", "what time is it")),   # not for it
                    (3.0, turn("StartOfTurn")), (3.2, turn("EndOfTurn", "Roger.")),           # the name alone
                    (4.0, turn("StartOfTurn")), (4.2, turn("EndOfTurn", "what day is it")),   # so this is
-                   (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "and the weather")),  # and this is not
-                   (7.0, turn("StartOfTurn")), (7.2, turn("EndOfTurn", "Roger, and now?"))]),
+                   (7.0, turn("StartOfTurn")), (7.2, turn("EndOfTurn", "and the weather")),  # and this is not
+                   (8.0, turn("StartOfTurn")), (8.2, turn("EndOfTurn", "Roger, and now?")),
+                   (9.0, turn("StartOfTurn")), (9.2, turn("EndOfTurn", "and tomorrow"))]),   # its sentence, cut at a pause
     "slash-setting": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "Slash barge in off.")),
                           (2.0, turn("StartOfTurn")), (2.2, turn("EndOfTurn", "Slash EOT 0.8."))]),
     "two-done": (9, [("sock", 2.0), ("sock", 2.1)]),

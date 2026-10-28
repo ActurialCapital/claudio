@@ -218,10 +218,12 @@ def test_slash_quit_says_bye_then_quits(runs):
 def test_the_name_alone_opens_the_next_turn_and_only_that_one(runs):
     lines, _ = runs["called"]
     assert "NOTE listening" in lines
+    assert "YOU 'Roger. what day is it'" in lines and "YOU 'Roger.'" not in lines   # one line, the name kept
     assert lines.count("NOTE not for me: start with Roger") == 1   # why it is dim, once
     asked = [line for line in lines if line.startswith("BRAIN")]
     assert any("what day is it" in line for line in asked)
     assert "YOU 'Roger, and now?'" in lines and any("BRAIN 'and now?'" in line for line in asked)   # shown named, sent bare
+    assert any("and tomorrow" in line for line in asked)            # right after a turn for it: goes on with it
     assert not any("what time is it" in line or "Roger" in line or "weather" in line for line in asked)
 
 

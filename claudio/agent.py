@@ -1125,7 +1125,7 @@ async def main():
     fallback_streams = {"streams": None}   # the plain mic and speaker, if the helper died
     ears = {"ws": None}            # the Flux socket, when connected
     later = {"resume": None}       # the timer that resumes a paused reply nobody interrupted after all
-    called = {"at": -99.0, "turn": False, "told": False}   # under address_me: when the name was said alone; this turn came after it
+    called = {"until": 0.0, "turn": False, "told": False, "name": ""}   # under address_me: a turn begun before until needs no name; the name alone, as heard; this turn did
 
     def on_mic(indata, frames, t, status_):
         loop.call_soon_threadsafe(mic.put_nowait, bytes(indata))
@@ -1627,17 +1627,18 @@ async def main():
         shown = said                       # as heard, name and all; the brain gets said, the name dropped
         words = " ".join(norm(said))
         if ev["event"] == "StartOfTurn":
-            called["turn"] = time.monotonic() - called["at"] < 8   # begun within 8 s of the name alone
+            called["turn"] = time.monotonic() < called["until"]   # begun soon after the name alone, or a turn for me
         if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
             rest, alone = address(said, cfg["name"], called["turn"])
+            if called["turn"] and called["name"] and not alone and addressed(said, cfg["name"]) is None:
+                shown = f"{called['name']} {shown}"   # "Roger?" … "can you tell me": one line, as it was said
             if ev["event"] == "EndOfTurn":
-                if called["turn"]:
-                    called["at"] = -99.0               # the turn the name opened is over: the next needs the name again
-                called["turn"] = False
-                if alone:
-                    ui.you(shown)
+                called["turn"], called["name"] = False, ""
+                if alone:                          # its line waits for the turn it opens
                     ui.note("listening")
-                    called["at"] = time.monotonic()
+                    called["until"], called["name"] = time.monotonic() + 8, shown
+                elif rest is not None:             # for me: a turn right after goes on with it, the sentence cut at a pause
+                    called["until"] = time.monotonic() + 2   # "Roger, can you tell me" … "what the sequencer is doing"
                 elif rest is None:
                     ui.you(shown, tentative=True)    # heard, not for me: dim
                     if not called["told"]:          # once a run: why it is dim
