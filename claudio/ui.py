@@ -32,32 +32,35 @@ def log(line):
     except OSError:
         pass
 
-SUN = "#DF3F00"                  # the site's mark, in its dark-mode orange: the landing page's dithered sun
+SUN = ((0x4A, 0x14, 0x00), (0xDF, 0x3F, 0x00), (0xFF, 0x9A, 0x4A))   # shadow, the site's orange, highlight
 TAGLINE = "[not dim not italic]Talk, and your sessions [bold #fff383]work[/].[/]"   # the site's headline, "work" in its yellow
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
 
 
-def sun(cols=16, rows=8):
-    """The mark, as the site draws it (docs/components/sun-mark.tsx): a sphere lit from the top left, 4x4
-    Bayer-dithered in one orange, each dot on or off. Braille, 2x4 dots per character, so 16x8 characters hold
-    32x32 dots. One Text per row."""
-    bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
-    bit = {(0, 0): 0x01, (0, 1): 0x02, (0, 2): 0x04, (1, 0): 0x08, (1, 1): 0x10, (1, 2): 0x20, (0, 3): 0x40, (1, 3): 0x80}
-    w, h = cols * 2, rows * 4
-
-    def on(x, y):
-        nx, ny = (x + .5) / (w / 2) - 1, (y + .5) / (h / 2) - 1
+def sun(n=8):
+    """The mark, small: a sphere lit from the top left, each pixel shaded from the shadow through the site's orange
+    to a highlight, no dither (too few pixels for it). Two pixels per half-block character, which the terminal draws
+    itself, so it looks the same in any font. One Text per row."""
+    def colour(x, y):
+        nx, ny = (x + .5) / (n / 2) - 1, (y + .5) / (n / 2) - 1
         r2 = nx * nx + ny * ny
         if r2 > 1:
-            return False
-        lit = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98)
-        return .18 + .82 * lit > (bayer[(y % 4) * 4 + x % 4] + .5) / 16
-    out = []
-    for cy in range(rows):
-        dots = [sum(b for (dx, dy), b in bit.items() if on(cx * 2 + dx, cy * 4 + dy)) for cx in range(cols)]
-        out.append(Text("".join(chr(0x2800 + d) if d else " " for d in dots), style=SUN))
-    return out
+            return None
+        t = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98)
+        a, b, t = (SUN[0], SUN[1], t / .6) if t < .6 else (SUN[1], SUN[2], (t - .6) / .4)
+        return "#" + "".join(f"{round(a[i] + (b[i] - a[i]) * min(1, t)):02x}" for i in range(3))
+    rows = []
+    for y in range(0, n, 2):
+        row = Text()
+        for x in range(n):
+            top, bottom = colour(x, y), colour(x, y + 1)
+            if top:
+                row.append("▀", style=f"{top} on {bottom}" if bottom else top)
+            else:
+                row.append("▄" if bottom else " ", style=bottom or "")
+        rows.append(row)
+    return rows
 
 
 def wordmark(subtitle=TAGLINE, name="claudio"):
