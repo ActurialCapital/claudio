@@ -252,7 +252,7 @@ def system_prompt():
             + "(or types /name), and claudio runs it before you hear anything; you can't run them:\n" + commands
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\n"
             + "Sessions now (to see one, run cmux read-screen --surface <its id> --lines 60):\n"
-            + "\n".join(lines)
+            + (config.layout(surfaces) or "\n".join(lines))
             + (f"\nYour name is {cfg['name']}: the user may call you by it, and you call yourself by it.\n"
                if cfg["name"].lower() != "claudio" else "")
             + "\n\nRules that matter most, last so they stay in mind:\n"
@@ -341,7 +341,7 @@ class Brain:
                                               # listing only: -D, -m, -f and the rest change branches, so they are asked
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
-                "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
+                "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux tree:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)", "Bash(claudio unlearn:*)", "Bash(claudio restart)",   # not learn: a rule for every later run is asked

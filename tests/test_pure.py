@@ -167,6 +167,21 @@ def test_parse_surfaces_maps_surface_ids_to_workspace_title_surface_title_and_cw
     assert len(got) == 3
 
 
+def test_render_tree_shows_panes_tabs_and_the_session_title_beside_the_tab_name():
+    from claudio.config import render_tree
+    uuid = "12BA24EB-6732-4999-BB16-7EE5AF2D35EE"
+    tree = {"windows": [{"index": 0, "workspaces": [{"title": "Sequencer", "panes": [
+        {"index": 0, "surfaces": [{"id": uuid.lower(), "title": "Sales", "type": "terminal"}]},
+        {"index": 1, "surfaces": [{"id": "ME", "title": "Claudio", "type": "terminal"},
+                                  {"id": "B1", "title": "Docs", "type": "browser", "url": "https://x.y"}]}]}]}]}
+    got = render_tree(tree, parse_surfaces(SURFACES), me="me").splitlines()
+    assert got[:3] == ["- window 1", '  - workspace "Sequencer"', "    - pane 1"]
+    assert got[3] == (f'      - tab "Sales" (terminal), surface {uuid}, session "Aloha refactor advisor", '
+                      "in /Users/jmr/GitHub/aloha")
+    assert got[5].endswith(": claudio, you")
+    assert got[6].endswith("surface B1, https://x.y")
+
+
 def _scratch(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DIR", str(tmp_path))
     monkeypatch.setattr(config, "CONF", str(tmp_path / "config.json"))
@@ -729,3 +744,4 @@ def test_a_link_fades_in_whole_not_word_by_word():
     f.add("Read [the JEPA overview](https://example.com/a) today.")
     assert [w.plain for w, *_ in f.words] == ["Read", "the JEPA overview", "today."]
     assert "link https://example.com/a" in str(f.words[1][0].spans[0].style)
+

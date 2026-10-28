@@ -613,6 +613,43 @@ def surfaces():
     return {sid: v for sid, v in found.items() if v[3].upper() != me}
 
 
+def render_tree(tree, sessions, me=""):
+    """`cmux tree --all --json --id-format both` → the layout as the user sees it, one line per window, workspace,
+    pane and tab (surface), indented. A terminal tab running a session also gets that session's title and cwd from
+    sessions (`surfaces()`), as tab names and session titles differ. me: claudio's own surface id, marked."""
+    by_full = {v[3].upper(): v for v in sessions.values()}
+    out = []
+    for w in tree.get("windows", []):
+        out.append(f"- window {w.get('index', 0) + 1}")
+        for ws in w.get("workspaces", []):
+            out.append(f'  - workspace "{ws.get("title", "")}"')
+            for p in ws.get("panes", []):
+                out.append(f"    - pane {p.get('index', 0) + 1}")
+                for s in p.get("surfaces", []):
+                    sid = str(s.get("id", "")).upper()
+                    line = f'      - tab "{s.get("title", "")}" ({s.get("type", "")}), surface {sid}'
+                    if sid == me.upper():
+                        line += ": claudio, you"
+                    elif sid in by_full:
+                        _, title, cwd, _ = by_full[sid]
+                        line += (f', session "{title}"' if title != s.get("title") else "") + f", in {cwd}"
+                    elif s.get("url"):
+                        line += f", {s['url']}"
+                    out.append(line)
+    return "\n".join(out)
+
+
+def layout(sessions):
+    """The live cmux layout for the brain's prompt, or "" when cmux can't say."""
+    import json, subprocess
+    try:
+        tree = json.loads(subprocess.run([CMUX, "tree", "--all", "--json", "--id-format", "both"],
+                                         capture_output=True, text=True, timeout=5).stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return ""
+    return render_tree(tree, sessions, os.environ.get("CMUX_SURFACE_ID", ""))
+
+
 def workspaces():
     """Workspace titles in the order cmux lists them."""
     seen = []
