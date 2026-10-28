@@ -57,6 +57,8 @@ flowchart LR
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
 | "slash quit" · "slash exit" | says bye and quits |
+| "slash restart" · "restart yourself" | starts over, same conversation; new code restarts it on its own, once nothing is said |
+| "slash voice a British woman" · "deep male" · "calm" | the one voice that fits, or a table of those that do: accent, age, gender, how it sounds; it sets the voice of the mouth that speaks, Aura, ElevenLabs or Kokoro |
 | "slash style brief" · "caveman" · "plain" | how it talks: one sentence, caveman, or plain |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | "slash code colors off" | code blocks as plain text; "on" brings colours back |
@@ -97,6 +99,7 @@ flowchart LR
 - 🔔 When the orchestrator has been waiting on you for a couple of minutes, it says so, once.
 - 🧠 Gets better with use: correct it once ("seven" means "save", "vbt" is that repo) and it keeps the rule in `learned.md` for every future conversation.
 - ✍️ Add to the persona in `prompt.md` and the brain restarts with it, memory kept; claudio's own rules come from the package, so updates still reach you.
+- 🔄 An update to claudio's own code restarts it by itself, once nothing is said, asked or heard: "Restarted with new code.", the conversation kept.
 
 ## 🔬 Under the hood
 
@@ -127,7 +130,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 |---|---|---|
 | `orchestrator` | | cmux workspace that gets tasks by default |
 | `model` · `effort` | `default` · `low` | `default`, `sonnet`, `opus`, `haiku` · `low`, `medium`, `high`, through your Claude Code login |
-| `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice |
+| `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice; by voice, a name or what it sounds like |
 | `style` | `plain` | `plain`, `brief` (one sentence), `caveman` |
 | `ears` | `flux-general-en` | `flux-general-multi` for other languages |
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
