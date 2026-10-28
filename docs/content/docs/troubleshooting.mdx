@@ -24,7 +24,7 @@ Look at the state line under the transcript:
 - **The level bar stays flat**: macOS has not given your terminal the microphone. Open System Settings, then Privacy & Security, then Microphone, and turn it on for cmux or the terminal you run claudio in. Restart claudio.
 - **It reads `muted · say /unmute`**: say “slash unmute”, or type `/unmute`.
 - **It reads `push to talk · Enter opens the mic`**: press <kbd>Enter</kbd> before you talk, or turn push to talk off with `claudio set push_to_talk false`.
-- **Your words show dim**: `address_me` is on, so only turns that start with “claudio” count. Turn it off with `claudio set address_me false`.
+- **Your words show dim**: `address_me` is on, so only turns that start with its name count (“claudio”, or the `name` you gave it). Say the name and “slash address me off”, or run `claudio set address_me false`.
 - **It reads `ears lost · reconnecting`**: see [ears lost](#ears-lost).
 
 </Accordion>
