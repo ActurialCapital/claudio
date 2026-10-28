@@ -237,6 +237,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "allow-no": (6, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "open a PR")),
                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
+    "voice-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),
+    "voice-calm": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice calm"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
     "mic-late": (4, []),

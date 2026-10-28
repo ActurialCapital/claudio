@@ -1321,6 +1321,23 @@ async def main():
         ui.rule("fresh start")
         start("Fresh start.", committed=True, fixed=True)
 
+    def pick(arg, voices):
+        """A voice by its features, "a british woman": the one voice that has them, or None once the ones that
+        might are on screen. On screen only: 41 names read aloud is too long."""
+        want, found = config.like(arg, voices)
+        if len(found) == 1:
+            return found[0]
+        if found:
+            said = f"{len(found)} voices are {' and '.join(want)}:"
+        elif want:
+            said = f"No voice is {' and '.join(want)}. The voices are as follows:"
+        elif len(arg.split()) == 1:
+            said = f"{arg.capitalize()} is not recognised as a voice. The voices are as follows:"
+        else:                                  # a sentence, or nothing: just the list
+            said = "The voices are as follows:"
+        start(said, committed=True, fixed=True, screen="\n".join(f"- {n}: {voices[n]}" for n in found or voices))
+        return None
+
     def slash(words):
         """Spoken slash commands: "slash clear", "slash model sonnet"… True when handled."""
         parsed = parse_slash(words)
@@ -1350,12 +1367,11 @@ async def main():
             start(f"{said}{', '.join(STYLES)}.", committed=True, fixed=True)
         elif cmd == "voice":
             value, why = config.check("voice", arg.replace(" ", "-")) if arg else (None, "none")   # "elektra" is electra
-            name = ui.short_voice(value or "")
-            if why:                            # "banana", "can you list the voices", or nothing: all of them, nothing saved
-                said = f"{arg.capitalize()} is not recognised as a voice. " if len(arg.split()) == 1 else ""   # a sentence: just the list
-                start(f"{said}The voices are as follows:", committed=True, fixed=True,
-                      screen="\n".join(f"- {n}" for n in config.AURA))    # on screen only: 41 names read aloud is too long
-                return True
+            if why:                            # "banana", "a british woman", or nothing: by its features, or all of them
+                if not (n := pick(arg, config.AURA)):
+                    return True
+                value = f"aura-2-{n}-en"
+            name = ui.short_voice(value)
             config.set_key("voice", value)
             brain.changed.set()
             cfg["voice"] = value               # so the confirmation already speaks in it
@@ -1383,6 +1399,10 @@ async def main():
             config.set_key("address_me", on)
             start(f"Only turns that start with {cfg['name']} now." if on else "Every turn counts now.",
                   committed=True, fixed=True)
+        elif cmd == "local_voice" and arg and arg.replace(" ", "_") not in config.KOKORO:   # "british woman", "af hart"
+            if n := pick(arg, config.kokoro_voices()):
+                config.set_key("local_voice", n)
+                start(f"Local voice {n}.", committed=True, fixed=True)
         elif cmd in SETTINGS and cmd not in COMMANDS:   # every other setting: "slash barge in off", "slash eot 0.8"
             label, kind = cmd.replace("_", " ").replace("eot", "EOT"), type(config.DEFAULTS[cmd])
             label = label[0].upper() + label[1:]

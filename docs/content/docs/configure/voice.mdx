@@ -37,6 +37,22 @@ The change applies from the next reply, not the one being spoken.
 </Tab>
 </Tabs>
 
+### Pick one by how it sounds
+
+Say what you want instead of a name: “slash voice a British woman”, “slash voice deep male”, “slash voice calm storytelling”. Each Aura voice carries Deepgram's own description of it: its accent, its age, words like `warm`, `raspy` or `baritone`, and what it suits, such as `storytelling` or `customer service`. “Woman” and “female” mean `feminine`, “man” and “male” mean `masculine`.
+
+```transcript
+› slash voice calm
+· /voice calm
+◆ 6 voices are calm:
+  - athena: American, mature, feminine, calm, smooth, professional, storytelling
+  …
+```
+
+When one voice has every feature you said, it becomes the voice, as if you had said its name. When several do, they are listed on screen with their descriptions, and nothing changes; say one of them, or add a feature. “Slash voice” alone lists all of them, described the same way.
+
+From the shell, `claudio set voice` still takes a name.
+
 The name is not checked against Deepgram's list. A voice Deepgram does not know leaves the mouth unable to connect, and you see `! mouth lost`. Deepgram's [text-to-speech models page](https://developers.deepgram.com/docs/tts-models) lists every voice.
 
 ## Switch the mouth to ElevenLabs
@@ -130,7 +146,7 @@ claudio set local_voice af_heart
 claudio set local_speed 1.1
 ```
 
-`local_voice` is a Kokoro voice name: the first letter is the accent (`a` American, `b` British), the second is female or male. `am_michael` is the default; `af_heart`, `am_fenrir`, `bf_emma` and `bm_george` are others worth trying. A name Kokoro does not know stops the start with the full list. `local_speed` runs from `0.5` to `2.0`.
+`local_voice` is a Kokoro voice name: the first letter is the accent (`a` American, `b` British), the second is female or male. `am_michael` is the default; `af_heart`, `am_fenrir`, `bf_emma` and `bm_george` are others worth trying. A name Kokoro does not know stops the start with the full list. By voice, the same features work as for Aura: “slash local voice British man” lists `bm_daniel`, `bm_fable`, `bm_george` and `bm_lewis`, and a feature only one voice has picks it. `local_speed` runs from `0.5` to `2.0`.
 
 </Step>
 <Step>

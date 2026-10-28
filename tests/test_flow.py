@@ -5,7 +5,7 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
-             "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
+             "allow-eager", "allow-no", "voice-banana", "voice-british", "voice-calm", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
              "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont", "called", "slash-setting")
 
 
@@ -134,6 +134,17 @@ def test_an_unknown_voice_lists_them_on_screen_and_saves_nothing(runs):
     said = [line for line in lines if line.startswith("SAY")]
     assert said[-1] == "SAY 'Banana is not recognised as a voice. The voices are as follows:\\n'"
     assert "- zeus" in lines[first(lines, "BLOCK")]
+    assert not (home / "config.json").exists()
+
+
+def test_a_voice_asked_for_by_its_features_is_the_one_that_has_them(runs):
+    lines, home = runs["voice-british"]
+    assert "SAY 'Pandora from now on.\\n'" in lines        # the one British feminine voice
+    assert json.loads((home / "config.json").read_text())["voice"] == "aura-2-pandora-en"
+    lines, home = runs["voice-calm"]                       # several: those, with their tags, and nothing saved
+    assert [line for line in lines if line.startswith("SAY")][-1] == "SAY '6 voices are calm:\\n'"
+    assert "- athena: American, mature, feminine, calm" in lines[first(lines, "BLOCK")]
+    assert "- zeus" not in lines[first(lines, "BLOCK")]
     assert not (home / "config.json").exists()
 
 

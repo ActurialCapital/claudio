@@ -439,6 +439,17 @@ def test_voice_names_become_deepgram_models():
     assert config.check("voice", "aura-2-agathe-fr") == ("aura-2-agathe-fr", None)  # another language: kept
 
 
+def test_voices_are_found_by_their_features():
+    assert config.like("a british woman", config.AURA) == (["british", "feminine"], ["pandora"])
+    assert config.like("deep male voice", config.AURA) == (["deep", "masculine"], ["zeus"])
+    assert config.like("can you list the voices", config.AURA) == ([], [])     # asks for nothing
+    assert config.like("female", config.AURA)[1] == config.like("feminine", config.AURA)[1]   # "male" is not in it
+    assert "masculine" not in config.like("female", config.AURA)[0]
+    kokoro = config.kokoro_voices()
+    assert kokoro["af_heart"] == "American, feminine" and kokoro["zm_yunxi"] == "Mandarin, masculine"
+    assert config.like("british man", kokoro)[1] == ["bm_daniel", "bm_fable", "bm_george", "bm_lewis"]
+
+
 def test_replies_are_new_messages_from_others():
     me = "136B82D3-8ACD"
     msgs = [{"id": "a", "sender_surface_id": "34E60333", "recipient_surface_id": me, "created_at": 200},

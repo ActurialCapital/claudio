@@ -210,22 +210,92 @@ def _write(path, data, mode):
     os.replace(tmp, path)
 
 
-AURA = ["amalthea", "andromeda", "apollo", "arcas", "aries", "asteria", "athena", "atlas", "aurora", "callista", "cora",
-        "cordelia", "delia", "draco", "electra", "harmonia", "helena", "hera", "hermes", "hyperion", "iris", "janus",
-        "juno", "jupiter", "luna", "mars", "minerva", "neptune", "odysseus", "ophelia", "orion", "orpheus", "pandora",
-        "phoebe", "pluto", "saturn", "selene", "thalia", "theia", "vesta", "zeus"]   # Deepgram's English Aura-2 voices, 2026-10
+AURA = {   # Deepgram's English Aura-2 voices, 2026-10: accent, age, then its tags and uses, as Deepgram describes each
+    "amalthea": "Filipino, young adult, feminine, engaging, natural, cheerful, casual chat",
+    "andromeda": "American, adult, feminine, casual, expressive, comfortable, customer service, IVR",
+    "apollo": "American, adult, masculine, confident, comfortable, casual, casual chat",
+    "arcas": "American, adult, masculine, natural, smooth, clear, comfortable, customer service, casual chat",
+    "aries": "American, adult, masculine, warm, energetic, caring, casual chat",
+    "asteria": "American, adult, feminine, clear, confident, knowledgeable, energetic, advertising",
+    "athena": "American, mature, feminine, calm, smooth, professional, storytelling",
+    "atlas": "American, mature, masculine, enthusiastic, confident, approachable, friendly, advertising",
+    "aurora": "American, adult, feminine, cheerful, expressive, energetic, interview",
+    "callista": "American, adult, feminine, clear, energetic, professional, smooth, IVR",
+    "cora": "American, adult, feminine, smooth, melodic, caring, storytelling",
+    "cordelia": "American, young adult, feminine, approachable, warm, polite, storytelling",
+    "delia": "American, young adult, feminine, casual, friendly, cheerful, breathy, interview",
+    "draco": "British, adult, masculine, warm, approachable, trustworthy, baritone, storytelling",
+    "electra": "American, adult, feminine, professional, engaging, knowledgeable, IVR, advertising, customer service",
+    "harmonia": "American, adult, feminine, empathetic, clear, calm, confident, customer service",
+    "helena": "American, adult, feminine, caring, natural, positive, friendly, raspy, IVR, casual chat",
+    "hera": "American, adult, feminine, smooth, warm, professional, storytelling",
+    "hermes": "American, adult, masculine, expressive, engaging, professional, informative",
+    "hyperion": "Australian, adult, masculine, caring, warm, empathetic, interview",
+    "iris": "American, young adult, feminine, cheerful, positive, approachable, IVR",
+    "janus": "American, adult, feminine, southern, smooth, trustworthy, storytelling",
+    "juno": "American, adult, feminine, natural, engaging, melodic, breathy, interview",
+    "jupiter": "American, adult, masculine, expressive, knowledgeable, baritone, informative",
+    "luna": "American, young adult, feminine, friendly, natural, engaging, IVR",
+    "mars": "American, adult, masculine, smooth, patient, trustworthy, baritone, customer service",
+    "minerva": "American, adult, feminine, positive, friendly, natural, storytelling",
+    "neptune": "American, adult, masculine, professional, patient, polite, customer service",
+    "odysseus": "American, adult, calm, smooth, comfortable, professional, masculine, advertising",
+    "ophelia": "American, adult, feminine, expressive, enthusiastic, cheerful, interview",
+    "orion": "American, adult, masculine, approachable, comfortable, calm, polite, informative",
+    "orpheus": "American, adult, masculine, professional, clear, confident, trustworthy, customer service, storytelling",
+    "pandora": "British, adult, feminine, smooth, calm, melodic, breathy, IVR",
+    "phoebe": "American, adult, feminine, energetic, warm, casual, customer service",
+    "pluto": "American, adult, masculine, smooth, calm, empathetic, baritone, interview, storytelling",
+    "saturn": "American, adult, masculine, knowledgeable, confident, baritone, customer service",
+    "selene": "American, adult, feminine, expressive, engaging, energetic, informative",
+    "thalia": "American, adult, feminine, clear, confident, energetic, enthusiastic, casual chat, customer service, IVR",
+    "theia": "Australian, adult, feminine, expressive, polite, sincere, informative",
+    "vesta": "American, adult, feminine, natural, expressive, patient, empathetic, customer service, interview, storytelling",
+    "zeus": "American, adult, masculine, deep, trustworthy, smooth, IVR",
+}
 
 
 def fetch_aura(key):
     """Replace AURA with Deepgram's current list, when it can be reached. Blocking: run it off the event loop."""
     try:
         req = urllib.request.Request("https://api.deepgram.com/v1/models", headers={"Authorization": f"Token {key}"})
-        names = sorted({m["name"] for m in json.load(urllib.request.urlopen(req, timeout=10)).get("tts", [])
-                        if str(m.get("canonical_name", "")).startswith("aura-2-") and m["canonical_name"].endswith("-en")})
-    except (OSError, ValueError, KeyError, TypeError):
+        voices = {m["name"]: ", ".join([d.get("accent") or "", (d.get("age") or "").lower(), *d.get("tags", []), *d.get("use_cases", [])])
+                  for m in json.load(urllib.request.urlopen(req, timeout=10)).get("tts", [])
+                  if str(m.get("canonical_name", "")).startswith("aura-2-") and m["canonical_name"].endswith("-en")
+                  for d in [m.get("metadata") or {}]}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return
-    if names:
-        AURA[:] = names
+    if voices:
+        AURA.clear()
+        AURA.update(sorted((n, ", ".join(w for w in t.split(", ") if w)) for n, t in voices.items()))
+
+
+KOKORO = ("af_alloy af_aoede af_bella af_heart af_jessica af_kore af_nicole af_nova af_river af_sarah af_sky am_adam am_echo "
+          "am_eric am_fenrir am_liam am_michael am_onyx am_puck am_santa bf_alice bf_emma bf_isabella bf_lily bm_daniel "
+          "bm_fable bm_george bm_lewis ef_dora em_alex em_santa ff_siwis hf_alpha hf_beta hm_omega hm_psi if_sara im_nicola "
+          "jf_alpha jf_gongitsune jf_nezumi jf_tebukuro jm_kumo pf_dora pm_alex pm_santa zf_xiaobei zf_xiaoni zf_xiaoxiao "
+          "zf_xiaoyi zm_yunjian zm_yunxi zm_yunxia zm_yunyang").split()   # in voices-v1.0.bin, the pinned Kokoro voices
+KOKORO_ACCENTS = {"a": "American", "b": "British", "e": "Spanish", "f": "French", "h": "Hindi", "i": "Italian",
+                  "j": "Japanese", "p": "Brazilian Portuguese", "z": "Mandarin"}
+
+
+def kokoro_voices():
+    """Each Kokoro voice with what its name says: af_heart is American and feminine."""
+    return {n: f"{KOKORO_ACCENTS[n[0]]}, {'feminine' if n[1] == 'f' else 'masculine'}" for n in KOKORO}
+
+
+SAME = {"female": "feminine", "woman": "feminine", "women": "feminine", "lady": "feminine", "girl": "feminine",
+        "male": "masculine", "man": "masculine", "men": "masculine", "guy": "masculine", "boy": "masculine",
+        "old": "mature", "older": "mature", "english": "british", "chinese": "mandarin", "portuguese": "brazilian"}
+
+
+def like(said, voices):
+    """The features asked for ("a British woman" is british, feminine) and the voices that have them all.
+    A word no voice has (a, voice, with) asks for nothing."""
+    words = {n: set(re.findall(r"[a-z]+", t.lower())) for n, t in voices.items()}
+    known = set().union(*words.values())
+    want = list(dict.fromkeys(w for w in (SAME.get(w, w) for w in re.findall(r"[a-z]+", said.lower())) if w in known))
+    return want, [n for n in voices if want and set(want) <= words[n]]
 
 
 def migrate_allow():
