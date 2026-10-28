@@ -334,6 +334,10 @@
       "help": "drop the brain's memory of past conversations"
     },
     {
+      "usage": "claudio restart",
+      "help": "restart the claudio that is running, once its reply is said"
+    },
+    {
       "usage": "claudio learn <rule>",
       "help": "add a rule the brain keeps across conversations, to learned.md"
     },

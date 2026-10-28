@@ -15,6 +15,7 @@ claudio doctor      check everything and run one typed turn
 claudio install     add the Claude Code hooks to ~/.claude/settings.json
 claudio uninstall   remove them
 claudio forget      drop the brain's memory of past conversations
+claudio restart     restart the claudio that is running, once its reply is said
 claudio learn <rule>        add a rule the brain keeps across conversations, to learned.md
 claudio unlearn <words>     drop the one learned rule with these words
 claudio choose <surface> <n>[,<n>…] | --other "<words>"   answer the question a session shows
@@ -266,6 +267,8 @@ def main():
             subprocess.run(["osascript", *(a for line in CLOSE.splitlines() for a in ("-e", line)), target])
         else:                                  # a note in TextEdit, never whatever .md opens with (Xcode…)
             subprocess.run(["open", target] if "://" in target else ["open", "-e", target])
+    elif args == ["restart"]:                 # the brain's way: the claudio running it sees the command (Brain.read)
+        print("restarting once this reply is said; the conversation carries on")
     elif args[0] == "learn" and len(args) == 2:   # the brain's way to keep a correction: it can't edit its own files
         print(f"learned: {config.learn(args[1])}")
     elif args[0] == "choose" and len(args) == 3:

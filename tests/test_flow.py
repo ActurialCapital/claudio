@@ -5,7 +5,7 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
-             "allow-eager", "allow-no", "voice-banana", "voice-british", "voice-calm", "eleven-british", "local-british", "code-changed", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
+             "allow-eager", "allow-no", "voice-banana", "voice-british", "voice-calm", "eleven-british", "local-british", "code-changed", "restart-slash", "restart-asked", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
              "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont", "called", "slash-setting")
 
 
@@ -163,6 +163,15 @@ def test_slash_voice_sets_the_voice_of_the_mouth_that_speaks(runs):
 def test_new_code_restarts_it_once_nothing_is_said(runs):
     lines, _ = runs["code-changed"]                    # changed mid-reply: the reply ends first
     assert first(lines, "CODE changed") < first(lines, "SAY 'Have a nice day.") < first(lines, "NOTE restarting with the new code")
+
+
+def test_it_restarts_when_asked_once_its_reply_is_said(runs):
+    lines, _ = runs["restart-slash"]
+    assert first(lines, "SAY 'Restarting.") < first(lines, "NOTE restarting")
+    assert "NOTE restarting with the new code" not in lines
+    lines, _ = runs["restart-asked"]                   # the brain ran claudio restart, then answered
+    assert first(lines, "BRAIN 'can you restart yourself'") < first(lines, "NOTE restarting")
+    assert first(lines, "ME 'Have a nice day.") < first(lines, "NOTE restarting")   # its reply first, whole
 
 
 def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):

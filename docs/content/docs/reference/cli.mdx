@@ -79,6 +79,10 @@ Deletes the remembered brain session, so the next start is a fresh conversation.
 
 It does not delete the transcripts, which the brain can still read when you ask about past days. In a running claudio, say “slash clear” instead.
 
+## `claudio restart`
+
+How the brain restarts claudio when you ask it to. The claudio running the brain sees the command and starts over once its reply is said, keeping the conversation and the permission checks. Run from your own shell, it only prints `restarting once this reply is said; the conversation carries on`: say “slash restart” instead.
+
 ## `claudio learn <rule>`
 
 Adds one rule to `learned.md`, which goes at the end of the persona from the next brain start, and prints `learned: <rule>`. A rule already there isn't added twice. The brain runs it when you correct it, after claudio asks you, with the rule on screen; you can run it too:

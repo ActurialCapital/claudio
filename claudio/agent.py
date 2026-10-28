@@ -136,10 +136,11 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
               "- `/permissions skip` or `ask`: no checks until you quit, or checks again.\n"
+              "- `/restart` starts me over, same conversation.\n"
               "- `/quit` or `/exit` says bye and quits.\n"
               "- `/help` says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours", "layout",
-            "name", "address", "permissions", "quit", "exit"}
+            "name", "address", "permissions", "quit", "exit", "restart"}
 SETTINGS = sorted((k for k in config.DEFAULTS if k not in config.SECRETS), key=lambda k: -k.count("_"))   # longest first
 SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
@@ -343,7 +344,7 @@ class Brain:
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
-                "Bash(claudio set:*)", "Bash(claudio unlearn:*)",   # not learn: a rule for every later run is asked
+                "Bash(claudio set:*)", "Bash(claudio unlearn:*)", "Bash(claudio restart)",   # not learn: a rule for every later run is asked
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
                 *(f"{tool}(/{d}/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only, at the top:
@@ -438,6 +439,8 @@ class Brain:
                         to = m_.group(1) or m_.group(2)      # a surface id: the workspace it is in, which events carry
                         to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to.upper())
                         self.handoffs[to] = (time.time(), asked[-1] if asked else "")
+                    if re.search(r"(^|[;&|]\s*)claudio restart\s*$", cmd):
+                        status["restart_asked"] = True     # once this reply is said (watch_config)
                     if "claudio set" in cmd or "claudio unlearn" in cmd:
                         self.changed.set()
 
@@ -1493,6 +1496,9 @@ async def main():
                   f"- Voice {ui.short_voice(cfg['voice'])}.\n- Memory {'on' if cfg['memory'] else 'off'}.", committed=True, fixed=True)
         elif cmd == "help":
             start(SLASH_HELP, committed=True, fixed=True)
+        elif cmd == "restart":                 # once "Restarting." is said, and nothing else is (watch_config)
+            start("Restarting.", committed=True, fixed=True)
+            status["restart_asked"] = True
         elif cmd in ("quit", "exit"):
             start("Bye.", committed=True, fixed=True)
             said = latest["handle"]["task"]
@@ -1598,8 +1604,8 @@ async def main():
             now = code_stamp()
             if now != code:                    # claudio's code changed: wait for the last file of the change
                 code, code_at = now, time.monotonic()
-            if code_at and time.monotonic() - code_at > 2 and idle():
-                status["restart"] = True       # once nothing is said or asked: start over, run() re-runs claudio
+            if (code_at and time.monotonic() - code_at > 2 or status.get("restart_asked")) and idle():
+                status["restart"] = "code" if code_at else "asked"   # once nothing is said or asked: run() re-runs it
                 work["task"].cancel()
                 return
             now = mtime(config.PROMPT)
@@ -1963,7 +1969,8 @@ async def main():
         (AirPods) to headset mode, about 1.3 s, and what plays meanwhile is lost, "Hi, how" with it."""
         with contextlib.suppress(asyncio.TimeoutError):
             await asyncio.wait_for(mic_up.wait(), 3)
-        start("Restarted with new code." if restarted else "Hi, how can I help you?", committed=True, fixed=True)
+        start({"code": "Restarted with new code.", "asked": "Restarted."}.get(restarted, "Hi, how can I help you?"),
+              committed=True, fixed=True)
     if not typed:
         asyncio.create_task(greet())
     tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch()]
@@ -2053,7 +2060,7 @@ async def main():
         if os.path.exists(config.SOCK):
             os.unlink(config.SOCK)
         console.print()
-        ui.note("restarting with the new code" if status.get("restart") else "bye")
+        ui.note({"code": "restarting with the new code", "asked": "restarting"}.get(status.get("restart"), "bye"))
 
 
 def code_stamp():
@@ -2067,5 +2074,5 @@ def run(skip=False):
         asyncio.run(main())
     if status.get("restart"):                  # the same claudio, new code: same arguments, checks as they were
         args = [a for a in sys.argv if a != "--dangerously-skip-permissions"]
-        os.environ["CLAUDIO_RESTARTED"] = "1"
+        os.environ["CLAUDIO_RESTARTED"] = status["restart"]
         os.execv(sys.executable, [sys.executable, *args, *(["--dangerously-skip-permissions"] if status["skip"] else [])])

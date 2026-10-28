@@ -143,6 +143,9 @@ class FakeProc:
         if SC == "handoff-new" and "fix the login" in text:    # hand it over by surface id, as the persona says
             self.emit({"type": "assistant", "message": {"model": "m", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {
                 "command": f'cmux agent message {NEW} --from Voice "[spoken by the user, transcribed by claudio] fix the login"'}}]}})
+        if SC == "restart-asked" and "restart yourself" in text:   # the persona's way: claudio restart, then a word
+            self.emit({"type": "assistant", "message": {"model": "m", "content": [{"type": "tool_use", "id": "t", "name": "Bash", "input": {
+                "command": "claudio restart"}}]}})
         if SC.startswith("allow") and ("open a PR" in text or "do it" in text):   # a tool the rules don't cover: the SDK asks claudio
             await self.say("Let me open it. " * (4 if SC == "allow-early" else 1))
             self.perm = asyncio.get_running_loop().create_future()
@@ -248,6 +251,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "local-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a spanish woman"))]),
     "eleven-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),   # the mouth's own voice
     "code-changed": (9, [(1.0, turn("StartOfTurn")), (1.2, turn("EndOfTurn", "what is the time")), ("code", 1.5)]),
+    "restart-slash": (5, [(1.0, turn("StartOfTurn")), (1.2, turn("EndOfTurn", "slash restart"))]),
+    "restart-asked": (6, [(1.0, turn("StartOfTurn")), (1.2, turn("EndOfTurn", "can you restart yourself"))]),
     "voice-calm": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice calm"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),
