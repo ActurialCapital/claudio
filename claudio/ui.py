@@ -32,37 +32,32 @@ def log(line):
     except OSError:
         pass
 
-SUN = ("#6B1E00", "#DF3F00", "#FA8023")   # the website's sun: its shadow, its dark-mode and its light-mode orange
+SUN = "#DF3F00"                  # the site's mark, in its dark-mode orange: the landing page's dithered sun
 TAGLINE = "[not dim not italic]Talk, and your sessions [bold #fff383]work[/].[/]"   # the site's headline, "work" in its yellow
 
 YOU, ME, EVENT, NOTE = "[bold cyan]›[/]", "[bold #2dd4bf]◆[/]", "[bold magenta]▸[/]", "[dim]·[/]"
 
 
-def sun(n=16):
-    """The mark: a sphere lit from the top left, as the site's components/sun-mark.tsx draws it, but whole: each
-    pixel is one of three oranges, 4x4 Bayer-dithered between them, so the edge stays round at this size. Two
-    pixels per half-block character, so they come out square. One Text per row."""
+def sun(cols=16, rows=8):
+    """The mark, as the site draws it (docs/components/sun-mark.tsx): a sphere lit from the top left, 4x4
+    Bayer-dithered in one orange, each dot on or off. Braille, 2x4 dots per character, so 16x8 characters hold
+    32x32 dots. One Text per row."""
     bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+    bit = {(0, 0): 0x01, (0, 1): 0x02, (0, 2): 0x04, (1, 0): 0x08, (1, 1): 0x10, (1, 2): 0x20, (0, 3): 0x40, (1, 3): 0x80}
+    w, h = cols * 2, rows * 4
 
-    def colour(x, y):
-        nx, ny = (x + .5) / (n / 2) - 1, (y + .5) / (n / 2) - 1
+    def on(x, y):
+        nx, ny = (x + .5) / (w / 2) - 1, (y + .5) / (h / 2) - 1
         r2 = nx * nx + ny * ny
         if r2 > 1:
-            return None
-        v = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98) * (len(SUN) - 1)
-        i = int(v) + (v % 1 > (bayer[(y % 4) * 4 + x % 4] + .5) / 16)
-        return SUN[min(i, len(SUN) - 1)]
-    rows = []
-    for y in range(0, n, 2):
-        row = Text()
-        for x in range(n):
-            top, bottom = colour(x, y), colour(x, y + 1)
-            if top:
-                row.append("▀", style=f"{top} on {bottom}" if bottom else top)
-            else:
-                row.append("▄" if bottom else " ", style=bottom or "")
-        rows.append(row)
-    return rows
+            return False
+        lit = max(0, (-.5 * nx - .6 * ny + .62 * (1 - r2) ** .5) / .98)
+        return .18 + .82 * lit > (bayer[(y % 4) * 4 + x % 4] + .5) / 16
+    out = []
+    for cy in range(rows):
+        dots = [sum(b for (dx, dy), b in bit.items() if on(cx * 2 + dx, cy * 4 + dy)) for cx in range(cols)]
+        out.append(Text("".join(chr(0x2800 + d) if d else " " for d in dots), style=SUN))
+    return out
 
 
 def wordmark(subtitle=TAGLINE, name="claudio"):

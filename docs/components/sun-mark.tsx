@@ -1,6 +1,7 @@
-// claudio's mark: the hero's sun, a sphere lit from the top left and dithered with a 4x4 Bayer matrix,
-// drawn as squares so it stays crisp at 16px. Same maths as public/img/sun.svg (docs/scripts/gen_sun.py).
-const N = 16;
+// claudio's mark: the hero's sun, a sphere lit from the top left and dithered with a 4x4 Bayer matrix, on a
+// 32x32 grid of round dots, as the terminal draws it in braille (claudio/ui.py sun()). Same maths as
+// public/img/sun.svg (docs/scripts/gen_sun.py).
+const N = 32;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 const CELLS: [number, number][] = [];
@@ -23,12 +24,11 @@ export function SunMark({ size = 24, className = '' }: { size?: number; classNam
       width={size}
       height={size}
       viewBox={`0 0 ${N} ${N}`}
-      shapeRendering="crispEdges"
       aria-hidden
       className={`shrink-0 text-[#fa8023] [.dark_&]:text-[#DF3F00] ${className}`}
     >
       {CELLS.map(([x, y]) => (
-        <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
+        <circle key={`${x}-${y}`} cx={x + 0.5} cy={y + 0.5} r="0.42" fill="currentColor" />
       ))}
     </svg>
   );
