@@ -1,10 +1,12 @@
 """The look: one wordmark, one status strip, one glyph per voice in the transcript."""
-import datetime, os, re, time
+import datetime, os, re, sys, time
+from rich.align import Align
 from rich.console import Console, Group, RenderHook
 from rich.constrain import Constrain
 from rich.control import Control
 from rich.markdown import Markdown
 from rich.padding import Padding
+from rich.rule import Rule
 from rich.segment import SegmentLines
 from rich.table import Table
 from rich.text import Text
@@ -14,6 +16,7 @@ console = Console(highlight=False)
 TRANSCRIPTS = os.path.join(config.DIR, "transcripts")
 COLUMN = 90                     # transcript lines wrap here, however wide the pane; the header uses the full width
 last_turn = {"at": None}
+layout = {"split": False}    # set from cfg["layout"]: your turns on the right
 
 
 def width():
@@ -91,10 +94,17 @@ def you(text, tentative=False):
         console.rule(f"[dim]{now:%H:%M}[/]", style="dim", align="left")     # a gap of more than five minutes
     if not tentative:
         last_turn["at"] = now
-    line = Text("\n")
-    line.append("› ", style="bold cyan")
-    line.append(text, style="dim" if tentative else "")
-    console.print(line, width=width())
+    if layout["split"] and console.width >= 60:     # narrower, the right side leaves too little room: the plain line
+        console.print()
+        line = Text(justify="right")
+        line.append(text, style="dim italic" if tentative else "italic")
+        line.append(" ‹", style="bold cyan")           # yours: the › of the plain layout, turned to face in
+        console.print(Align.right(Constrain(line, width() * 7 // 10)), width=width())
+    else:
+        line = Text("\n")
+        line.append("› ", style="bold cyan")
+        line.append(text, style="dim" if tentative else "")
+        console.print(line, width=width())
     if not tentative:
         log(f"› {text}")
 
@@ -289,7 +299,29 @@ class _Above:
         self.status = status
 
     def __rich__(self):
-        return Group(*list(fading), self.status.renderable)
+        return Group(*list(fading), Constrain(Rule(style="grey30"), width()), self.status.renderable)
+
+
+def to_bottom(rows=2):
+    """Blank lines down to the pane's last rows, so the state line (a rule and its line) starts at the bottom and
+    stays there as the transcript pushes up. Asks the terminal where the cursor is; not a terminal, or no answer: as is."""
+    import select, termios, tty
+    if not (sys.stdin.isatty() and console.is_terminal):
+        return
+    saved = termios.tcgetattr(0)
+    try:
+        tty.setcbreak(0)
+        sys.stdout.write("\x1b[6n")
+        sys.stdout.flush()
+        answer = ""
+        while not answer.endswith("R") and select.select([0], [], [], 0.2)[0]:
+            answer += os.read(0, 32).decode(errors="ignore")
+    finally:
+        termios.tcsetattr(0, termios.TCSANOW, saved)
+    m = re.search(r"\x1b\[(\d+);\d+R", answer)
+    if m:
+        sys.stdout.write("\n" * max(0, console.height - int(m[1]) - rows + 1))
+        sys.stdout.flush()
 
 
 def me_line(sentence, first, live=False, secs=None):
@@ -331,6 +363,18 @@ def block(md, colors=True):
         lines.pop()
     console.print(SegmentLines(lines, new_lines=True))
     log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())   # one entry, indented like the rest
+
+
+def choices(md):
+    """A question's answers, "- **1** Yes": one line each, an arrow and the number in colour; no table, no rule."""
+    for line in md.strip().splitlines():
+        n, _, rest = BULLET.sub("", line).partition(" ")
+        t = Text("  ")
+        t.append("→ ", style="#2dd4bf")
+        t.append(n.strip("*"), style="bold #2dd4bf")
+        t.append(f" {rest}")
+        console.print(t, width=width())
+    log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())
 
 
 KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose", "Reply": "replied"}

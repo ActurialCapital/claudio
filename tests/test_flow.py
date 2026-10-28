@@ -70,7 +70,7 @@ def test_tables_and_code_are_shown_never_said_and_in_place(runs):
 def test_a_yes_inside_the_reply_lets_the_waiting_command_run_once(runs):
     lines, home = runs["allow-yes"]
     asked = first(lines, "ME 'May I run `gh pr create`?")
-    assert "BLOCK '- **1** Yes, this once\\n- **2** Always\\n- **3** No'" in lines   # the answers: bullets, on screen
+    assert "CHOICES '- **1** Yes, this once\\n- **2** Always\\n- **3** No'" in lines   # the answers: bullets, on screen
     assert first(lines, "ME 'Let me open it.") < asked < first(lines, "YOU 'yes'") < first(lines, "PERM allow")
     assert "NOTE allowed once: Bash(gh pr create:*)" in lines
     assert first(lines, "PERM allow") < first(lines, "ME 'Opened it.'")         # the same reply goes on
@@ -169,7 +169,7 @@ def test_a_table_without_outer_bars_is_shown_not_read(runs):
 def test_a_sessions_permission_prompt_is_answered_by_voice_into_its_pane(runs):
     lines, _ = runs["session-yes"]
     assert any(line.startswith("BRAIN '[event] ws1 asks for permission") for line in lines)
-    assert "BLOCK '- **1** Yes\\n- **2** Always\\n- **3** No'" in lines
+    assert "CHOICES '- **1** Yes\\n- **2** Always\\n- **3** No'" in lines
     asked = first(lines, "ME 'Allow it for ws1?")
     assert asked < first(lines, "YOU 'yes go ahead'") < first(lines, "PRESS send --surface abcd1234 --force 1")
     assert "NOTE allowed once" in lines

@@ -25,6 +25,7 @@ ui.you = lambda t, tentative=False: log("YOU", repr(t))
 ui.note = lambda t: log("NOTE", t)
 ui.warn = lambda t: log("WARN", t)
 ui.block = lambda md, colors=True: log("BLOCK", repr(md))
+ui.choices = lambda md: log("CHOICES", repr(md))
 ui.me_line = lambda s, first, live=False, secs=None: log("ME", repr(s))
 ui.event = lambda ws, kind, asked="": log("EVENT", ws, kind)
 

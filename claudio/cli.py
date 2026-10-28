@@ -67,6 +67,8 @@ def setup():
     cfg["voice"] = names[IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(1, len(VOICES) + 1)]) - 1]
     cfg["model"] = Prompt.ask("  Brain model", choices=list(config.MODELS), default=cfg["model"])
     cfg["effort"] = Prompt.ask("  Brain effort", choices=list(config.EFFORTS), default=cfg["effort"])
+    cfg["layout"] = Prompt.ask("  Transcript layout [dim](split: your turns on the right)[/]",
+                               choices=list(config.CHOICES["layout"]), default=cfg["layout"])
     cfg["barge_in"] = Confirm.ask("  Interrupt it by talking over it? [dim](echo cancellation is built in with the Xcode tools; otherwise use headphones)[/]",
                                   default=cfg["barge_in"])
     config.save(cfg)

@@ -114,13 +114,14 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/voice` and a name, such as zeus; alone, it lists them.\n"
               "- `/style` plain, brief or caveman.\n"
               "- `/colors` on or off, for code.\n"
+              "- `/layout` inline or split.\n"
               "- `/status` says the settings.\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
               "- `/permissions skip` or `ask`: no checks until you quit, or checks again.\n"
               "- `/quit` or `/exit` says bye and quits.\n"
               "- `/help` says this list.")
-COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours",
+COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours", "layout",
             "permissions", "quit", "exit"}
 SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
@@ -799,7 +800,7 @@ def show(sentences, k, shown, secs=None):
         if text:
             ui.me_line(text, first_of_block, live=bool(status["live"]), secs=secs)
         if asking and pending.get("options"):
-            ui.block(pending["options"])       # its answers, as bullets under it: on screen, not said
+            ui.choices(pending["options"])     # its answers, one per line under it: on screen, not said
 
 
 async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
@@ -982,6 +983,7 @@ async def shower_typed():
 async def main():
     global cfg, surfaces
     cfg = config.load()
+    ui.layout["split"] = cfg["layout"] == "split"
     for w in config.WARNINGS:
         ui.warn(w)
     if not cfg["deepgram_api_key"]:
@@ -999,11 +1001,16 @@ async def main():
     rate = {"in": OUT_RATE if aec else IN_RATE}
     if not typed:                # a typed turn runs under the doctor's own banner; redrawing would clear its checks
         ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
+                         "style": cfg["style"],
                          "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
                                    else f"local {cfg['local_voice']}" if cfg["mouth"] == "local"
                                    else ui.short_voice(cfg["voice"])),
                          "echo cancel": "on" if aec else "off",
                          "memory": "on" if remembered_session() else "fresh",
+                         **{k.replace("_", " "): ("on" if v is True else "off" if v is False else v)   # the rest, as set
+                            for k, v in cfg.items() if k in config.DEFAULTS and k not in config.SECRETS
+                            and k not in ("orchestrator", "model", "effort", "style", "voice", "memory",
+                                          "elevenlabs_voice", "local_voice")},
                          **({"permissions": "SKIPPED"} if status["skip"] else {})},
                   hints="Enter cuts · Ctrl-C quits · claudio setup")
     config.migrate_allow()
@@ -1266,6 +1273,11 @@ async def main():
             on = said in config.TRUE if said else not cfg["code_colors"]
             config.set_key("code_colors", on)          # the reload confirms it: ⚙ code_colors → False
             start(f"Code colours {'on' if on else 'off'}.", committed=True, fixed=True)
+        elif cmd == "layout":                  # "slash layout split"; alone, it flips it
+            said = next((w for w in arg.split() if w in config.CHOICES["layout"]), None)
+            new = said or ("inline" if cfg["layout"] == "split" else "split")
+            config.set_key("layout", new)              # the reload applies it
+            start(f"Layout {new}.", committed=True, fixed=True)
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
             ask = "Skip every permission check until you quit? The brain could then run anything, unasked."
             pending.update(rule=SKIP, ask=ask, options="- **1** Yes\n- **2** No", ready=False)   # only a yes right after it turns them off
@@ -1403,6 +1415,7 @@ async def main():
             diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
                              if k not in config.SECRETS and new[k] != last[k])    # not cfg: a slash voice set it early
             cfg, last = new, dict(new)
+            ui.layout["split"] = cfg["layout"] == "split"
             if diff or restart:
                 ui.setting(f"{diff or 'settings reloaded'}{'  ·  brain restarting' if restart else ''}")
             if re_ear and ears["ws"]:
@@ -1694,6 +1707,8 @@ async def main():
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     status["live"] = console.status("[dim]listening[/]")
+    if not typed:
+        ui.to_bottom()
     ui.attach(status["live"])
     status["live"].start()
     async def greet():

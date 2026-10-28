@@ -12,9 +12,23 @@ When claudio starts, it clears the terminal and prints its mark, a small dithere
 ```text title="banner, under the mark"
   orchestrator Sequencer
   brain default/low
+  style plain
   voice orion
   echo cancel on
   memory on
+  ears flux-general-en
+  eager eot 0.3
+  eot 0.7
+  eot timeout ms 1500
+  barge in on
+  push to talk off
+  address me off
+  narrate handed-off
+  mouth deepgram
+  local speed 1.0
+  local model compressed
+  code colors on
+  layout inline
   Enter cuts · Ctrl-C quits · claudio setup
 ```
 
@@ -63,9 +77,16 @@ Backchannels show dim, as do turns that don't start with "claudio" when `address
 - **Lines wrap at 90 columns**, however wide the pane
 - **A dim rule with the time** marks a gap of more than 5 minutes between your turns
 
+With `layout` set to `split` (`/layout split`, or `claudio setup`), your turns sit on the right in italics, ending with `‹`, instead of starting with `›`, and claudio's stay on the left. Under 60 columns they fall back to `›` lines. The saved transcript is the same either way.
+
+```transcript
+                                                   what's Sequencer doing? ‹
+◆ Sequencer is halfway through the migration tests.
+```
+
 ## Read the state line
 
-The last line of the terminal updates four times a second. From left to right, it shows:
+The last line of the terminal, under a dim rule, updates four times a second. It starts at the bottom of the pane and stays there as the transcript scrolls up above it. From left to right, it shows:
 
 1. **A spinner**, or a still `■` while muted
 1. **The mic level**, from blank to `▇`
@@ -74,6 +95,7 @@ The last line of the terminal updates four times a second. From left to right, i
 4. **The orchestrator's state**: `working`, `waiting on you` or `idle` (see [checking on a session](/docs/guide/sessions#check-on-a-session))
 
 ```transcript
+──────────────────────────────────────────────────────
 ▃ listening  ·  1.1 s to first word  ·  Sequencer idle
 ```
 

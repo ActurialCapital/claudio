@@ -257,6 +257,20 @@
       "may_be_empty": false
     },
     {
+      "key": "layout",
+      "type": "text",
+      "default": "inline",
+      "choices": [
+        "inline",
+        "split"
+      ],
+      "range": null,
+      "help": "inline, or split: your turns on the right, claudio's on the left",
+      "secret": false,
+      "env": "CLAUDIO_LAYOUT",
+      "may_be_empty": false
+    },
+    {
       "key": "deepgram_api_key",
       "type": "text",
       "default": "",

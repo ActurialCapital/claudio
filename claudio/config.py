@@ -22,13 +22,14 @@ EFFORTS = ("low", "medium", "high")
 RANGES = {"eot": (0.0, 1.0), "eager_eot": (0.0, 1.0), "eot_timeout_ms": (100, 10000), "local_speed": (0.5, 2.0)}
 CHOICES = {"model": MODELS, "effort": EFFORTS, "style": ("plain", "brief", "caveman"),
            "narrate": ("handed-off", "all", "none"), "mouth": ("deepgram", "elevenlabs", "local"),
-           "local_model": ("compressed", "full")}
+           "local_model": ("compressed", "full"), "layout": ("inline", "split")}
 WARNINGS = []                      # bad values seen while loading, for the caller to show
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
             "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed", "code_colors": True,
+            "layout": "inline",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 HELP = {"orchestrator": "cmux workspace that gets tasks by default",
@@ -51,6 +52,7 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "local_speed": "how fast the local voice speaks, 0.5 to 2.0",
         "local_model": "Kokoro model: compressed (88 MB, about twice as fast) or full (325 MB, a little cleaner)",
         "code_colors": "highlight code blocks in colour; off shows them as plain text",
+        "layout": "inline, or split: your turns on the right, claudio's on the left",
         "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
         "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there

@@ -559,3 +559,36 @@ def test_choose_ticks_reaches_submit_and_refuses_what_isnt_an_option(monkeypatch
     screens[:] = [multi]
     with pytest.raises(SystemExit, match="1 cheese, 2 ham, 3 olives"):
         cli.choose("S", "5")                                  # Chat about this: never
+
+
+def test_split_put_your_turn_on_the_right_and_narrow_falls_back():
+    import io
+    from rich.console import Console
+    from claudio import ui
+    console, log = ui.console, ui.log
+    ui.log = lambda line: None
+    try:
+        ui.layout["split"] = True
+        ui.console = Console(file=io.StringIO(), width=80)
+        ui.you("lights off")
+        line = next(l for l in ui.console.file.getvalue().splitlines() if "lights off" in l)
+        assert line.rstrip().endswith("lights off ‹") and line.startswith(" " * 60) and "›" not in line   # pushed right
+        ui.console = Console(file=io.StringIO(), width=50)
+        ui.you("lights off")
+        assert "› lights off" in ui.console.file.getvalue()                 # too narrow for a box
+    finally:
+        ui.layout["split"] = False
+        ui.console, ui.log = console, log
+
+
+def test_choices_show_an_arrow_and_the_number_with_no_rule():
+    import io
+    from rich.console import Console
+    from claudio import ui
+    console, log = ui.console, ui.log
+    ui.console, ui.log = Console(file=io.StringIO(), width=60), lambda line: None
+    try:
+        ui.choices("- **1** Yes, this once\n- **2** No")
+        assert ui.console.file.getvalue().splitlines() == ["  → 1 Yes, this once", "  → 2 No"]
+    finally:
+        ui.console, ui.log = console, log
