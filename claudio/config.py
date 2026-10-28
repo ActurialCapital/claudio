@@ -29,7 +29,7 @@ DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "a
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
             "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed", "code_colors": True,
-            "layout": "inline",
+            "layout": "inline", "name": "claudio",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
 HELP = {"orchestrator": "cmux workspace that gets tasks by default",
@@ -43,7 +43,7 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "barge_in": "talking over it pauses it",
         "memory": "resume the last conversation, up to a week old",
         "push_to_talk": "the mic stays closed until you press Enter, for one turn",
-        "address_me": "only turns that start with \"claudio\" count, for a room with other people",
+        "address_me": "only turns that start with its name count, for a room with other people",
         "narrate": "which sessions' finishes to narrate",
         "mouth": "who speaks: Deepgram Aura, ElevenLabs, or local (Kokoro on this Mac, no key)",
         "style": "how it talks: plain, brief (one sentence) or caveman",
@@ -53,6 +53,7 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "local_model": "Kokoro model: compressed (88 MB, about twice as fast) or full (325 MB, a little cleaner)",
         "code_colors": "highlight code blocks in colour; off shows them as plain text",
         "layout": "inline, or split: your turns on the right, claudio's on the left",
+        "name": "what it answers to, and calls itself: one to three words",
         "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
         "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
@@ -129,6 +130,8 @@ def check(key, value):
             if not near:
                 return None, f"voice must be an Aura-2 voice, one of {', '.join(AURA)}, not {v!r}"
             v = f"aura-2-{near[0]}-en"
+    if key == "name" and not 1 <= len(re.sub(r"[^a-z0-9 ]", "", v.lower()).split()) <= 3:
+        return None, f"name must be one to three words, not {v!r}"   # none would match every turn under address_me
     if key in CHOICES and isinstance(v, str):
         v = v.lower()                          # CLAUDIO_LAYOUT=Split, "Sonnet"
     if key in CHOICES and v not in CHOICES[key]:

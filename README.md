@@ -130,10 +130,11 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `eager_eot` · `eot` · `eot_timeout_ms` | `0.3` · `0.7` · `1500` | end-of-turn tuning |
 | `barge_in` | `true` | talking over it pauses it |
 | `push_to_talk` | `false` | the mic stays closed until you press Enter, for one turn |
-| `address_me` | `false` | only turns that start with "claudio" count, for a room with other people |
+| `address_me` | `false` | only turns that start with its name count, for a room with other people |
 | `memory` | `true` | resume the last conversation, up to a week old |
 | `narrate` | `handed-off` | which sessions' finishes to narrate: `handed-off`, `all`, `none` |
 | `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |
+| `name` | `claudio` | what it answers to and calls itself, one to three words; the ears listen for it |
 | `layout` | `inline` | or `split`: your turns on the right, claudio's on the left; plain lines under 60 columns |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 

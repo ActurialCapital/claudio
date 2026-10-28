@@ -10,7 +10,7 @@ sys.modules["websockets"].ConnectionClosed = Exception
 
 import pytest
 from claudio import config
-from claudio.agent import SENTENCE, backchannel, norm, parse_slash, shown_block
+from claudio.agent import SENTENCE, addressed, backchannel, norm, parse_slash, shown_block
 from claudio.ui import spoken
 
 
@@ -114,6 +114,23 @@ def test_backchannel_is_short_or_only_filler():
 
 def test_norm_lowercases_and_strips_punctuation():
     assert norm("Hello, World!") == ["hello", "world"]
+
+
+def test_a_turn_counts_only_when_it_starts_with_the_name():
+    assert addressed("Claudio, what's up?", "claudio") == "what's up?"
+    assert addressed("Nyx, slash mute", "Nyx") == "slash mute"
+    assert addressed("hey nyx what's up", "nyx") is None
+    assert addressed("Nyxie, hello", "nyx") is None                  # a longer word is no name
+    assert addressed("Mister Bot. Read the PR", "mister bot") == "Read the PR"
+    assert addressed("R2-D2, go", "R2-D2") == "go"                   # heard as "R2D2" or "R2-D2" alike
+    assert addressed("Nyx", "nyx") == "Nyx"                           # the name alone: kept, so the brain skips it
+    assert addressed("Claudio, Élodie called", "claudio") == "Élodie called"
+    assert addressed("Zoe, what's up?", "Zoé") == "what's up?"        # the accent lost in the transcript
+    assert addressed("Mary Jane, hi", "Mary-Jane") == "hi"
+    assert addressed("R2 D2, go", "R2-D2") == "go"
+    assert config.check("name", "  Nyx ") == ("Nyx", None)
+    assert config.check("name", "!!!")[0] is None
+    assert config.check("name", "one two three four")[0] is None
 
 
 SURFACES = """This Mac  JR's MacBook Pro  · 2 terminals

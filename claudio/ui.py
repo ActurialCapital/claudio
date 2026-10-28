@@ -54,14 +54,14 @@ def sun(n=12):
     return ["".join(cell[on(x, y), on(x, y + 1)] for x in range(n)) for y in range(0, n, 2)]
 
 
-def wordmark(subtitle=TAGLINE):
-    """The sun with 'claudio' and the subtitle beside its middle."""
+def wordmark(subtitle=TAGLINE, name="claudio"):
+    """The sun with its name and the subtitle beside its middle."""
     t, rows = Text(), sun()
     mid = len(rows) // 2
     for i, row in enumerate(rows):
         t.append("  " + row, style=SUN)
         if i == mid - 1:
-            t.append("   claudio", style="bold")
+            t.append(f"   {name}", style="bold")
         elif i == mid:
             t.append_text(Text.from_markup(f"   {subtitle}", style="dim italic"))
         if i < len(rows) - 1:
@@ -73,11 +73,11 @@ def short_voice(v):
     return v.removeprefix("aura-2-").removesuffix("-en")
 
 
-def banner(subtitle=None, facts=None, hints=None):
+def banner(subtitle=None, facts=None, hints=None, name="claudio"):
     """The header: wordmark, tagline (or a subtitle like 'setup'), one fact per line, a line of hints."""
     console.clear()
     console.print()
-    console.print(wordmark(subtitle or TAGLINE))
+    console.print(wordmark(subtitle or TAGLINE, name))
     if facts:
         console.print()
         for k, v in facts.items():   # one fact per line

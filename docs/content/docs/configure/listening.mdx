@@ -79,6 +79,12 @@ claudio set address_me true
 
 “claudio, what's the sequencer doing?” works: the name is dropped before the brain sees the turn. Any other turn is shown dim and ignored. Slash commands need the name too: “claudio, slash mute”.
 
+To be called something else, give it a name of one to three words. It answers to that name and calls itself by it, and the ears are told to listen for it:
+
+```bash
+claudio set name nyx
+```
+
 Other voices still pause a reply while `barge_in` is on. The reply carries on about 3 seconds after they stop.
 
-<Settings only={['address_me']} />
+<Settings only={['address_me', 'name']} />

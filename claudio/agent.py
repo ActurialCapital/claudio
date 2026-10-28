@@ -5,7 +5,7 @@ the Claude Code hooks (`claudio hook ...`) report what sessions did.
 Robustness: the ears reconnect with backoff, the brain restarts if it dies (and resumes its last
 session, so it remembers), the mouth retries once. An interruption first pauses the reply; a real
 turn then cuts it, a backchannel ("mm-hm") or noise lets it carry on from a sentence back."""
-import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, termios, threading, time, tty, warnings
+import array, asyncio, contextlib, difflib, json, os, re, shutil, signal, subprocess, sys, termios, threading, time, tty, unicodedata, urllib.parse, warnings
 import sounddevice as sd, websockets
 os.environ.setdefault("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK", "1")   # it would run `claude -v` before every start
 from claude_agent_sdk import (AssistantMessage, CanUseToolShadowedWarning, ClaudeAgentOptions, ClaudeSDKClient,
@@ -234,6 +234,8 @@ def system_prompt():
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\n"
             + "Sessions now (to see one, run cmux read-screen --surface <its id> --lines 60):\n"
             + "\n".join(lines)
+            + (f"\nYour name is {cfg['name']}: the user may call you by it, and you call yourself by it.\n"
+               if cfg["name"].lower() != "claudio" else "")
             + "\n\nRules that matter most, last so they stay in mind:\n"
             + "- A turn not meant for you (talk to someone else, a TV, a name, one stray word) or cut off mid-thought "
               "(\"Can you tell me\") gets exactly [skip] as your whole reply. Nothing else.\n"
@@ -957,6 +959,25 @@ def norm(s):
     return re.sub(r"[^a-z0-9 ]", "", s.lower()).split()
 
 
+def fold(s):
+    """Letters and digits only, accents dropped: "Zoé" is "zoe", "R2-D2" and "R2 D2" are "r2d2"."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if c.isascii() and c.isalnum())
+
+
+def addressed(said, name):
+    """The turn with its leading name dropped, or None when it doesn't start with the name: "Nyx, slash mute"."""
+    want, got = fold(name), ""
+    for i, ch in enumerate(said):
+        if got == want:                            # the name is read: what follows is the turn
+            if fold(ch):
+                return None                        # "Nyxie": a longer word, not the name
+            return re.sub(r"^\W+", "", said[i:]).strip() or said   # \W keeps "Élodie" whole
+        got += fold(ch)
+        if not want.startswith(got):
+            return None
+    return said if got == want else None           # the name alone: kept, so the brain skips it
+
+
 def backchannel(said):
     words = norm(said)
     return len(words) < 2 or all(w in BACKCHANNEL for w in words)
@@ -1041,7 +1062,7 @@ async def main():
     aec = None if typed else helper()
     rate = {"in": OUT_RATE if aec else IN_RATE}
     if not typed:                # a typed turn runs under the doctor's own banner; redrawing would clear its checks
-        ui.banner(facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
+        ui.banner(name=cfg["name"], facts={"orchestrator": cfg["orchestrator"] or "-", "brain": f"{cfg['model']}/{cfg['effort']}",
                          "style": cfg["style"],
                          "voice": (f"elevenlabs {cfg['elevenlabs_voice'][:8]}" if cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]
                                    else f"local {cfg['local_voice']}" if cfg["mouth"] == "local"
@@ -1416,7 +1437,8 @@ async def main():
 
     def flux_url():
         return (f"wss://api.deepgram.com/v2/listen?model={cfg['ears']}&encoding=linear16&sample_rate={rate['in']}"
-                f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}&eot_timeout_ms={cfg['eot_timeout_ms']}")
+                f"&eot_threshold={cfg['eot']}&eager_eot_threshold={cfg['eager_eot']}&eot_timeout_ms={cfg['eot_timeout_ms']}"
+                f"&keyterm={urllib.parse.quote(cfg['name'])}")    # so an odd name is heard as itself
 
     def learned():
         """The rules in learned.md, as a set of lines."""
@@ -1470,8 +1492,9 @@ async def main():
             new = config.load()
             for w in config.WARNINGS:
                 ui.warn(w)
-            restart = (new["model"], new["effort"], new["style"]) != (cfg["model"], cfg["effort"], cfg["style"])
-            re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms"))
+            restart = any(new[k] != cfg[k] for k in ("model", "effort", "style", "name"))
+            renamed = new["name"] != cfg["name"]
+            re_ear = any(new[k] != cfg[k] for k in ("ears", "eot", "eager_eot", "eot_timeout_ms", "name"))
             if not new["push_to_talk"]:
                 status["gate_open"] = True     # off: the mic is open again
             diff = ", ".join(f"{k} → {ui.short_voice(str(new[k]))}" for k in config.DEFAULTS
@@ -1485,8 +1508,10 @@ async def main():
             if restart:
                 await brain.restart()
                 start(f"[event] You were just restarted with model {cfg['model']} at effort {cfg['effort']}, "
-                      f"style {cfg['style']}. Say only that you're back with it, in two to four words, such as "
-                      f"'Back, on {cfg['style']}.' or 'Back on {cfg['model']}.'", committed=True, event=True)
+                      f"style {cfg['style']}{', and your name is now ' + cfg['name'] if renamed else ''}. Say only that "
+                      f"you're back with it, in two to four words, such as "
+                      + (f"'Back, as {cfg['name']}.'" if renamed else f"'Back, on {cfg['style']}.' or 'Back on {cfg['model']}.'"),
+                      committed=True, event=True)
 
     async def brain_watch():
         delay = 1
@@ -1535,11 +1560,11 @@ async def main():
         said = ev.get("transcript", "").strip()
         words = " ".join(norm(said))
         if cfg["address_me"] and said and ev["event"] in ("EagerEndOfTurn", "EndOfTurn"):
-            if not words.startswith("claudio"):
+            if (rest := addressed(said, cfg["name"])) is None:
                 if ev["event"] == "EndOfTurn":
                     ui.you(said, tentative=True)    # heard, not for me: dim
                 return
-            said = re.sub(r"^\W*claudio\W*", "", said, flags=re.I).strip() or said
+            said = rest
             words = " ".join(norm(said))
         if status["muted"]:                # only "slash unmute" gets through; nothing else is printed or kept
             if ev["event"] == "EndOfTurn" and words.replace("un mute", "unmute") == "slash unmute":
