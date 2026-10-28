@@ -96,10 +96,12 @@ def you(text, tentative=False):
         last_turn["at"] = now
     if layout["split"] and console.width >= 60:     # narrower, the right side leaves too little room: the plain line
         console.print()
-        line = Text(justify="right")
-        line.append(text.strip(), style="dim italic" if tentative else "italic")
-        line.append(" ‹", style="bold cyan")           # yours: the › of the plain layout, turned to face in
-        console.print(Align.right(Constrain(line, width() * 7 // 10)), width=width())
+        grid = Table.grid(padding=(0, 0, 0, 1))         # a block on the right, its lines starting at one edge
+        grid.add_column(max_width=width() * 7 // 10)
+        grid.add_column()
+        grid.add_row(Text(text.strip(), style="dim italic" if tentative else "italic"),
+                     Text("‹", style="bold cyan"))     # yours: the › of the plain layout, turned to face in, on line one
+        console.print(Align.right(grid), width=width())
     else:
         line = Text("\n")
         line.append("› ", style="bold cyan")
@@ -241,7 +243,8 @@ class Fade:
             if line.plain.startswith("• "):    # a list item hangs under its own text too
                 line = hang(line[:2], line[2:])
             grid.add_row(self.head if i == 0 and not base else "", line)
-        return Constrain(grid, width())
+        split = layout["split"] and console.width >= 60   # split: a column on the left, as wide as yours on the right
+        return Constrain(grid, 2 + width() * 7 // 10 if split else width())
 
     def lines(self, final=False, base=None):
         return console.render_lines(self.render(final, self.base if base is None else base), console.options, pad=False)
