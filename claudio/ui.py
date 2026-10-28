@@ -1,5 +1,5 @@
 """The look: one wordmark, one status strip, one glyph per voice in the transcript."""
-import datetime, os, re, sys, time
+import datetime, os, re, signal, sys, time
 from rich.align import Align
 from rich.console import Console, Group, RenderHook
 from rich.constrain import Constrain
@@ -7,7 +7,7 @@ from rich.control import Control
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.rule import Rule
-from rich.segment import SegmentLines
+from rich.segment import Segment, SegmentLines
 from rich.table import Table
 from rich.text import Text
 from . import config
@@ -292,14 +292,35 @@ def attach(status):
     """Draw fading blocks above the status spinner. Call before status.start(), so this hook runs before Live's."""
     console.push_render_hook(_Settle())
     status._live.update(_Above(status))     # ponytail: rich's private Live inside Status; own Live if rich moves it
+    live = status._live
+
+    def resized(*_):
+        """The terminal re-wraps the live lines at its new width: a narrower pane makes them take more rows than Live
+        remembers, so its redraw would start too low and leave a copy of the top line behind, one per resize step
+        (wider, too few, and it eats a line above). Tell it how many rows they take now."""
+        cols = os.get_terminal_size(sys.stdout.fileno()).columns if console.is_terminal else console.width
+        with live._lock:                    # ponytail: rich's private LiveRender shape; a resize mid-refresh can still leave one
+            shape = live._live_render._shape
+            if shape and _Above.drawn:
+                live._live_render._shape = (shape[0], sum(max(1, -(-n // cols)) for n in _Above.drawn))
+    if console.is_terminal:
+        signal.signal(signal.SIGWINCH, resized)
 
 
 class _Above:
+    drawn = []                              # each line's width as last drawn, before the terminal re-wraps any
+
     def __init__(self, status):
         self.status = status
 
-    def __rich__(self):
-        return Group(*list(fading), Constrain(Rule(style="grey30"), width()), self.status.renderable)
+    def __rich_console__(self, console_, options):
+        lines = console_.render_lines(Group(*list(fading), Constrain(Rule(style="grey30"), width()), self.status.renderable),
+                                      options, pad=False)
+        _Above.drawn = [Segment.get_line_length(line) for line in lines]
+        for i, line in enumerate(lines):
+            yield from line
+            if i < len(lines) - 1:
+                yield Segment.line()
 
 
 typeahead = [""]

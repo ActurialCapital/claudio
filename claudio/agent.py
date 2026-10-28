@@ -1042,6 +1042,8 @@ async def main():
                                           "elevenlabs_voice", "local_voice")},
                          **({"permissions": "SKIPPED"} if status["skip"] else {})},
                   hints="Enter cuts · Ctrl-C quits · claudio setup")
+        ui.to_bottom()          # now, so "warming up the brain" is at the bottom too; before the key reader, which would
+                                # take the terminal's answer and leave this read blocked
     config.migrate_allow()
     await brain.start()
     with console.status("[dim]warming up the brain…[/]"):
@@ -1615,8 +1617,6 @@ async def main():
         with contextlib.suppress(OSError):
             while chunk := os.read(0, 1024):
                 loop.call_soon_threadsafe(lines.put_nowait, chunk.decode(errors="ignore"))
-    if not typed:
-        ui.to_bottom()      # before the key reader: it would take the terminal's answer and leave this read blocked
     if ui.typeahead[0]:
         lines.put_nowait(ui.typeahead[0])
     threading.Thread(target=read_keys, daemon=True).start()   # a daemon, so exit never waits on a blocked read
