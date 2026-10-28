@@ -53,6 +53,8 @@ When one voice has every feature you said, it becomes the voice, as if you had s
 
 From the shell, `claudio set voice` still takes a name.
 
+“Slash voice” sets the voice of the mouth that speaks: the Aura voice with Deepgram, `elevenlabs_voice` with ElevenLabs, `local_voice` with Kokoro. “Slash elevenlabs voice” and “slash local voice” set theirs whichever mouth speaks.
+
 The name is not checked against Deepgram's list. A voice Deepgram does not know leaves the mouth unable to connect, and you see `! mouth lost`. Deepgram's [text-to-speech models page](https://developers.deepgram.com/docs/tts-models) lists every voice.
 
 ## Switch the mouth to ElevenLabs
@@ -92,7 +94,7 @@ A running claudio reloads the settings and the key from `secrets.json`, and the 
 
 ### Pick an ElevenLabs voice
 
-By voice, say a name from your ElevenLabs voice library, or what you want, as for Aura: “slash elevenlabs voice Adam”, “slash elevenlabs voice a British woman”. claudio reads the library when it starts, with each voice's accent, age, gender, style and use, and the words after its name, so `Adam - Dominant, Firm` is `dominant` and `firm`. One voice that fits becomes the voice; several are listed on screen.
+By voice, say a name from your ElevenLabs voice library, or what you want, as for Aura: “slash voice Adam”, “slash voice a British woman” while ElevenLabs speaks, or “slash elevenlabs voice Adam” at any time. claudio reads the library when it starts, with each voice's accent, age, gender, style and use, and the words after its name, so `Adam - Dominant, Firm` is `dominant` and `firm`. One voice that fits becomes the voice; several are listed on screen.
 
 From the shell, `elevenlabs_voice` takes the voice id, not a name. Copy it from the library:
 

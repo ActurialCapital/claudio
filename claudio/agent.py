@@ -1346,6 +1346,8 @@ async def main():
             return False
         cmd, arg = parsed
         ui.note(f"/{cmd.replace('_', ' ')} {arg}".strip())
+        if cmd == "voice" and (cfg["mouth"] == "local" or cfg["mouth"] == "elevenlabs" and cfg["elevenlabs_api_key"]):
+            cmd = f"{cfg['mouth']}_voice"      # slash voice: the voice of the mouth that speaks
         if cmd not in ("clear", "stop"):
             cut(None)                          # a command over a reply stops it quietly; the note says why
         key = {"colors": "code_colors", "colours": "code_colors", "address": "address_me"}.get(cmd, cmd)
@@ -1400,11 +1402,11 @@ async def main():
             config.set_key("address_me", on)
             start(f"Only turns that start with {cfg['name']} now." if on else "Every turn counts now.",
                   committed=True, fixed=True)
-        elif cmd == "local_voice" and arg and arg.replace(" ", "_") not in config.KOKORO:   # "british woman", "af hart"
+        elif cmd == "local_voice" and arg.replace(" ", "_") not in config.KOKORO:   # "british woman", "af hart", or nothing
             if n := pick(arg, config.kokoro_voices()):
                 config.set_key("local_voice", n)
                 start(f"Local voice {n}.", committed=True, fixed=True)
-        elif cmd == "elevenlabs_voice" and arg and not re.fullmatch(r"[A-Za-z0-9]{20}", arg):   # a name or features, not an id
+        elif cmd == "elevenlabs_voice" and not re.fullmatch(r"[A-Za-z0-9]{20}", arg):   # a name or features, not an id
             if not config.ELEVEN:
                 start("I don't have the ElevenLabs voices: it needs the ElevenLabs key, and ElevenLabs reachable at the start.",
                       committed=True, fixed=True)

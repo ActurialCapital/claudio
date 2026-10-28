@@ -1,7 +1,7 @@
 """Run the real claudio.agent.main() for one scenario, with fakes only at the edges: Flux's socket, the brain's
 `claude` process, the mouth, the sound devices. Prints what claudio did, one line per thing, with the time.
 Usage: XDG_CONFIG_HOME=<a temp dir> python tests/flow.py <scenario>      (test_flow.py runs them all)"""
-import asyncio, json, os, signal, sys, tempfile, time
+import asyncio, json, os, signal, sys, tempfile, time, types
 
 from claudio import agent, config, ui
 from claude_agent_sdk import Transport
@@ -36,8 +36,10 @@ def fake_load():
     c.update(deepgram_api_key="x", memory=False, narrate="all", mouth="deepgram")
     if SC == "called":
         c.update(address_me=True, name="Roger")
+    if SC == "local-british":
+        c.update(mouth="local")
     if SC == "eleven-british":
-        c.update(elevenlabs_api_key="y")
+        c.update(elevenlabs_api_key="y", mouth="elevenlabs")
     return c
 config.load = fake_load
 config.fetch_elevenlabs = lambda key: (config.ELEVEN.update(alice="British, middle aged, feminine", adam="American, masculine"),
@@ -203,6 +205,7 @@ class FakeMouth:
 class GoneMouth:
     async def open(self):
         raise OSError("unreachable")
+agent.kokoro = lambda model: types.SimpleNamespace(get_voices=lambda: config.KOKORO)   # the start checks local_voice
 agent.new_mouth = GoneMouth if SC == "mouth-gone" else FakeMouth
 
 
@@ -242,7 +245,8 @@ SCENARIOS = {   # name: (seconds to run, script)
                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "no"))]),
     "voice-banana": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice banana"))]),
     "voice-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),
-    "eleven-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash elevenlabs voice a british woman"))]),
+    "local-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a spanish woman"))]),
+    "eleven-british": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice a british woman"))]),   # the mouth's own voice
     "voice-calm": (4, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash voice calm"))]),
     "session-yes": (9, [("sock", 0.3), (6.0, turn("StartOfTurn")), (6.2, turn("EndOfTurn", "yes go ahead"))]),
     "session-key": (9, [("sock", 0.3), ("key", (6.0, "3"))]),

@@ -5,7 +5,7 @@ import json, os, re, subprocess, sys
 import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
-             "allow-eager", "allow-no", "voice-banana", "voice-british", "voice-calm", "eleven-british", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
+             "allow-eager", "allow-no", "voice-banana", "voice-british", "voice-calm", "eleven-british", "local-british", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
              "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont", "called", "slash-setting")
 
 
@@ -152,6 +152,12 @@ def test_an_elevenlabs_voice_asked_for_by_its_features_saves_its_id(runs):
     lines, home = runs["eleven-british"]
     assert "SAY 'Alice from now on.\\n'" in lines
     assert json.loads((home / "config.json").read_text())["elevenlabs_voice"] == "Xb7hH8MSUJpSbSDYk0k2"
+
+
+def test_slash_voice_sets_the_voice_of_the_mouth_that_speaks(runs):
+    lines, home = runs["local-british"]                    # Kokoro speaks: its voice, not Aura's
+    assert "SAY 'Local voice ef_dora.\\n'" in lines
+    assert json.loads((home / "config.json").read_text())["local_voice"] == "ef_dora"
 
 
 def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
