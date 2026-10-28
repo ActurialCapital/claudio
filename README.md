@@ -137,7 +137,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `layout` | `inline` | or `split`: your turns on the right, claudio's on the left; plain lines under 60 columns |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
-`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it) · `claudio unlearn <words>` drops the one learned rule with those words · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
+`claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it, once you say yes) · `claudio unlearn <words>` drops the one learned rule with those words · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
 
 A `.claudio.json` in a project root overrides any of these for that project, `{"orchestrator": "Core"}` being the usual one.
 

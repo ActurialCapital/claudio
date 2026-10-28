@@ -97,7 +97,7 @@ def you(text, tentative=False):
     if layout["split"] and console.width >= 60:     # narrower, the right side leaves too little room: the plain line
         console.print()
         line = Text(justify="right")
-        line.append(text, style="dim italic" if tentative else "italic")
+        line.append(text.strip(), style="dim italic" if tentative else "italic")
         line.append(" ‹", style="bold cyan")           # yours: the › of the plain layout, turned to face in
         console.print(Align.right(Constrain(line, width() * 7 // 10)), width=width())
     else:
@@ -302,6 +302,9 @@ class _Above:
         return Group(*list(fading), Constrain(Rule(style="grey30"), width()), self.status.renderable)
 
 
+typeahead = [""]
+
+
 def to_bottom(rows=2):
     """Blank lines down to the pane's last rows, so the state line (a rule and its line) starts at the bottom and
     stays there as the transcript pushes up. Asks the terminal where the cursor is; not a terminal, or no answer: as is."""
@@ -314,11 +317,12 @@ def to_bottom(rows=2):
         sys.stdout.write("\x1b[6n")
         sys.stdout.flush()
         answer = ""
-        while not answer.endswith("R") and select.select([0], [], [], 0.2)[0]:
+        while not re.search(r"\x1b\[\d+;\d+R", answer) and select.select([0], [], [], 0.2)[0]:
             answer += os.read(0, 32).decode(errors="ignore")
     finally:
         termios.tcsetattr(0, termios.TCSANOW, saved)
     m = re.search(r"\x1b\[(\d+);\d+R", answer)
+    typeahead[0] = re.sub(r"\x1b\[\d+;\d+R", "", answer)   # keys typed meanwhile: the key reader gets them
     if m:
         sys.stdout.write("\n" * max(0, console.height - int(m[1]) - rows + 1))
         sys.stdout.flush()
@@ -368,10 +372,14 @@ def block(md, colors=True):
 def choices(md):
     """A question's answers, "- **1** Yes": one line each, an arrow and the number in colour; no table, no rule."""
     for line in md.strip().splitlines():
-        n, _, rest = BULLET.sub("", line).partition(" ")
+        if not line.strip():
+            continue
+        item = BULLET.sub("", line)
+        m = re.match(r"\*\*(.+?)\*\*\s*(.*)", item)    # "**1** Yes", "**Option 3** Later"
+        n, rest = (m[1], m[2]) if m else item.partition(" ")[::2]
         t = Text("  ")
         t.append("→ ", style="#2dd4bf")
-        t.append(n.strip("*"), style="bold #2dd4bf")
+        t.append(n, style="bold #2dd4bf")
         t.append(f" {rest}")
         console.print(t, width=width())
     log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())

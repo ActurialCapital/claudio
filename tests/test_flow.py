@@ -6,7 +6,7 @@ import pytest
 
 SCENARIOS = ("mouth-gone", "race-event", "resumed", "markdown", "allow-yes", "allow-always", "allow-other", "allow-unclear", "allow-cut", "allow-key",
              "allow-eager", "allow-no", "voice-banana", "skip", "allow-early", "handoff-new", "ended-twice", "loose-table",
-             "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit")
+             "session-yes", "session-key", "unlearn", "two-done", "mic-late", "quit", "skip-dont")
 
 
 @pytest.fixture(scope="module")
@@ -144,6 +144,12 @@ def test_permission_checks_go_off_only_after_a_yes_and_come_back(runs):
     asked, said_yes = first(lines, "SAY 'Skip every permission check"), first(lines, "YOU 'yes'")
     assert asked < said_yes < lines.index("START no permission checks")
     assert not (home / "config.json").exists()           # never saved
+
+
+def test_please_dont_to_the_skip_question_keeps_the_checks(runs):
+    lines, _ = runs["skip-dont"]
+    assert "YOU \"please don't\"" in lines or any(l.startswith("YOU") and "please don" in l for l in lines)
+    assert "START no permission checks" not in lines
 
 
 def test_an_okay_to_the_reply_before_the_question_allows_nothing(runs):

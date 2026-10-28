@@ -63,8 +63,12 @@ def setup():
     for i, (v, d) in enumerate(VOICES, 1):
         console.print(f"    [cyan]{i}[/] {v}  [dim]{d}[/]")
     names = [v for v, _ in VOICES]
-    default = names.index(cfg["voice"]) + 1 if cfg["voice"] in names else 1
-    cfg["voice"] = names[IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(1, len(VOICES) + 1)]) - 1]
+    own = cfg["voice"] not in names            # one set by `claudio set voice`: Enter keeps it
+    if own:
+        console.print(f"    [cyan]0[/] keep {cfg['voice']}")
+    default = names.index(cfg["voice"]) + 1 if not own else 0
+    n = IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(0 if own else 1, len(VOICES) + 1)])
+    cfg["voice"] = cfg["voice"] if n == 0 else names[n - 1]
     cfg["model"] = Prompt.ask("  Brain model", choices=list(config.MODELS), default=cfg["model"])
     cfg["effort"] = Prompt.ask("  Brain effort", choices=list(config.EFFORTS), default=cfg["effort"])
     cfg["layout"] = Prompt.ask("  Transcript layout [dim](split: your turns on the right)[/]",
@@ -181,6 +185,7 @@ def doctor():
     os.environ["CLAUDIO_TEXT"] = "Say only: the doctor is in."
     agent.run()
     console.print("\n  " + ("[green]all good[/]" if ok_all else "[yellow]fix the ✗ lines above[/]"))
+    sys.exit(0 if ok_all else 1)
 
 
 def forget():

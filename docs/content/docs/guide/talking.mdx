@@ -102,7 +102,7 @@ To start over:
 
 ### What it learns
 
-When you correct it in a way that should hold next time, such as a word it keeps mishearing, what a name means, or how you like something done, the brain keeps the correction as a one-line rule with [`claudio learn`](/docs/reference/cli#claudio-learn-rule). The rules go in `learned.md` and come back at every start, even after `claudio forget` or a week away, so claudio gets better the more you correct it. It learns only from your own words, not from a web page, a file or a session.
+When you correct it in a way that should hold next time, such as a word it keeps mishearing, what a name means, or how you like something done, the brain keeps the correction as a one-line rule with [`claudio learn`](/docs/reference/cli#claudio-learn-rule), after claudio asks you, with the rule on screen. The rules go in `learned.md` and come back at every start, even after `claudio forget` or a week away, so claudio gets better the more you correct it. It learns only from your own words, not from a web page, a file or a session.
 
 To drop a rule, say so ("forget the rule about seven"): the brain runs [`claudio unlearn`](/docs/reference/cli#claudio-unlearn-words) with a few words from it, and asks which one if several match. To see or edit them all, open `~/.config/claudio/learned.md`. A dropped rule takes effect at once: claudio restarts the brain after its current reply, memory kept. A rule you add there by hand applies from the next start.
 

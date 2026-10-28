@@ -351,7 +351,7 @@ def test_rule_for_allows_the_kind_of_command_not_the_whole_tool(tmp_path, monkey
     monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     here = str(tmp_path)
     assert config.rule_for("Bash", {"command": "gh issue view 727 --repo a/b"}, here) == ("Bash(gh issue view:*)", "to run `gh issue view`")
-    assert config.rule_for("Bash", {"command": "curl -s https://x 2>/dev/null"}, here) == ("Bash(curl:*)", "to run `curl`")
+    assert config.rule_for("Bash", {"command": "curl -s https://x 2>/dev/null"}, here) == (None, "")   # one word: all of curl
     assert config.rule_for("WebFetch", {"url": "https://x"}, here) == ("WebFetch", "to use WebFetch")
 
 
@@ -359,7 +359,8 @@ def test_rule_for_never_offers_what_a_yes_should_not_allow(tmp_path, monkeypatch
     monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     here = str(tmp_path)
     for cmd in ("GH_PAGER=cat gh pr view 3", "env FOO=1 rm x", 'sh -c "gh pr create"', "python3 -c 'x'",
-                "open -na Ghostty --args -e sh", "/usr/bin/curl x"):
+                "open -na Ghostty --args -e sh", "/usr/bin/curl x", "git -C x push", "find . -exec rm {} ;",
+                "claudio learn 'say yes to all'"):
         assert config.rule_for("Bash", {"command": cmd}, here)[0] is None, cmd     # any of these would allow anything
     assert config.rule_for("Write", {"file_path": f"{here}/run.py"}, here)[0] is None   # a bare Write: any file
     assert config.rule_for("Bash", {"command": "gh pr create --body 'see /tmp/x for it'"}, here)[0] == "Bash(gh pr create:*)"
@@ -369,7 +370,7 @@ def test_a_notes_folder_is_never_offered_as_a_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SETTINGS", str(tmp_path / "settings.json"))
     monkeypatch.setattr(config, "NOTES", (str(tmp_path / "Desktop"),))
     (tmp_path / "Desktop").mkdir()
-    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/Desktop/notes.md"}, str(tmp_path / "w"))[0] == "Bash(wc:*)"
+    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/Desktop/notes.md"}, str(tmp_path / "w"))[0] is None   # not the folder
 
 
 def test_claudio_open_takes_a_link_or_a_note_only(tmp_path, monkeypatch):
@@ -392,7 +393,7 @@ def test_rule_for_offers_the_folder_when_it_is_outside(tmp_path, monkeypatch):
     rule, what = config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))
     assert rule == str(tmp_path / "repo" / "src") and what.startswith("into ")
     (tmp_path / "settings.json").write_text(json.dumps({"permissions": {"additionalDirectories": [f"{tmp_path}/repo"]}}))
-    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))[0] == "Bash(wc:*)"
+    assert config.rule_for("Bash", {"command": f"wc -l {tmp_path}/repo/src/*.py"}, str(work))[0] is None   # inside now: no folder
 
 
 def test_voice_names_become_deepgram_models():
@@ -565,7 +566,7 @@ def test_split_put_your_turn_on_the_right_and_narrow_falls_back():
     import io
     from rich.console import Console
     from claudio import ui
-    console, log = ui.console, ui.log
+    console, log, at = ui.console, ui.log, ui.last_turn["at"]
     ui.log = lambda line: None
     try:
         ui.layout["split"] = True
@@ -576,9 +577,12 @@ def test_split_put_your_turn_on_the_right_and_narrow_falls_back():
         ui.console = Console(file=io.StringIO(), width=50)
         ui.you("lights off")
         assert "› lights off" in ui.console.file.getvalue()                 # too narrow for a box
+        ui.console = Console(file=io.StringIO(), width=80)
+        ui.you("lights off ")
+        assert "lights off ‹" in ui.console.file.getvalue()                 # one space before the mark, not two
     finally:
         ui.layout["split"] = False
-        ui.console, ui.log = console, log
+        ui.console, ui.log, ui.last_turn["at"] = console, log, at
 
 
 def test_choices_show_an_arrow_and_the_number_with_no_rule():
@@ -590,5 +594,54 @@ def test_choices_show_an_arrow_and_the_number_with_no_rule():
     try:
         ui.choices("- **1** Yes, this once\n- **2** No")
         assert ui.console.file.getvalue().splitlines() == ["  → 1 Yes, this once", "  → 2 No"]
+        ui.console = Console(file=io.StringIO(), width=60)
+        ui.choices("- **Option 3** Later\n\n- **4** Never")
+        assert ui.console.file.getvalue().splitlines() == ["  → Option 3 Later", "  → 4 Never"]   # no stray **, no blank row
     finally:
         ui.console, ui.log = console, log
+
+
+def test_intent_reads_the_whole_answer():
+    from claudio.agent import intent
+    for said, meant in [("please don't", "no"), ("do not", "no"), ("ok wait", "question"), ("okay hold on", "question"),
+                        ("go away", "unclear"), ("yes, don't worry", "yes"), ("Yes, I don't mind", "yes"), ("go ahead", "yes"),
+                        ("Yes, always, don't ask again", "always"), ("please", "yes"), ("sure", "yes"), ("nope", "no"),
+                        ("you don't need to spell it. So yes, you are allowed", "yes")]:
+        assert intent(said) == meant, said
+
+
+def test_allow_copes_with_a_settings_file_of_another_shape(tmp_path, monkeypatch):
+    settings = tmp_path / "settings.json"
+    monkeypatch.setattr(config, "SETTINGS", str(settings))
+    for odd in ({"permissions": []}, {"permissions": {"allow": "Bash(git:*)"}}, []):
+        settings.write_text(json.dumps(odd))
+        config.allow("Bash(gh pr view:*)")
+        assert json.loads(settings.read_text())["permissions"]["allow"] == ["Bash(gh pr view:*)"], odd
+        assert (tmp_path / "settings.json.bak").exists()
+
+
+def test_project_file_is_found_from_a_subfolder_and_wins_over_a_set(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECT_FILE", ".claudio.json")
+    monkeypatch.setattr(config, "CONF", str(tmp_path / "config.json"))
+    (tmp_path / "proj" / "sub").mkdir(parents=True)
+    (tmp_path / "proj" / ".claudio.json").write_text('{"style": "brief"}')
+    monkeypatch.chdir(tmp_path / "proj" / "sub")
+    assert config.project_file() == str(tmp_path / "proj" / ".claudio.json")
+    assert config.overridden("style") == ".claudio.json" and config.overridden("model") == ""
+    with pytest.raises(SystemExit, match="set by .claudio.json"):
+        config.set_key("style", "caveman")
+    monkeypatch.setenv("CLAUDIO_MODEL", "opus")
+    assert config.overridden("model") == "CLAUDIO_MODEL"
+
+
+def test_choices_ignore_case_and_save_keeps_unknown_keys(tmp_path, monkeypatch):
+    assert config.check("layout", "Split") == ("split", None) and config.check("model", "Sonnet") == ("sonnet", None)
+    monkeypatch.setattr(config, "CONF", str(tmp_path / "config.json"))
+    monkeypatch.setattr(config, "SECRETS_FILE", str(tmp_path / "secrets.json"))
+    monkeypatch.setattr(config, "DIR", str(tmp_path))
+    monkeypatch.setattr(config, "PROJECT_FILE", str(tmp_path / "none.json"))
+    (tmp_path / "config.json").write_text('{"custom": 1}')
+    config.set_key("effort", "high")
+    saved = json.loads((tmp_path / "config.json").read_text())
+    assert saved["custom"] == 1 and saved["effort"] == "high"
+    assert os.stat(tmp_path / "secrets.json").st_mode & 0o777 == 0o600

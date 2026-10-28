@@ -14,7 +14,7 @@ SETTINGS = os.path.join(DIR, "settings.json")   # the brain's own permission rul
 ALLOW = os.path.join(DIR, "allow")       # the older one-rule-per-line file, moved into SETTINGS once
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
 VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
-SOCK = f"/tmp/claudio-{os.getuid()}.sock"
+SOCK = os.path.join(DIR, "hook.sock")    # in DIR, mode 700: no other user can listen in, or squat on the name
 CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
 MODELS = ("default", "sonnet", "opus", "haiku")
@@ -129,6 +129,8 @@ def check(key, value):
             if not near:
                 return None, f"voice must be an Aura-2 voice, one of {', '.join(AURA)}, not {v!r}"
             v = f"aura-2-{near[0]}-en"
+    if key in CHOICES and isinstance(v, str):
+        v = v.lower()                          # CLAUDIO_LAYOUT=Split, "Sonnet"
     if key in CHOICES and v not in CHOICES[key]:
         return None, f"{key} must be one of {', '.join(CHOICES[key])}, not {v!r}"
     if key in RANGES and not RANGES[key][0] <= v <= RANGES[key][1]:
@@ -151,7 +153,8 @@ def _merge(c, values, source):
 def load():
     """The settings for this run: global, then the project's .claudio.json, then CLAUDIO_<KEY> env.
     Creates the persona file on first use. Bad values are skipped and listed in WARNINGS."""
-    os.makedirs(DIR, exist_ok=True)
+    os.makedirs(DIR, mode=0o700, exist_ok=True)
+    os.chmod(DIR, 0o700)                       # transcripts, keys, the hook socket: yours only
     WARNINGS.clear()
     _persona_file()
     c = dict(DEFAULTS)
@@ -159,7 +162,7 @@ def load():
     _merge(c, {k: saved[k] for k in DEFAULTS if k not in SECRETS}, CONF)
     for k in SECRETS:
         c[k] = saved[k]
-    _merge(c, _read(PROJECT_FILE), PROJECT_FILE)
+    _merge(c, _read(project_file()), PROJECT_FILE)
     for secret in SECRETS:
         if os.environ.get(secret.upper()):
             c[secret] = os.environ[secret.upper()]
@@ -167,19 +170,38 @@ def load():
     return c
 
 
+def project_file():
+    """The .claudio.json of the project you are in: this folder's, or the nearest one above it, short of home."""
+    if os.path.isabs(PROJECT_FILE):
+        return PROJECT_FILE
+    d, home = os.getcwd(), os.path.expanduser("~")
+    while True:
+        if os.path.isfile(os.path.join(d, PROJECT_FILE)) or d in (home, os.path.dirname(d)):
+            return os.path.join(d, PROJECT_FILE)
+        d = os.path.dirname(d)
+
+
+def overridden(key):
+    """Where this run's value of key comes from when not config.json: the project file or the environment, else ''."""
+    if "CLAUDIO_" + key.upper() in os.environ:
+        return "CLAUDIO_" + key.upper()
+    return PROJECT_FILE if key in _read(project_file()) else ""
+
+
 def save(cfg):
     """Write the global files. Pass values from `stored()` (plus your edits), never from `load()`,
     or a project's or the environment's one-run overrides become everyone's defaults."""
     os.makedirs(DIR, exist_ok=True)
-    _write(CONF, {k: cfg[k] for k in DEFAULTS if k not in SECRETS}, 0o644)
+    kept = {k: v for k, v in _read(CONF).items() if k not in DEFAULTS and k not in SECRETS}   # keys this version doesn't know
+    _write(CONF, {**kept, **{k: cfg[k] for k in DEFAULTS if k not in SECRETS}}, 0o644)
     _write(SECRETS_FILE, {k: cfg.get(k, "") for k in SECRETS}, 0o600)
 
 
 def _write(path, data, mode):
     tmp = path + ".tmp"
-    with open(tmp, "w") as f:
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode), "w") as f:   # never readable by others, even briefly
+        os.fchmod(f.fileno(), mode)            # a stale .tmp keeps its old mode otherwise
         json.dump(data, f, indent=2)
-    os.chmod(tmp, mode)
     os.replace(tmp, path)
 
 
@@ -273,7 +295,9 @@ def rule_for(tool, tool_input, cwd=None):
         if len(words) == 3 or not re.fullmatch(r"[a-z][\w.-]*", w):
             break
         words.append(w)
-    if (not words or words[0] in WRAPPERS or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface"))
+    if (not words or words[0] in WRAPPERS or len(words) == 1   # one word, then a flag: git -C x, find -exec, any command
+            or words[:2] == ["claudio", "learn"]           # a rule for every later run: asked, each one
+            or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface"))
             or words[:3] == ["cmux", "workspace", "create"]):
         return None, ""                        # VAR=x, sh -c, python -c, cmux new-split --command…: any command at all
     prefix = " ".join(words)
@@ -298,11 +322,13 @@ def allow(rule):
         s = {}
     except ValueError:
         s = None
-    if not isinstance(s, dict):
-        shutil.copy(SETTINGS, SETTINGS + ".bak")
-        s = {}
-    p = s.setdefault("permissions", {})
     key = "additionalDirectories" if rule.startswith(("/", "~")) else "allow"
+    if not isinstance(s, dict) or not isinstance(s.get("permissions", {}), dict) \
+            or not isinstance(s.get("permissions", {}).get(key, []), list):   # a shape claudio can't add to
+        if os.path.exists(SETTINGS):
+            shutil.copy(SETTINGS, SETTINGS + ".bak")
+        s = {} if not isinstance(s, dict) else {k: v for k, v in s.items() if k != "permissions"}
+    p = s.setdefault("permissions", {})
     if rule not in p.setdefault(key, []):
         p[key].append(rule)
     with open(SETTINGS + ".tmp", "w") as f:
@@ -405,6 +431,8 @@ def set_key(key, value):
     v, why = check(key, value)
     if why:
         raise SystemExit(why)
+    if src := overridden(key):                 # saved, it would change nothing here and every other project's default
+        raise SystemExit(f"{key} is set by {src} here; change it there")
     cfg = stored()
     cfg[key] = v
     save(cfg)

@@ -36,7 +36,7 @@ This checks the value, saves it to `config.json` and prints `eot = 0.8`. A runni
 </Tab>
 <Tab value="Per project" id="per-project">
 
-Put a `.claudio.json` in the directory you run claudio from. Its values override the global ones whenever you run claudio there:
+Put a `.claudio.json` in the project's folder. Its values override the global ones whenever you run claudio there, or in a folder below it:
 
 ```json title=".claudio.json"
 { "orchestrator": "Core", "style": "brief" }
@@ -64,10 +64,10 @@ Each source overrides the ones before it:
 
 1. the defaults
 2. the global files, `config.json` and `secrets.json`
-3. `.claudio.json` in the current directory
+3. `.claudio.json` in the current directory, or the nearest folder above it
 4. environment variables
 
-Setup, `claudio set` and changes by voice only ever write the global files. A project's or the environment's value is never saved as your default.
+Setup, `claudio set` and changes by voice only ever write the global files. A project's or the environment's value is never saved as your default. When `.claudio.json` or a `CLAUDIO_<KEY>` sets the key you change, `claudio set` and the slash commands save nothing and say where it is set, since the change would do nothing there.
 
 The catch: while a project file or an environment variable sets a value, a `claudio set` of the same setting is saved but has no effect in that run.
 

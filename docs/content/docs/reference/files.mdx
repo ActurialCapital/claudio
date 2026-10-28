@@ -29,20 +29,20 @@ claudio also uses these paths:
 | `.claudio.json` in the current directory | [per-project settings](/docs/configure/settings#per-project) |
 | `~/.claude/settings.json` | where `claudio install` adds the hooks |
 | `settings.json.bak-claudio` | the copy taken before each install or uninstall, next to the real `settings.json` behind any symlink |
-| `/tmp/claudio-<uid>.sock` | the socket the hooks report to, present only while claudio runs |
+| `hook.sock` | the socket the hooks report to, present only while claudio runs; the folder is yours only (mode 700) |
 
 ## What the brain may do
 
 The brain is one `claude` process, run through the Claude Agent SDK and started in the directory you ran claudio from. It loads no Claude Code settings files, so the permissions, hooks and environment in your `settings.json` files do not apply to it. It does read `CLAUDE.md` files, both the project's and your own, like any Claude Code session. It may use only:
 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
-- **git**: `status`, `log`, `diff` and `branch`
+- **git**: `status`, `log`, `diff` and `branch`; `log` and `diff` never with `--no-index`, `--output` or `--ext-diff`, which would reach any file
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
 - **cmux**: `agent message`, `surface list` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - **claudio set**, to change a setting when you ask
-- **claudio learn** and **claudio unlearn**, to keep a correction of yours in `learned.md`, or drop one
-- **claudio choose**, to answer a session's multiple-choice question with the option you picked
-- **notes**: create and edit `.md` and `.txt` files in `~/Desktop` and `~/Documents`, and check that a file exists with `test`
+- **claudio unlearn**, to drop a rule from `learned.md`; **claudio learn**, to keep a correction, is asked about each time, with the command on screen, since a rule lasts for every later run
+- **claudio choose**, to answer a session's multiple-choice question with the option you picked; with `--other`, words typed into the pane, it is asked about
+- **notes**: create and edit `.md` and `.txt` files directly in `~/Desktop` and `~/Documents`, not in folders below them (a repo's `CLAUDE.md` would be one), and check that a file exists with `test`
 - **`claudio open`** and **`claudio close`**: a web link in your browser, or a `.md` or `.txt` note from those folders in TextEdit, never an app, a script or anything else; closing a note saves it and quits TextEdit when it was the last window. The first close asks macOS for permission to control TextEdit
 - **the web**: WebSearch and WebFetch
 - **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
@@ -59,7 +59,7 @@ It can't read `secrets.json` with Read, nor with a command that names it, and it
 
 ### When it needs more
 
-Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is, never the whole of it, and shows the answers under it:
+Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is; the whole command shows on screen just before, and the answers under it:
 
 > May I run `gh pr create`?
 > - **1** Yes, this once
@@ -71,12 +71,12 @@ Press 1, 2 or 3 to answer at once, no Enter needed. Or answer by voice or by typ
 - **yes** (or yeah, sure, okay, go ahead, do it, you're allowed): it runs, this once, and the reply goes on
 - **always**: it runs, and `Bash(gh pr create:*)` is added to `settings.json`, for the rest of this run and every later one, with no restart
 - **no** (or don't, stop, not now), or no answer within a minute: it doesn't run, and the brain says so
-- **a question back**, such as “what would that do?”: it doesn't run yet, and the brain answers you; say yes to that answer and the same command runs without being asked about again
+- **a question back**, such as “what would that do?”, or “hold on”, “wait”: it doesn't run yet, and the brain answers you; say yes to that answer and the same command runs without being asked about again
 - **anything unclear**: claudio asks once more, “Sorry, yes or no?”
 
 Talking while it asks doesn't pause it, and a reply you cut off answers no. When it's a folder outside the one you started in, claudio asks about the folder instead, the whole repo when it's in one: “May I go into the claudio folder?”
 
-The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
+The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a rule of one word (`curl`, or `git -C x push` and `find . -exec`, whose second word is a flag), `claudio learn`, a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
 To drop every check instead, for this run only, start `claudio --dangerously-skip-permissions` or say “slash permissions skip” and then yes. The brain can then run anything without asking; it is still told to hand work to sessions and to get your yes before deleting, overwriting or pushing.
 

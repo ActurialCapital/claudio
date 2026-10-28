@@ -12,22 +12,25 @@ var fmt = AudioStreamBasicDescription(
     mBytesPerPacket: 2, mFramesPerPacket: 1, mBytesPerFrame: 2, mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
 
 /// What stdin gave us and the speaker has not played yet.
+/// A read index, not removeFirst: the render callback never shifts the whole queue; put() compacts, off the audio thread.
 final class Ring {
     private var buf = [Int16]()
+    private var head = 0
     private let lock = NSLock()
     func put(_ data: Data) {
         lock.lock(); defer { lock.unlock() }
+        if head > 0 && head * 2 >= buf.count { buf.removeFirst(head); head = 0 }
         data.withUnsafeBytes { raw in buf.append(contentsOf: raw.bindMemory(to: Int16.self)) }
     }
     func clear() {
-        lock.lock(); buf.removeAll(); lock.unlock()
+        lock.lock(); buf.removeAll(keepingCapacity: true); head = 0; lock.unlock()
     }
     func take(into p: UnsafeMutablePointer<Int16>, count: Int) {
         lock.lock(); defer { lock.unlock() }
-        let n = min(count, buf.count)
-        for i in 0..<n { p[i] = buf[i] }
+        let n = min(count, buf.count - head)
+        for i in 0..<n { p[i] = buf[head + i] }
         for i in n..<count { p[i] = 0 }
-        buf.removeFirst(n)
+        head += n
     }
 }
 let ring = Ring()
@@ -45,15 +48,16 @@ let render: AURenderCallback = { _, _, _, _, frames, ioData in
 }
 
 /// The mic has samples: pull them through the unit (echo removed) and ship them.
+let CAPTURE_MAX = 16384                        // bytes; a callback brings a few hundred frames
+let captureBuf = UnsafeMutableRawPointer.allocate(byteCount: CAPTURE_MAX, alignment: 16)   // once, not per callback
 let capture: AURenderCallback = { _, flags, ts, bus, frames, _ in
-    let bytes = Int(frames) * 2
-    var abl = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(bytes), mData: malloc(bytes)))
-    let st = AudioUnitRender(unit, flags, ts, 1, frames, &abl)
+    let bytes = min(Int(frames) * 2, CAPTURE_MAX)
+    var abl = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(bytes), mData: captureBuf))
+    let st = AudioUnitRender(unit, flags, ts, 1, UInt32(bytes / 2), &abl)
     if st == noErr {
-        let data = Data(bytes: abl.mBuffers.mData!, count: Int(abl.mBuffers.mDataByteSize))
+        let data = Data(bytes: captureBuf, count: Int(abl.mBuffers.mDataByteSize))
         writer.async { stdout.write(data) }
     }
-    free(abl.mBuffers.mData)
     return st
 }
 

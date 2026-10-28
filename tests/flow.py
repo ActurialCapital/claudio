@@ -244,6 +244,8 @@ SCENARIOS = {   # name: (seconds to run, script)
     "skip": (8, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),
                  (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "yes")),
                  (5.0, turn("StartOfTurn")), (5.2, turn("EndOfTurn", "slash permissions ask"))]),
+    "skip-dont": (5, [(0.1, turn("StartOfTurn")), (0.3, turn("EndOfTurn", "slash skip permission")),
+                      (2.5, turn("StartOfTurn")), (2.7, turn("EndOfTurn", "please don't"))]),
 }
 RUN, SCRIPT = SCENARIOS[SC]
 

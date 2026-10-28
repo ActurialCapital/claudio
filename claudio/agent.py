@@ -65,9 +65,17 @@ def loose_row(line):
 BLOCK_END = object()          # a text block ended (a tool runs next): speak what is buffered, new transcript line
 
 
+KOKORO = threading.Lock()     # a cut leaves its synthesis running in its thread: the next waits, one model, one at a time
+
+
+def synth(tts, text, voice, speed):
+    with KOKORO:
+        return tts.create(text, voice=voice, speed=speed)
+
+
 class Question(str):
     """claudio's own permission question, in the turn whose tool waits on it: said as one sentence of its own."""
-YES, NO = (("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "allowed", "go", "fine", "alright", "please", "do"),
+YES, NO = (("yes", "yeah", "yep", "y", "sure", "ok", "okay", "allow", "allowed", "fine", "alright"),   # not go, do, please: "go away", "please don't"
            ("no", "nope", "n", "dont", "deny", "never", "not", "stop"))
 BACKCHANNEL = {"yeah", "yes", "yep", "ok", "okay", "mm", "mhm", "hmm", "uh", "huh", "um", "right", "sure", "oh", "ah", "no"}
 CMUX, SESSION = config.CMUX, config.SESSION
@@ -77,9 +85,13 @@ out = bytearray()             # audio waiting for the speaker
 audio = {"fed": 0, "played": 0, "marks": []}   # bytes in and out of `out`, and (offset, sentences, k, shown, secs) still to show
 
 
+OUT = threading.Lock()        # `out` and its counts, between the loop and the speaker's callback thread
+
+
 def feed(m):
-    out.extend(m)
-    audio["fed"] += len(m)
+    with OUT:
+        out.extend(m)
+        audio["fed"] += len(m)
     status["last_audio"] = time.monotonic()
 
 
@@ -98,8 +110,9 @@ def mark(sentences, k, shown, secs=None):
 
 def clear_audio():
     """A cut: drop what is queued, and the sentences that would have shown with it."""
-    out.clear()
-    audio["fed"] = audio["played"]
+    with OUT:
+        out.clear()
+        audio["fed"] = audio["played"]
     audio["marks"].clear()
 speaking = asyncio.Lock()     # one reply at a time, mouth included; later ones queue
 status = {"live": None, "muted": False, "ears": True, "last_audio": 0.0, "reply": None, "orch": "", "gate_open": True,
@@ -293,7 +306,11 @@ class Brain:
                         **({"dangerously-skip-permissions": None} if status["skip"] else {})},   # the user's choice, this run only
             disallowed_tools=[f"Read(//{config.SECRETS_FILE.lstrip('/')})", "Bash(*secret*)",   # the keys, by a command that names them
                               *(f"{t}(//{config.DIR.lstrip('/')}/**)" for t in ("Edit", "Write")),   # nor grant itself rules
-                              *(f"Bash(cmux {c} *--{f}*)" for c in ("new-workspace", "workspace create") for f in ("layout", "env"))],   # their own commands
+                              *(f"Bash(cmux {c} *--{f}*)" for c in ("new-workspace", "workspace create", "new-split", "new-surface")
+                                for f in ("layout", "env")),   # their own commands
+                              *(f"Bash(cmux {c} *--command*--command*)" for c in ("new-workspace", "workspace create", "new-split", "new-surface")),
+                              *(f"Bash(git {c} *--{f}*)" for c in ("diff", "log") for f in ("no-index", "output", "ext-diff")),   # any file, read or written
+                              "Bash(claudio choose *--other*)"],   # words typed into a pane: asked, so you see them
             allowed_tools=[
                 "Read", "Grep", "Glob",
                 "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
@@ -302,10 +319,11 @@ class Brain:
                 "Bash(cmux agent message:*)", "Bash(cmux surface list:*)", "Bash(cmux read-screen:*)",
                 *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
                 "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
-                "Bash(claudio set:*)", "Bash(claudio learn:*)", "Bash(claudio unlearn:*)",
+                "Bash(claudio set:*)", "Bash(claudio unlearn:*)",   # not learn: a rule for every later run is asked
                 *(f"mcp__{name}" for name in mcp),
                 "WebSearch", "WebFetch", "Bash(claudio open:*)", "Bash(claudio close:*)", "Bash(test:*)",   # looking things up; opening a link or a note
-                *(f"{tool}(/{d}/**/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only
+                *(f"{tool}(/{d}/*.{ext})" for d in notes for tool in ("Write", "Edit") for ext in ("md", "txt"))],   # notes only, at the top:
+                                              # deeper, a repo's CLAUDE.md or .claude/ would be one
             settings=json.dumps({**config._read(config.SETTINGS), "disableAllHooks": True}),   # the user's own rules;
                                               # no hooks, theirs or cmux's: those are for sessions, not the brain
             add_dirs=[*notes, *config.allowed_dirs()],             # and folders
@@ -617,8 +635,7 @@ class LocalMouth:
             text = (await self.queue.get()).strip()
             if text:
                 try:
-                    samples, _ = await asyncio.to_thread(self.tts.create, text, voice=cfg["local_voice"],
-                                                         speed=cfg["local_speed"])
+                    samples, _ = await asyncio.to_thread(synth, self.tts, text, cfg["local_voice"], cfg["local_speed"])
                 except Exception as e:          # a voice name Kokoro does not know, say: the rest is text only
                     ui.warn(f"local mouth: {e}")
                     return
@@ -755,6 +772,8 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
                 await mouth.say(said)
             except (websockets.ConnectionClosed, OSError):      # the socket dropped mid-reply: one new mouth, carry on
                 player.cancel()
+                with contextlib.suppress(Exception):
+                    await mouth.close()        # the dropped one
                 mouth = await open_mouth()
                 if mouth is None:
                     ui.warn("mouth lost mid-reply; the rest is text only")
@@ -785,14 +804,15 @@ async def speak_from(sentences, i, new, gen_done, ctl, commit, shown):
         committer.cancel()
         for w in waiters:
             w.cancel()
-        await mouth.close()
+        if mouth:                              # None: lost mid-reply, and no new one
+            await mouth.close()
 
 
 def show(sentences, k, shown, secs=None):
     if k < len(sentences) and k not in shown:
         shown.add(k)
         text, first_of_block, blocks = sentences[k]
-        asking = (pending["rule"] or pending["future"]) and text.strip() == pending["ask"]
+        asking = (pending["rule"] or pending["future"]) and pending["ask"] and text.strip() == pending["ask"]
         if asking:
             pending["ready"] = True            # the question is being asked: now a yes answers it
         for b in blocks:
@@ -923,11 +943,11 @@ async def reply(text, commit, ctl, fixed=False, handle=None, screen=None):
 
 def on_out(outdata, frames, t, status_):
     n = len(outdata)
-    b = bytes(out[:n]); del out[:n]
+    with OUT:                                  # a cut between the copy and the delete would count a block twice
+        b = bytes(out[:n]); del out[:n]
+        audio["played"] += len(b)
     outdata[:len(b)] = b
-    outdata[len(b):] = b"\x00" * (n - len(b))
-    if b:
-        audio["played"] += len(b)              # the callback thread: the showing happens on the loop (see shower)
+    outdata[len(b):] = b"\x00" * (n - len(b))   # the showing happens on the loop (see shower)
 
 
 def norm(s):
@@ -943,12 +963,19 @@ def intent(said):
     """What an answer to claudio's permission question means: yes, always, no, a question back, or unclear. Read
     from the last part that says yes or no, so "you don't need to spell it. So yes, you are allowed" is a yes."""
     parts = [p for p in re.split(r"(?<=[.!?;])\s+|\.\.\.+", said.strip()) if p.strip()]
-    words = lambda p: norm(p.replace("no problem", "fine").replace("no worries", "fine"))
+    def words(p):                      # phrases whose "no" or "not" means yes, read before the no words
+        p = " ".join(norm(p))
+        for a, b in (("dont ask again", "always"), ("dont ask", "always"), ("no problem", "fine"), ("no worries", "fine"),
+                     ("dont mind", "fine"), ("dont worry", "fine"), ("why not", "fine"), ("go ahead", "fine"),
+                     ("do it", "fine"), ("please do", "fine"), ("go for it", "fine")):
+            p = re.sub(rf"\b{a}\b", b, p)
+        return ["fine"] if p == "please" else p.split()
     for part in reversed(parts):
         w = words(part)
         if any(x in NO for x in w):
             return "no"
-        if any(x in ("but", "wait", "what", "why", "how", "first") for x in w) or (part is parts[-1] and part.rstrip().endswith("?")):
+        if any(x in ("but", "wait", "hold", "hang", "later", "what", "why", "how", "first") for x in w) \
+                or (part is parts[-1] and part.rstrip().endswith("?")):
             return "question"
         if "always" in w:
             return "always"
@@ -1119,6 +1146,10 @@ async def main():
             recent["key"] = None
             ui.note(f"allowed once: {rule or action}")
             return PermissionResultAllow()     # they asked about it, heard the answer, and said yes
+        if tool == "Bash" and tool_input.get("command"):
+            ui.block(f"```sh\n{tool_input['command']}\n```", colors=False)   # the whole of it, not just its first words
+        elif tool_input.get("file_path"):
+            ui.note(f"{tool} {tool_input['file_path']}")
         question = f"May I {action}?\n" + ("- **1** Yes, this once\n- **2** Always\n- **3** No" if rule
                                             else "- **1** Yes, this once\n- **2** No")   # a key answers too
         ready = False                          # until it is on screen: an "okay" to the reply before it is no yes
@@ -1150,6 +1181,7 @@ async def main():
         """Say the question in the reply speaking now; the user's words, or None for a cut or a minute's silence."""
         future = loop.create_future()
         said, _, options = question.partition("\n")
+        before = {k: pending[k] for k in ("ask", "options", "ready")}   # a session's prompt still waiting: back after
         pending.update(future=future, ask=said, options=options, ready=ready)
         brain.say(question)
         try:
@@ -1157,7 +1189,9 @@ async def main():
         except asyncio.TimeoutError:
             return None
         finally:
-            pending.update(future=None, ask="", options="", ready=False)
+            pending["future"] = None
+            if pending["ask"] == said:         # not replaced meanwhile by a session's prompt
+                pending.update(before if pending["rule"] else {"ask": "", "options": "", "ready": False})
 
     brain.on_ask = ask
 
@@ -1179,10 +1213,11 @@ async def main():
             asyncio.create_task(press(surface, keys, meant))
             return {"yes": "allowed once", "always": "always allowed", "no": "not allowed"}[meant]
         pending["rule"] = None
-        if words and len(words) <= 3 and words[0] in YES:
+        meant = intent(said)                   # the whole answer, so "please don't" or "ok wait" is no yes
+        if meant == "yes" and len(words) <= 3:
             asyncio.create_task(skipping(True))
             return "no permission checks until you quit"
-        if words and len(words) <= 3 and words[0] in NO:
+        if meant == "no":
             return f"not allowed: {SKIP}"
         return None
 
@@ -1232,6 +1267,10 @@ async def main():
         ui.note(f"/{cmd} {arg}".strip())
         if cmd not in ("clear", "stop"):
             cut(None)                          # a command over a reply stops it quietly; the note says why
+        key = {"colors": "code_colors", "colours": "code_colors"}.get(cmd, cmd)
+        if key in config.DEFAULTS and (arg or cmd in ("colors", "colours", "layout")) and (src := config.overridden(key)):
+            start(f"{key.replace('_', ' ').capitalize()} is set by {src} here, so I left it.", committed=True, fixed=True)
+            return True                        # saved, it would change nothing here, and every other project
         if cmd == "clear":
             cut("cleared")
             asyncio.create_task(fresh_start())
@@ -1261,7 +1300,8 @@ async def main():
             start(f"{cmd.capitalize()} is {', '.join(config.MODELS if cmd == 'model' else config.EFFORTS)}.",
                   committed=True, fixed=True)
         elif cmd in ("model", "effort"):
-            value = arg.replace(" ", "-")
+            choices = config.MODELS if cmd == "model" else config.EFFORTS
+            value = next((w for w in arg.split() if w in choices), arg.replace(" ", "-"))   # "sonnet please"
             if (cmd == "model" and value not in config.MODELS) or (cmd == "effort" and value not in config.EFFORTS):
                 choices = config.MODELS if cmd == "model" else config.EFFORTS
                 start(f"I don't know {cmd} {arg}. Choose {', '.join(choices)}.", committed=True, fixed=True)
@@ -1319,8 +1359,8 @@ async def main():
         if ev.get("session") == brain.session_id:
             return
         sid = (ev.get("surface") or "")[:8]
-        if sid not in surfaces:
-            surfaces = sessions()          # a session that appeared after we started
+        if sid and sid not in surfaces:          # none: a session outside cmux, never one of ours
+            surfaces = await loop.run_in_executor(None, sessions)   # one that appeared after we started; cmux can take seconds
         ws, *_, full = surfaces.get(sid, (None, None, None, sid))     # full: the id cmux takes
         if not ws:
             return
@@ -1345,6 +1385,8 @@ async def main():
         else:
             return
         ui.event(ws, ev["event"], asked if ev["event"] == "Stop" else "")
+        if ev["event"] == "Notification" and ours:   # its prompt as the pane shows it, not as the brain sums it up
+            ui.block("```\n" + "\n".join(l.rstrip() for l in screen.splitlines() if l.strip()) + "\n```", colors=False)
         start(text, committed=True, event=True)
         if ev["event"] == "Notification" and ours:   # then claudio asks, and types the answer into that pane
             ask = f"Allow it for {ws}?"
@@ -1573,6 +1615,8 @@ async def main():
                 loop.call_soon_threadsafe(lines.put_nowait, chunk.decode(errors="ignore"))
     if not typed:
         ui.to_bottom()      # before the key reader: it would take the terminal's answer and leave this read blocked
+    if ui.typeahead[0]:
+        lines.put_nowait(ui.typeahead[0])
     threading.Thread(target=read_keys, daemon=True).start()   # a daemon, so exit never waits on a blocked read
     term = {"saved": termios.tcgetattr(0) if os.isatty(0) else None, "keys": False}
 

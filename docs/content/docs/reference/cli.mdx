@@ -39,7 +39,7 @@ Setup never asks about the other settings. Use [`claudio set`](#claudio-set-key-
 
 ## `claudio doctor`
 
-Checks every part in order, then runs one typed turn through the brain and the mouth. Run it from the project directory, so a `.claudio.json` there is taken into account.
+Checks every part in order, then runs one typed turn through the brain and the mouth, and exits with status 1 if any check failed. Run it from the project directory, so a `.claudio.json` there is taken into account.
 
 | Check | If it fails |
 |---|---|
@@ -81,7 +81,7 @@ It does not delete the transcripts, which the brain can still read when you ask 
 
 ## `claudio learn <rule>`
 
-Adds one rule to `learned.md`, which goes at the end of the persona from the next brain start, and prints `learned: <rule>`. A rule already there isn't added twice. The brain runs it itself when you correct it; you can run it too:
+Adds one rule to `learned.md`, which goes at the end of the persona from the next brain start, and prints `learned: <rule>`. A rule already there isn't added twice. The brain runs it when you correct it, after claudio asks you, with the rule on screen; you can run it too:
 
 ```bash
 claudio learn "'seven' is usually 'save'"
