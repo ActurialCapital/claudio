@@ -269,7 +269,8 @@ def system_prompt():
               "that may be a mishearing: ask.\n"
             + "- Never say a setting changed unless `claudio set` succeeded, and never send work after a no."
             + ("\n- Permission checks are off for this run, at the user's word: nothing you run is refused. Still hand "
-               "work to sessions, and run nothing that deletes, overwrites or pushes without the user's plain yes."
+               "work to sessions, now without asking first: send it, and say what you handed over and to whom. Run "
+               "nothing that deletes, overwrites or pushes without the user's plain yes."
                if status["skip"] else ""))
 
 
