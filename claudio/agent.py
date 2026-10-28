@@ -280,7 +280,8 @@ class Brain:
         self.client, self.session_id, self.busy = None, None, False
         self.inbox, self.dead = asyncio.Queue(), asyncio.Event()   # what the CLI sends; set when it is gone
         self.lock = asyncio.Lock()
-        self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it
+        self.handoffs = {}             # workspace title -> time of the last `cmux agent message` to it, till answered
+        self.answered = {}             # workspace title -> (time, kind) of the last report narrated, for echoed()
         self.on_ask = None             # (tool, input) -> a permission result: claudio asks the user; None denies
         self.q, self.text = None, ""   # the turn running now, if any: where a question goes, and what was asked
         self.changed = asyncio.Event() # set when it ran `claudio set`, so the watcher reloads at once
@@ -976,14 +977,25 @@ def intent(said):
         w = words(part)
         if any(x in NO for x in w):
             return "no"
-        if any(x in ("but", "wait", "hold", "hang", "later", "what", "why", "how", "first") for x in w) \
-                or (part is parts[-1] and part.rstrip().endswith("?")):
+        last = lambda words: max((i for i, x in enumerate(w) if x in words), default=-1)
+        hedge, yes = last(("but", "wait", "hold", "hang", "later", "what", "why", "how", "first")), last(YES + ("always",))
+        if hedge > yes or (part is parts[-1] and part.rstrip().endswith("?")):   # "but just that one, yes": a yes
             return "question"
         if "always" in w:
             return "always"
-        if any(x in YES for x in w):
+        if yes >= 0:
             return "yes"
     return "question" if said.rstrip().endswith("?") else "unclear"
+
+
+def echoed(answered, ws, kind, now):
+    """A session's Reply and the end (Stop) of the turn that sent it say the same thing: the second of the two,
+    within a minute, is not narrated again. answered: workspace -> (time, kind) of the last one narrated."""
+    t, k = answered.get(ws, (0, kind))
+    if k != kind and now - t < 60:
+        return True
+    answered[ws] = (now, kind)
+    return False
 
 
 def described(tool, tool_input, rule, what):
@@ -1370,12 +1382,16 @@ async def main():
             return
         if status["muted"]:
             return                         # muted: nothing spoken, not even the sessions
-        when, asked = (brain.handoffs.get(ws) or brain.handoffs.get(str(ev.get("surface") or "").upper())
-                       or (0, ""))           # by title, or by the surface id of a session newer than the list
+        keys = (ws, str(ev.get("surface") or "").upper())   # by title, or by the surface id of a session newer than the list
+        when, asked = next((brain.handoffs[k] for k in keys if k in brain.handoffs), (0, ""))
         if cfg["narrate"] == "none":
             return
         handed = when > time.time() - 1800
         if ev["event"] == "Stop" and ev.get("text") and (handed or cfg["narrate"] == "all"):
+            if echoed(brain.answered, ws, "Stop", time.time()):
+                return                     # its reply already said it
+            for k in keys:                 # answered: a later turn there is not this request's
+                brain.handoffs.pop(k, None)
             text = (f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}" if handed
                     else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
@@ -1737,7 +1753,12 @@ async def main():
             for m in reversed(new):                   # oldest first
                 if status["muted"] or cfg["narrate"] == "none":
                     continue
-                ui.event(m.get("sender_name") or "a session", "Reply")
+                name = m.get("sender_name") or "a session"
+                for k in (name, str(m.get("sender_surface_id", "")).upper()):
+                    brain.handoffs.pop(k, None)       # answered: its turn's end is no news
+                ui.event(name, "Reply")
+                if echoed(brain.answered, name, "Reply", time.time()):
+                    continue                          # its turn's end already said it
                 start(f"[event] {m.get('sender_name') or 'A session'} replied to your message:\n{m.get('body', '')}",
                       committed=True, event=True)
 

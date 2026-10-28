@@ -424,11 +424,22 @@ def test_links_and_ids_are_said_by_name_never_spelled():
     assert spoken("It costs 12 dollars in 2026.") == "It costs 12 dollars in 2026."
 
 
+def test_a_reply_and_its_turns_end_are_narrated_once():
+    from claudio.agent import echoed
+    seen = {}
+    assert not echoed(seen, "Voice", "Reply", 100)
+    assert echoed(seen, "Voice", "Stop", 101)          # same news, other way in
+    assert not echoed(seen, "Voice", "Reply", 120)     # a second reply is news
+    assert not echoed(seen, "Voice", "Stop", 200)      # a minute on: a new turn
+    assert not echoed(seen, "Sequencer", "Reply", 201)
+
+
 def test_a_permission_answer_is_read_by_what_it_means():
     from claudio.agent import intent
     cases = {"Yes.": "yes", "ok do it": "yes", "no problem, go ahead": "yes", "always": "always", "no": "no",
              "please don't": "no", "what would that do": "question", "is that safe?": "question",
              "yes but first tell me why": "question", "I said I said": "unclear",
+             "But just the sequence of terminal, yes. Finish running.": "yes",
              "Yeah. You don't need to spell the long numbers. So, yes, I give... you are allowed.": "yes"}
     for said, meant in cases.items():
         assert intent(said) == meant, said
