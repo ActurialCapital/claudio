@@ -195,6 +195,8 @@ def parse_slash(words):
 
 def state_text():
     """Derived, never set: so a reply ending can't overwrite the one that replaced it."""
+    if status.get("warming"):
+        return "warming up the brain…"
     if status.get("typed"):
         return f"› {status['typed']}▏"         # typed: unechoed, so shown here
     r = status["reply"]
@@ -1104,9 +1106,22 @@ async def main():
                                 # take the terminal's answer and leave this read blocked
     config.migrate_allow()
     await brain.start()
-    with console.status("[dim]warming up the brain…[/]"):
+    status["warming"] = True
+    status["live"] = console.status("[dim]warming up the brain…[/]")
+    if not typed:                              # the state line itself, rule and all: "listening" takes its place, no jump
+        ui.attach(status["live"])
+    status["live"].start()
+    refresh()                                  # drawn as listening will be: the level bar, then the words
+    try:
         async for _ in brain.turn("Say only: ready."):
             pass
+    except BaseException:
+        status["live"].stop()
+        raise
+    status["warming"] = False
+    if typed:                                  # a doctor turn prints whole, with no state line
+        status["live"].stop()
+        status["live"] = None
 
     if typed:
         with sd.RawOutputStream(samplerate=OUT_RATE, channels=1, dtype="int16", blocksize=OUT_RATE // 50, callback=on_out):
@@ -1920,9 +1935,7 @@ async def main():
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
-    status["live"] = console.status("[dim]listening[/]")
-    ui.attach(status["live"])
-    status["live"].start()
+    refresh()                                  # warming up becomes listening, on the same line
     async def greet():
         """So you hear it's up, and the voice works; once the mic is: opening it switches Bluetooth headphones
         (AirPods) to headset mode, about 1.3 s, and what plays meanwhile is lost, "Hi, how" with it."""
