@@ -193,7 +193,12 @@ class Fade:
             self.listing = False                    # a new line that is no item: the list is over
         self.bol = sentence.endswith("\n")         # a second sentence on an item's line stays in that item
         t = styled(sentence[bullet.end():] if bullet else sentence)
-        words = [t[m.start():m.end()] for m in re.finditer(r"\S+", t.plain)]
+        links, words, end = [(sp.start, sp.end) for sp in t.spans if "link" in str(sp.style)], [], 0
+        for m in re.finditer(r"\S+", t.plain):
+            if m.start() < end:
+                continue                     # inside a link already taken whole
+            end = next((b for a, b in links if a <= m.start() < b and b > m.end()), m.end())   # a link: whole, so it
+            words.append(t[m.start():end])   # appears at once and stays put for a Cmd-click
         total, before = sum(len(w) + 1 for w in words) or 1, 0
         for w in words:                      # a long word takes longer to say: spread by characters, not word count
             self.words.append((w, before / total, part))

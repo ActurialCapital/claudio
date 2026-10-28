@@ -646,3 +646,11 @@ def test_choices_ignore_case_and_save_keeps_unknown_keys(tmp_path, monkeypatch):
     saved = json.loads((tmp_path / "config.json").read_text())
     assert saved["custom"] == 1 and saved["effort"] == "high"
     assert os.stat(tmp_path / "secrets.json").st_mode & 0o777 == 0o600
+
+
+def test_a_link_fades_in_whole_not_word_by_word():
+    from claudio import ui
+    f = ui.Fade(True)
+    f.add("Read [the JEPA overview](https://example.com/a) today.")
+    assert [w.plain for w, *_ in f.words] == ["Read", "the JEPA overview", "today."]
+    assert "link https://example.com/a" in str(f.words[1][0].spans[0].style)
