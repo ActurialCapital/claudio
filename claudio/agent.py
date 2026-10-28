@@ -1571,6 +1571,8 @@ async def main():
         with contextlib.suppress(OSError):
             while chunk := os.read(0, 1024):
                 loop.call_soon_threadsafe(lines.put_nowait, chunk.decode(errors="ignore"))
+    if not typed:
+        ui.to_bottom()      # before the key reader: it would take the terminal's answer and leave this read blocked
     threading.Thread(target=read_keys, daemon=True).start()   # a daemon, so exit never waits on a blocked read
     term = {"saved": termios.tcgetattr(0) if os.isatty(0) else None, "keys": False}
 
@@ -1707,8 +1709,6 @@ async def main():
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
     status["live"] = console.status("[dim]listening[/]")
-    if not typed:
-        ui.to_bottom()
     ui.attach(status["live"])
     status["live"].start()
     async def greet():
