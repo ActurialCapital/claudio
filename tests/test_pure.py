@@ -128,6 +128,8 @@ def test_a_turn_counts_only_when_it_starts_with_the_name():
     assert addressed("Zoe, what's up?", "Zoé") == "what's up?"        # the accent lost in the transcript
     assert addressed("Mary Jane, hi", "Mary-Jane") == "hi"
     assert addressed("R2 D2, go", "R2-D2") == "go"
+    assert parse_slash("slash name roger") == ("name", "roger")
+    assert parse_slash("slash my name is roger") == ("name", "is roger")   # the handler drops the "is"
     assert config.check("name", "  Nyx ") == ("Nyx", None)
     assert config.check("name", "!!!")[0] is None
     assert config.check("name", "one two three four")[0] is None

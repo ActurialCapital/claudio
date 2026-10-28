@@ -60,6 +60,7 @@ flowchart LR
 | "slash style brief" · "caveman" · "plain" | how it talks: one sentence, caveman, or plain |
 | "slash mute" · "slash unmute" | hears nothing until you unmute |
 | "slash code colors off" | code blocks as plain text; "on" brings colours back |
+| "slash name Roger" | it answers to Roger and calls itself that |
 | "what did we do today?" | reads today's transcript and tells you |
 | "write a note: call Michael" | asks Desktop or Documents, then adds it to `notes.md` there, dated |
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |

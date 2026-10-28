@@ -128,6 +128,7 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/style` plain, brief or caveman.\n"
               "- `/colors` on or off, for code.\n"
               "- `/layout` inline or split.\n"
+              "- `/name` and a new one, such as Roger: what I answer to.\n"
               "- `/status` says the settings.\n"
               "- `/mute` and `/unmute`.\n"
               "- `/stop` cuts a reply.\n"
@@ -135,7 +136,7 @@ SLASH_HELP = ("Slash commands:\n"
               "- `/quit` or `/exit` says bye and quits.\n"
               "- `/help` says this list.")
 COMMANDS = {"clear", "mute", "unmute", "stop", "style", "model", "effort", "voice", "status", "help", "colors", "colours", "layout",
-            "permissions", "quit", "exit"}
+            "name", "permissions", "quit", "exit"}
 SKIP = "every permission check"   # what a yes turns off, when claudio asked about skipping them
 STYLES = {
     "plain": "",
@@ -1355,6 +1356,14 @@ async def main():
             new = said or ("inline" if cfg["layout"] == "split" else "split")
             config.set_key("layout", new)              # the reload applies it
             start(f"Layout {new}.", committed=True, fixed=True)
+        elif cmd == "name":                    # "slash name roger", "slash my name is roger"
+            value, why = config.check("name", re.sub(r"^(?:is|to|as|be)\s+", "", arg).title()) if arg else (None, "")
+            if why or not arg:                 # "slash name" alone, or five words: say what it is now
+                start(f"{why + '. ' if why else ''}My name is {cfg['name']}. Say slash name and a new one.",
+                      committed=True, fixed=True)
+                return True
+            config.set_key("name", value)      # the reload restarts the brain, which says "Back, as Roger."
+            brain.changed.set()
         elif cmd == "permissions" and any(w in words.split() for w in ("skip", "off", "dangerously")):   # wherever said
             ask = "Skip every permission check until you quit? The brain could then run anything, unasked."
             pending.update(rule=SKIP, ask=ask, options="- **1** Yes\n- **2** No", ready=False)   # only a yes right after it turns them off
