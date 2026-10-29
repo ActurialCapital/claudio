@@ -97,6 +97,7 @@ export default async function plugin(bb: BbPluginApi) {
           // sh -c "$0" inside script: the command may carry arguments
           const child = spawn("sh", ["-c", 'tail -f /dev/null | { script -q /dev/null /bin/sh -c "$0"; kill 0; }', command], {
             detached: true,                  // its own process group: stopping it stops tail, script and claudio
+            cwd: homedir(),                  // not bb's own folder: new threads go to a project by name, not by cwd
             env: {
               ...process.env,
               // bb's server may not have the login shell's PATH: claudio needs claude and bb

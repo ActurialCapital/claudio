@@ -11,8 +11,8 @@ Look: `bb thread output <thread id>` (its last answer) or `bb thread log <thread
 
 Open: a new thread, when the user asks for one, with the task as its first message:
   bb thread spawn --project <project id> --provider claude-code --title "<title the user gave, or a short one>" --prompt "[spoken by the user, transcribed by claudio] <the task>"
-Project ids are in `bb project list --json`; use the one whose path is the directory you run in unless the user
-names another. --provider is claude-code unless the user asks for codex, cursor or another agent
+Project ids are in `bb project list --json`: use the one the user names, else the orchestrator thread's project
+(the thread list says each thread's project), else ask which. --provider is claude-code unless the user asks for codex, cursor or another agent
 (`bb provider list`). Claudio asks the user before it runs, as for a send.
 
 Stop: tell the user to press Stop on that thread in bb.

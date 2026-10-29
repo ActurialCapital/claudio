@@ -52,15 +52,16 @@ def setup():
         console.print("  [red]that key was refused by Deepgram[/]")
     else:
         raise SystemExit("no working Deepgram key; setup stopped")
-    ws = workspaces()
+    bb = cfg["backend"] == "bb"                # its sessions are bb's threads, by title
+    ws = [w for w, *_ in config.surfaces("bb").values()] if bb else workspaces()
     if ws:
-        console.print("  Which workspace is the orchestrator, the session that gets your tasks by default?")
+        console.print(f"  Which {'thread' if bb else 'workspace'} is the orchestrator, the session that gets your tasks by default?")
         for i, w in enumerate(ws, 1):
             console.print(f"    [cyan]{i}[/] {w}")
         default = ws.index(cfg["orchestrator"]) + 1 if cfg["orchestrator"] in ws else 1
         cfg["orchestrator"] = ws[IntPrompt.ask("  number", default=default, choices=[str(i) for i in range(1, len(ws) + 1)]) - 1]
     else:
-        cfg["orchestrator"] = Prompt.ask("  Orchestrator workspace title", default=cfg["orchestrator"] or "Orchestrator")
+        cfg["orchestrator"] = Prompt.ask(f"  Orchestrator {'thread' if bb else 'workspace'} title", default=cfg["orchestrator"] or "Orchestrator")
     console.print("  Voice:")
     for i, (v, d) in enumerate(VOICES, 1):
         console.print(f"    [cyan]{i}[/] {v}  [dim]{d}[/]")
