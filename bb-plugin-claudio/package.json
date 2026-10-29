@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-claudio",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "bb": ">=0.48",
+    "bbPluginSdk": ">=0.6.94"
+  },
+  "bb": {
+    "name": "Claudio",
+    "description": "claudio, the voice in front of your sessions: a chat panel on the right, and your threads by voice.",
+    "branding": {
+      "icon": "AudioLines"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.94",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.4.0"
+  }
+}
