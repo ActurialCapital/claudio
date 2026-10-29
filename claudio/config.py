@@ -35,7 +35,7 @@ DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "a
             "layout": "inline", "name": "claudio", "backend": "cmux",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
-HELP = {"orchestrator": "cmux workspace (or bb thread title) that gets tasks by default",
+HELP = {"orchestrator": "the session that gets tasks by default, by title (a cmux workspace or a bb thread)",
         "model": "the brain's model, through your Claude Code login",
         "effort": "how hard the brain thinks before it answers",
         "voice": "any Deepgram Aura-2 voice: a name such as zeus, or a full model name",

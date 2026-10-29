@@ -1092,7 +1092,7 @@ def sent(cmd):
 def hello():
     """What a front end beside the terminal needs to offer what claudio offers: its commands, models and efforts, and
     the model and effort in use (project file and environment applied). Sent on connect and after a settings change."""
-    return {"kind": "hello", "text": "", "commands": sorted(COMMANDS), "models": list(config.MODELS),
+    return {"kind": "hello", "text": "", "at": time.time(), "commands": sorted(COMMANDS), "models": list(config.MODELS),
             "efforts": list(config.EFFORTS), "model": cfg["model"], "effort": cfg["effort"]}
 
 
@@ -2094,12 +2094,14 @@ async def main():
         pushing = False                        # this front end pushes bb's interactions: no polling for them meanwhile
         for ev in ui.feed:
             send(ev)
-        send({"kind": "state", "text": state_text()})
+        send({"kind": "state", "text": state_text(), "at": time.time()})
         ui.listeners.add(send)
         try:
             while line := await reader.readline():
                 with contextlib.suppress(ValueError, AttributeError):
-                    if "say" in (msg := json.loads(line)):
+                    if not isinstance(msg := json.loads(line), dict):
+                        continue                       # not a message: ignored, the front end stays connected
+                    if "say" in msg:
                         on_line(str(msg["say"]).strip())   # an empty line too: it cuts, or opens a push-to-talk mic
                     if msg.get("push"):
                         pushing = status["bb_push"] = True
