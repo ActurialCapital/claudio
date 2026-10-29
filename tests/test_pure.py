@@ -759,3 +759,80 @@ def test_a_send_is_asked_each_time_by_what_and_to_whom(monkeypatch):
     assert agent.described("Bash", {"command": long}, rule, what) == \
         'send "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11…" and 18 more words to Sequencer'
     assert agent.intent("read it all") == "question" and agent.intent("read it, yes") == "yes"   # it all: the brain reads it
+
+
+def test_bb_threads_are_sessions_and_its_sends_are_asked(monkeypatch):
+    from claudio import agent
+    threads = [{"id": "thr_a1", "projectId": "p1", "title": "Fix login", "environmentPath": "/x/app"},
+               {"id": "thr_b2", "projectId": "p1", "title": None, "titleFallback": "port the billing page", "environmentPath": ""},
+               {"id": "thr_c3", "projectId": "p1", "title": "old", "archivedAt": 1}]
+    found = config.parse_threads(threads, [{"id": "p1", "name": "app"}])
+    assert found == {"thr_a1": ("Fix login", "app", "/x/app", "thr_a1"),
+                     "thr_b2": ("port the billing page", "app", "", "thr_b2")}    # archived: gone
+    monkeypatch.setattr(agent, "surfaces", found)
+    tell = 'bb thread tell thr_a1 "[spoken by the user, transcribed by claudio] Merge it."'
+    spawn = ('bb thread spawn --project p1 --provider claude-code --title "Docs" '
+             '--prompt "[spoken by the user, transcribed by claudio] Write the docs."')
+    for cmd in (tell, spawn):
+        assert config.rule_for("Bash", {"command": cmd})[0] is None, cmd   # asked each time, never always
+    assert agent.described("Bash", {"command": tell}, None, "") == 'send "Merge it." to Fix login'
+    assert agent.described("Bash", {"command": spawn}, None, "") == 'send "Write the docs." to a new thread'
+
+
+def test_a_panel_gets_what_the_transcript_gets(monkeypatch):
+    from claudio import ui
+    monkeypatch.setattr(ui, "feed", [])
+    seen = []
+    monkeypatch.setattr(ui, "listeners", {seen.append})
+    ui.you("what threads are there")
+    ui.block("Thread | State\nFix login | idle")
+    ui.publish("state", "listening", keep=False)
+    assert [(e["kind"], e["text"]) for e in seen] == [
+        ("you", "what threads are there"), ("block", "| Thread | State |\n|---|---|\n| Fix login | idle |"),
+        ("state", "listening")]
+    assert [e["kind"] for e in ui.feed] == ["you", "block"]            # the state line is live, not history
+
+
+def test_every_bb_send_is_asked_with_its_words_and_handed_off(monkeypatch):
+    from claudio import agent
+    monkeypatch.setattr(agent, "surfaces", {"thr_a1": ("Fix login", "app", "/x", "thr_a1")})
+    for cmd in ('bb thread queue create thr_a1 "later"', 'bb thread fork thr_a1 --prompt "x"', "bb thread edit-message thr_a1 --message x",
+                "bb thread interactions grant int_1 thr_a1", "bb thread queue list thr_a1"):
+        assert config.rule_for("Bash", {"command": cmd})[0] is None, cmd       # never "always"
+    assert config.rule_for("Bash", {"command": "bb thread list --json"})[0] == "Bash(bb thread list:*)"
+    said = lambda cmd: agent.described("Bash", {"command": cmd}, None, "")
+    assert said("bb thread tell thr_a1 'merge it'") == 'send "merge it" to Fix login'
+    assert said('bb thread tell --mode queue thr_a1 "merge it"') == 'send "merge it" to Fix login'
+    assert said("bb thread tell thr_a1 --message-file - <<'EOF'\nmerge it\nEOF") == 'send "merge it" to Fix login'
+    assert said('bb thread spawn --project p --title "Docs" --prompt-file - <<EOF\nwrite the docs\nEOF') == \
+        'send "write the docs" to a new thread'
+    assert agent.sent('bb thread spawn --project p --title "Docs" --prompt "go"')["title"] == "Docs"   # its finish: narrated
+    assert agent.sent("bb thread list --json") is None
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def test_the_panel_handles_every_kind_claudio_publishes():
+    """What claudio shows reaches the bb panel: a kind published in Python and not handled there would be dropped."""
+    import glob, re
+    published = {k for f in glob.glob(os.path.join(ROOT, "claudio", "*.py"))
+                 for k in re.findall(r'publish\("(\w+)"', open(f).read())} | {"hello"}
+    panel = open(os.path.join(ROOT, "bb-plugin-claudio", "app.tsx")).read()
+    assert published >= {"you", "me", "block", "event", "tool", "note", "warn", "rule", "state"}
+    assert {k for k in published if f'"{k}"' not in panel} == set()
+
+
+def test_both_backends_give_the_brain_the_same_sections():
+    """A rule added for cmux sessions needs its bb twin, and the other way round."""
+    import re
+    labels = lambda name: re.findall(r"^(Layout|Hand over|Look|Open|Stop|Choose):", open(os.path.join(ROOT, "claudio", name)).read(), re.M)
+    assert labels("sessions_cmux.md") == labels("sessions_bb.md") == ["Layout", "Hand over", "Look", "Open", "Stop", "Choose"]
+
+
+def test_hello_is_claudios_own_lists(monkeypatch):
+    from claudio import agent
+    monkeypatch.setattr(agent, "cfg", {"model": "sonnet", "effort": "low"})
+    h = agent.hello()
+    assert (h["commands"], h["models"], h["efforts"]) == (sorted(agent.COMMANDS), list(config.MODELS), list(config.EFFORTS))
+    assert (h["model"], h["effort"]) == ("sonnet", "low")

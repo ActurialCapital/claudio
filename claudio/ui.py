@@ -23,6 +23,19 @@ def width():
     return min(COLUMN, console.width)
 
 
+feed, listeners = [], set()     # what a front end beside the terminal (the bb panel) shows: entries, in order
+
+
+def publish(kind, text="", keep=True, **more):
+    """One entry of the transcript, or (keep=False) the state line, to every front end watching."""
+    ev = {"kind": kind, "text": text, "at": time.time(), **more}
+    if keep:
+        feed.append(ev)
+        del feed[:-500]         # ponytail: the last 500 entries, for a panel that opens late
+    for send in list(listeners):
+        send(ev)
+
+
 def log(line):
     """Append a line to today's transcript, ~/.config/claudio/transcripts/YYYY-MM-DD.md."""
     try:
@@ -92,6 +105,7 @@ def banner(subtitle=None, facts=None, hints=None, name="claudio"):
         console.print()
         for k, v in facts.items():   # one fact per line
             console.print(Text.assemble("  ", (f"{k} ", "dim"), (str(v), "bold cyan")))
+        publish("rule", "started · " + " · ".join(f"{k} {facts[k]}" for k in ("brain", "voice", "style") if k in facts))
     if hints:
         console.print(f"  [dim]{hints}[/]")
     console.print()
@@ -102,6 +116,7 @@ def you(text, tentative=False):
     if not tentative and last_turn["at"] and (now - last_turn["at"]).total_seconds() > 300:
         console.print()
         console.rule(f"[dim]{now:%H:%M}[/]", style="dim", align="left")     # a gap of more than five minutes
+        publish("rule", f"{now:%H:%M}")
     if not tentative:
         last_turn["at"] = now
     if layout["split"] and console.width >= 50:     # narrower, the right side leaves too little room: the plain line
@@ -119,6 +134,7 @@ def you(text, tentative=False):
         console.print(line, width=width())
     if not tentative:
         log(f"› {text}")
+        publish("you", text)
 
 
 CHARS_PER_SEC = 15              # the pace while a sentence's audio is still arriving; after that its real length is used
@@ -381,6 +397,7 @@ def me_line(sentence, first, live=False, secs=None):
         f.add(sentence)
         console.print(f.render(final=True))
     log(("◆ " if first else "  ") + sentence.strip())
+    publish("me", sentence, first=first)
 
 
 def table(md):
@@ -406,6 +423,7 @@ def block(md, colors=True):
         lines.pop()
     console.print(SegmentLines(lines, new_lines=True))
     log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())   # one entry, indented like the rest
+    publish("block", table(md.strip()) if not md.startswith("```") else md.strip())
 
 
 def choices(md):
@@ -422,6 +440,7 @@ def choices(md):
         t.append(f" {rest}")
         console.print(t, width=width())
     log("\n".join("    " + line for line in md.rstrip().splitlines()).lstrip())
+    publish("block", md.strip())
 
 
 KIND = {"Stop": "done", "Notification": "needs permission", "AskUserQuestion": "asks you to choose", "Reply": "replied"}
@@ -437,10 +456,12 @@ def event(workspace, kind, asked=""):
         line.append(f'  ·  for "{asked[:70]}"', style="dim")
     console.print(line, width=width())
     log(f"▸ {workspace}  {KIND.get(kind, kind)}" + (f'  ·  for "{asked}"' if asked else ""))
+    publish("event", workspace, what=KIND.get(kind, kind.lower()), asked=asked)
 
 
 def rule(title):
     console.rule(f"[dim]{title}[/]", style="dim")
+    publish("rule", title)
 
 
 def tool(name, inp):
@@ -455,22 +476,26 @@ def tool(name, inp):
         what = name.lower()
     console.print(Text(f"  → {what[:70]}", style="dim"), width=width())
     log(f"  → {inp.get('command') or what}"[:300])     # the whole command: the transcript is for looking back
+    publish("tool", what)
 
 
 def setting(text):
     console.print(Text(f"⚙ {text}", style="dim"), width=width())
     log(f"⚙ {text}")
+    publish("note", f"⚙ {text}")
 
 
 def note(text):
     console.print(Text(f"· {text}", style="dim"), width=width())
     log(f"· {text}")
+    publish("note", text)
 
 
 def warn(text):
     line = Text.assemble(("! ", "bold yellow"), (text, "yellow"))
     console.print(line, width=width())
     log(f"! {text}")
+    publish("warn", text)
 
 
 def check(ok, name, hint=""):

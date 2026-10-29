@@ -19,7 +19,7 @@ def run(kind):
                         text = t
         except (OSError, KeyError, ValueError):
             pass
-    msg = {"event": kind, "session": ev.get("session_id"), "surface": os.environ.get("CMUX_SURFACE_ID"),
+    msg = {"event": kind, "session": ev.get("session_id"), "surface": os.environ.get("CMUX_SURFACE_ID") or os.environ.get("BB_THREAD_ID"),
            "kind": ev.get("notification_type"), "message": ev.get("message"), "text": text[-1500:],
            "questions": ev.get("tool_input", {}).get("questions") if kind == "AskUserQuestion" else None}
     try:

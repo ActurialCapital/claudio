@@ -39,7 +39,8 @@ def key_ok(key):
 def setup():
     cfg = config.stored()                    # the global files' own values: what setup writes back
     ui.banner(subtitle="setup · a few questions, then it listens")
-    for name, ok in [("claude", shutil.which("claude")), ("cmux", workspaces() or os.path.exists("/Applications/cmux.app"))]:
+    sessions = ("bb", shutil.which("bb")) if cfg["backend"] == "bb" else ("cmux", workspaces() or os.path.exists("/Applications/cmux.app"))
+    for name, ok in [("claude", shutil.which("claude")), sessions]:
         ui.check(ok, name, "needed; install it and run setup again")
     for _ in range(3):
         hint = " [dim](a key is stored; Enter keeps it)[/]" if cfg["deepgram_api_key"] else " [dim](console.deepgram.com)[/]"
@@ -161,9 +162,15 @@ def doctor():
     if claude:
         v = subprocess.run([claude, "--version"], capture_output=True, text=True).stdout.strip()
         row(v, f"claude version {v}")
-    ws = workspaces()
-    row(ws, "cmux reachable", "is cmux running?")
-    row(cfg["orchestrator"] in ws, f"orchestrator '{cfg['orchestrator']}' is a live workspace", "claudio set orchestrator <title>")
+    if cfg["backend"] == "bb":                # its sessions: bb's threads, by title
+        titles = [w for w, *_ in config.surfaces("bb").values()]
+        row(titles or config.bb_json("project", "list"), "bb reachable", "is bb running? (bb-app start, or open bb)")
+        row(not cfg["orchestrator"] or cfg["orchestrator"] in titles, f"orchestrator '{cfg['orchestrator']}' is a bb thread",
+            "claudio set orchestrator <thread title>")
+    else:
+        ws = workspaces()
+        row(ws, "cmux reachable", "is cmux running?")
+        row(cfg["orchestrator"] in ws, f"orchestrator '{cfg['orchestrator']}' is a live workspace", "claudio set orchestrator <title>")
     row(cfg["deepgram_api_key"], "Deepgram key set", "claudio setup")
     row(cfg["deepgram_api_key"] and key_ok(cfg["deepgram_api_key"]), "Deepgram key accepted", "console.deepgram.com")
     hooks = json.dumps(_settings().get("hooks", {}))

@@ -45,6 +45,7 @@ config.load = fake_load
 config.fetch_elevenlabs = lambda key: (config.ELEVEN.update(alice="British, middle aged, feminine", adam="American, masculine"),
                                        config.ELEVEN_IDS.update(alice="Xb7hH8MSUJpSbSDYk0k2", adam="pNInz6obpgDQGcFmaJgB"))
 config.SOCK = os.path.join(tempfile.mkdtemp(), "s")     # a unix socket path must stay under 104 characters
+config.VIEW = os.path.join(tempfile.mkdtemp(), "v")
 os.makedirs(config.DIR, exist_ok=True)
 NEW = "9F8E7D6C-1111-2222-3333-444455556666"     # a session opened after claudio started: listed from the 2nd look on
 listed = []

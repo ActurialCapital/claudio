@@ -15,24 +15,27 @@ ALLOW = os.path.join(DIR, "allow")       # the older one-rule-per-line file, mov
 HELPER = os.path.join(DIR, "bin", "claudio-audio")
 VOICE_MODELS = os.path.join(DIR, "models")          # the local mouth's Kokoro files, downloaded on first use
 SOCK = os.path.join(DIR, "hook.sock")    # in DIR, mode 700: no other user can listen in, or squat on the name
+VIEW = os.path.join(DIR, "view.sock")    # a front end beside the terminal (the bb panel): the transcript out, typing in
 CMUX = (os.environ.get("CMUX_BUNDLED_CLI_PATH") or shutil.which("cmux")
         or "/Applications/cmux.app/Contents/Resources/bin/cmux")
+BB = shutil.which("bb") or "bb"
+BB_READ = ("thread list", "thread show", "thread output", "thread log", "project list", "provider list")   # bb, read only
 MODELS = ("default", "sonnet", "opus", "haiku")
 EFFORTS = ("low", "medium", "high")
 RANGES = {"eot": (0.0, 1.0), "eager_eot": (0.0, 1.0), "eot_timeout_ms": (100, 10000), "local_speed": (0.5, 2.0)}
 CHOICES = {"model": MODELS, "effort": EFFORTS, "style": ("plain", "brief", "caveman"),
            "narrate": ("handed-off", "all", "none"), "mouth": ("deepgram", "elevenlabs", "local"),
-           "local_model": ("compressed", "full"), "layout": ("inline", "split")}
+           "local_model": ("compressed", "full"), "layout": ("inline", "split"), "backend": ("cmux", "bb")}
 WARNINGS = []                      # bad values seen while loading, for the caller to show
 DEFAULTS = {"orchestrator": "", "model": "default", "effort": "low", "voice": "aura-2-orion-en",
             "ears": "flux-general-en", "eager_eot": 0.3, "eot": 0.7, "eot_timeout_ms": 1500,
             "barge_in": True, "memory": True, "push_to_talk": False, "address_me": False,
             "narrate": "handed-off", "mouth": "deepgram", "style": "plain", "elevenlabs_voice": "pNInz6obpgDQGcFmaJgB",
             "local_voice": "am_michael", "local_speed": 1.0, "local_model": "compressed", "code_colors": True,
-            "layout": "inline", "name": "claudio",
+            "layout": "inline", "name": "claudio", "backend": "cmux",
             "deepgram_api_key": "", "elevenlabs_api_key": ""}
 SECRETS = ("deepgram_api_key", "elevenlabs_api_key")
-HELP = {"orchestrator": "cmux workspace that gets tasks by default",
+HELP = {"orchestrator": "cmux workspace (or bb thread title) that gets tasks by default",
         "model": "the brain's model, through your Claude Code login",
         "effort": "how hard the brain thinks before it answers",
         "voice": "any Deepgram Aura-2 voice: a name such as zeus, or a full model name",
@@ -54,6 +57,7 @@ HELP = {"orchestrator": "cmux workspace that gets tasks by default",
         "code_colors": "highlight code blocks in colour; off shows them as plain text",
         "layout": "inline, or split: your turns on the right, claudio's on the left",
         "name": "what it answers to, and calls itself: one to three words",
+        "backend": "where the sessions are: cmux, or bb (its threads)",
         "deepgram_api_key": "Deepgram key, for ears and the Aura mouth",
         "elevenlabs_api_key": "ElevenLabs key, when mouth is elevenlabs"}
 PROJECT_FILE = ".claudio.json"      # in the project root: keys that override the global ones there
@@ -408,7 +412,9 @@ def rule_for(tool, tool_input, cwd=None):
             or words[:2] == ["claudio", "learn"]           # a rule for every later run: asked, each one
             or words[:3] == ["cmux", "agent", "message"]   # a send: asked, each one, never always
             or words[:2] in (["cmux", w] for w in ("new-workspace", "new-split", "new-surface"))
-            or words[:3] == ["cmux", "workspace", "create"]):
+            or words[:3] == ["cmux", "workspace", "create"]
+            or words[:2] == ["bb", "thread"] and " ".join(words[1:3]) not in BB_READ):
+                                                       # bb: anything past reading sends, queues, forks or grants
         return None, ""                        # VAR=x, sh -c, python -c, cmux new-split --command…: any command at all
     prefix = " ".join(words)
     return f"Bash({prefix}:*)", f"to run `{prefix}`"
@@ -604,8 +610,30 @@ def replies(messages, me, since):
             and str(m.get("sender_surface_id", "")).upper() != me.upper() and m.get("created_at", 0) >= since]
 
 
-def surfaces():
+def parse_threads(threads, projects):
+    """`bb thread list --json`, `bb project list --json` → {thread id: (thread title, project name, path, thread id)},
+    the shape surfaces() gives for cmux: the title is what the user calls it, as a workspace title is in cmux."""
+    names = {p.get("id"): p.get("name") or p.get("id") for p in projects if isinstance(p, dict)}
+    return {t["id"]: (t.get("title") or (t.get("titleFallback") or t["id"])[:40], names.get(t.get("projectId"), ""),
+                      t.get("environmentPath") or "", t["id"])
+            for t in threads if isinstance(t, dict) and t.get("id") and not t.get("archivedAt")}
+
+
+def bb_json(*args):
+    """`bb <args> --json`, a list; [] when bb can't say."""
     import subprocess
+    try:
+        out = json.loads(subprocess.run([BB, *args, "--json"], capture_output=True, text=True, timeout=8).stdout)
+        return out if isinstance(out, list) else []
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return []
+
+
+def surfaces(backend="cmux"):
+    import subprocess
+    if backend == "bb":
+        me = os.environ.get("BB_THREAD_ID", "")             # claudio's own thread, if it runs in one
+        return {k: v for k, v in parse_threads(bb_json("thread", "list"), bb_json("project", "list")).items() if k != me}
     try:
         found = parse_surfaces(subprocess.run([CMUX, "surface", "list"], capture_output=True, text=True, timeout=5).stdout)
     except (OSError, subprocess.TimeoutExpired):

@@ -221,6 +221,9 @@ def state_text():
 
 
 def refresh():
+    if (now := state_text()) != status.get("published"):   # the state, to a panel, only when it changes
+        status["published"] = now
+        ui.publish("state", now, keep=False)
     if status["live"]:
         bar = BARS[min(7, int(status["level"] / 1200))]       # ~0 to 8400 peak over the eight bars
         status["live"].update(f"[cyan]{bar}[/] [dim]{state_text()}[/]"
@@ -228,15 +231,20 @@ def refresh():
         status["live"].renderable.frames = MUTED if status["muted"] else SPIN     # muted: a still square, no spin
 
 
-parse_surfaces, sessions = config.parse_surfaces, config.surfaces
+parse_surfaces = config.parse_surfaces
+sessions = lambda: config.surfaces(cfg.get("backend", "cmux"))   # cmux's sessions, or bb's threads
 SESSION = f"claude --append-system-prompt-file {os.path.join(os.path.dirname(__file__), 'session.md')}"   # sessions it opens take its marker as the user's words
 
 
 def system_prompt():
     lines = [f"- {w}: surface {full} ({t}), in {c}" for sid, (w, t, c, full) in surfaces.items() if w]
+    if cfg.get("backend") == "bb":
+        lines = [f'- "{w}": thread {full}, project {t}, in {c}' for w, t, c, full in surfaces.values()]
     keys = [k for k in config.DEFAULTS if k not in config.SECRETS]
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
+    bb = cfg.get("backend") == "bb"
     persona = (config.persona()
+               .replace("{SESSIONS}", open(os.path.join(os.path.dirname(__file__), f"sessions_{'bb' if bb else 'cmux'}.md")).read().strip())
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
                .replace("{SESSION}", SESSION)
                .replace("{FROM}", "Voice" if cfg["name"].lower() == "claudio" else cfg["name"])   # who relayed it, in the session's inbox
@@ -253,8 +261,9 @@ def system_prompt():
             + "\n\nclaudio's own slash commands, the only ones there are here. The user says \"slash\" and the name "
             + "(or types /name), and claudio runs it before you hear anything; you can't run them:\n" + commands
             + f"\n\nOrchestrator: {cfg['orchestrator'] or 'none set'}.\nYour settings now: {settings}.\n"
-            + "Sessions now (to see one, run cmux read-screen --surface <its id> --lines 60):\n"
-            + (config.layout(surfaces) or "\n".join(lines))
+            + ("Threads in bb now:\n" + ("\n".join(lines) or "none") if bb else
+               "Sessions now:\n"
+               + (config.layout(surfaces) or "\n".join(lines)))
             + (f"\nYour name is {cfg['name']}: the user may call you by it, and you call yourself by it.\n"
                if cfg["name"].lower() != "claudio" else "")
             + "\n\nRules that matter most, last so they stay in mind:\n"
@@ -345,6 +354,8 @@ class Brain:
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
                 "Bash(cmux surface list:*)", "Bash(cmux tree:*)", "Bash(cmux read-screen:*)",
+                *(f"Bash(bb {c}:*)" for c in config.BB_READ),   # bb, read only; anything else under bb thread: asked
+                "Bash(bb thread interactions answer:*)",   # a thread's question, with the option the user chose
                 *(f"Bash(cmux {c} * --command {cmd})" for c in ("workspace create", "new-workspace", "new-split", "new-surface")
                   for cmd in ("claude", f'"{SESSION}"')),   # any other: asked
                 # not cmux agent message: claudio asks the user before each send, a yes or no the brain can't give
@@ -439,11 +450,11 @@ class Brain:
                     ui.tool(c.name, c.input or {})
                 if isinstance(c, ToolUseBlock) and c.name == "Bash":
                     cmd = c.input.get("command", "")
-                    if m_ := re.search(r'cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):
-                        asked = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
-                        to = m_.group(1) or m_.group(2)      # a surface id: the workspace it is in, which events carry
-                        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), to.upper())
-                        self.handoffs[to] = (time.time(), asked[-1] if asked else "")
+                    if s := sent(cmd):       # keyed as events name the session: its workspace, or a bb thread's title
+                        to = s["to"] and next((w for sid, (w, _, _, full) in surfaces.items()
+                                               if s["to"].upper() in (sid.upper(), full.upper())), s["to"].upper())
+                        if to or s["title"]:
+                            self.handoffs[to or s["title"]] = (time.time(), s["words"])
                     if re.search(r"(^|[;&|]\s*)claudio restart\s*$", cmd):
                         status["restart_asked"] = True     # once this reply is said (watch_config)
                     if "claudio set" in cmd or "claudio unlearn" in cmd:
@@ -1055,16 +1066,46 @@ def echoed(answered, ws, kind, now):
     return False
 
 
+SENDS = re.compile(r"\s*(cmux agent message|bb thread (?:tell|message|spawn|create|fork|edit-message|queue create))\b(.*)", re.S)
+QUOTED = r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\''
+
+
+def sent(cmd):
+    """A send in a command: {"to": the session id as typed, or None for a new thread, "title": a new thread's title,
+    "words": what it says}; None when it sends nothing. The words: after --prompt or --message, else a heredoc
+    (--message-file -, --prompt-file -), else the last quoted string, in either quotes."""
+    if not (m := SENDS.match(cmd)):
+        return None
+    verb, rest = m[1], m[2]
+    flag = re.search(rf"--(?:prompt|message)\s+(?:{QUOTED})", rest)
+    heredoc = re.search(r"<<-?\s*['\"]?(\w+)['\"]?\n(.*?)\n\s*\1\b", rest, re.S)
+    quoted = re.findall(QUOTED, rest)
+    words = (flag and (flag[1] or flag[2])) or (heredoc and heredoc[2]) or (quoted and (quoted[-1][0] or quoted[-1][1])) or ""
+    title = re.search(rf"--title\s+(?:{QUOTED}|(\S+))", rest)
+    if verb.startswith("cmux"):
+        to = next((t.strip("\"'") for t in rest.split() if not t.startswith("-")), None)
+    else:
+        to = (re.search(r"\bthr_\w+", rest) or [None])[0]
+    return {"to": to, "title": title and (title[1] or title[2] or title[3]), "words": words}
+
+
+def hello():
+    """What a front end beside the terminal needs to offer what claudio offers: its commands, models and efforts, and
+    the model and effort in use (project file and environment applied). Sent on connect and after a settings change."""
+    return {"kind": "hello", "text": "", "commands": sorted(COMMANDS), "models": list(config.MODELS),
+            "efforts": list(config.EFFORTS), "model": cfg["model"], "effort": cfg["effort"]}
+
+
 def described(tool, tool_input, rule, what):
     """What claudio asks about, as said: "run gh pr create", "open claudio-vert.vercel", never a whole command."""
     if rule and rule.startswith("/"):
         return f"go into the {os.path.basename(rule)} folder"
     cmd = str(tool_input.get("command", "")) if tool == "Bash" else ""
-    if m := re.match(r'\s*cmux agent message\s+(?:"([^"]+)"|(\S+))', cmd):   # a send: what, and to which session
-        to = m[1] or m[2]
-        to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), "a session")
-        said = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
-        words = re.sub(r"^\[spoken by the user, transcribed by claudio\]\s*", "", said[-1] if said else "").split()
+    if s := sent(cmd):                         # a send: what, and to which session
+        to = s["to"] and next((w for sid, (w, _, _, full) in surfaces.items() if s["to"].upper() in (sid.upper(), full.upper())),
+                              "a session")
+        to = to or "a new thread"
+        words = re.sub(r"^\[spoken by the user, transcribed by claudio\]\s*", "", s["words"]).split()
         if len(words) > 25:                    # too long to hear: its start, the rest is on screen ("read it all" asks)
             return f'send "{" ".join(words[:12])}…" and {len(words) - 12} more words to {to}'
         return f'send "{" ".join(words)}" to {to}' if words else f"send a message to {to}"
@@ -1073,7 +1114,8 @@ def described(tool, tool_input, rule, what):
     if tool == "Bash":
         cmd = str(tool_input.get("command", ""))
         site = ui.URL.search(cmd)
-        words = [w for w in cmd.split() if re.fullmatch(r"[a-z][\w.-]*", w)][:2]
+        words = [w for w in cmd.split() if re.fullmatch(r"[a-z][\w.-]*", w)]
+        words = words[:3] if words[:2] == ["bb", "thread"] else words[:2]   # "run `bb thread queue`", not "bb thread"
         if words[:1] == ["open"] and site:
             return f"open {site[1].rsplit('.', 1)[0]}"
         return f"run `{' '.join(words) or 'a command'}`" + (f" for {site[1].rsplit('.', 1)[0]}" if site else "")
@@ -1326,8 +1368,12 @@ async def main():
         return None
 
     async def press(surface, keys, meant):
-        """Answer a session's permission prompt by typing in its pane, only while that same prompt still shows."""
+        """Answer a session's permission prompt: in cmux by typing in its pane, only while that same prompt still
+        shows; in bb by its interaction id (keys hold the bb thread interactions verb for each answer)."""
         def go():
+            if surface.startswith("thr_"):
+                return subprocess.run([config.BB, "thread", "interactions", *keys[meant], surface],
+                                      capture_output=True, timeout=8).returncode == 0
             if config.permission_keys(pane(surface, 18)) != keys:
                 return False
             how = ["send-key", "escape"] if meant == "no" else ["send", keys[meant]]   # a digit is text to cmux, not a key
@@ -1539,10 +1585,11 @@ async def main():
             return
         if ev.get("session") == brain.session_id:
             return
-        sid = (ev.get("surface") or "")[:8]
-        if sid and sid not in surfaces:          # none: a session outside cmux, never one of ours
-            surfaces = await loop.run_in_executor(None, sessions)   # one that appeared after we started; cmux can take seconds
-        ws, *_, full = surfaces.get(sid, (None, None, None, sid))     # full: the id cmux takes
+        sid = ev.get("surface") or ""
+        sid = sid if sid.startswith("thr_") else sid[:8]   # a bb thread id whole; a cmux surface by its first 8
+        if sid and sid not in surfaces:          # none: a session outside cmux or bb, never one of ours
+            surfaces = await loop.run_in_executor(None, sessions)   # one that appeared after we started; it can take seconds
+        ws, *_, full = surfaces.get(sid, (None, None, None, sid))     # full: the id cmux or bb takes
         if not ws:
             return
         if status["muted"]:
@@ -1559,24 +1606,32 @@ async def main():
                 brain.handoffs.pop(k, None)
             text = (f"[event] {ws} finished a turn on your request \"{asked}\". Its last message:\n{ev['text']}" if handed
                     else f"[event] {ws} finished a turn. Its last message:\n{ev['text']}")
+        elif ev["event"] in ("Notification", "AskUserQuestion") and sid.startswith("thr_"):
+            return                             # a bb thread's prompts and questions come from bb_watch, with their ids
         elif ev["event"] == "Notification" and ev.get("kind") == "permission_prompt":
             screen = await loop.run_in_executor(None, pane, full, 18)
-            keys = config.permission_keys(screen)
-            ours = keys and not pending["future"] and (not pending["rule"] or pending["press"])   # not over another question
-            text = (f"[event] {ws} asks for permission: {ev.get('message')}\nIts screen shows:\n{screen}\n"
-                    + ("Claudio asks the user yes or no right after you." if ours else "The user answers on its keyboard."))
+            return permission(ws, full, ev.get("message"), screen, config.permission_keys(screen))
         elif ev["event"] == "AskUserQuestion" and ev.get("questions"):
             text = f"[event] {ws} (surface {full}) asks you to choose:\n{json.dumps(ev['questions'])}"
         else:
             return
         ui.event(ws, ev["event"], asked if ev["event"] == "Stop" else "")
-        if ev["event"] == "Notification" and ours:   # its prompt as the pane shows it, not as the brain sums it up
-            ui.block("```\n" + "\n".join(l.rstrip() for l in screen.splitlines() if l.strip()) + "\n```", colors=False)
         start(text, committed=True, event=True)
-        if ev["event"] == "Notification" and ours:   # then claudio asks, and types the answer into that pane
+
+    def permission(ws, sid, message, shown, keys):
+        """A session's permission prompt: narrated, then claudio asks yes or no and answers it (press) when it can and
+        is free; keys: what each answer does there, or None (then the user answers in that session)."""
+        ours = keys and not pending["future"] and (not pending["rule"] or pending["press"])   # not over another question
+        ui.event(ws, "Notification")
+        if ours:                           # the prompt as the session shows it, not as the brain sums it up
+            ui.block("```\n" + "\n".join(l.rstrip() for l in shown.splitlines() if l.strip()) + "\n```", colors=False)
+        start(f"[event] {ws} asks for permission: {message}\nIts screen shows:\n{shown}\n"
+              + ("Claudio asks the user yes or no right after you." if ours else "The user answers in that session."),
+              committed=True, event=True)
+        if ours:
             ask = f"Allow it for {ws}?"
             options = "- **1** Yes\n" + ("- **2** Always\n- **3** No" if "always" in keys else "- **2** No")
-            pending.update(rule=f"{ws}'s permission", ask=ask, options=options, ready=False, press=(full, keys, time.time()))
+            pending.update(rule=f"{ws}'s permission", ask=ask, options=options, ready=False, press=(sid, keys, time.time()))
             start(ask, committed=True, event=True, fixed=True)
 
     def flux_url():
@@ -1658,6 +1713,7 @@ async def main():
                              if k not in config.SECRETS and new[k] != last[k])    # not cfg: a slash voice set it early
             cfg, last = new, dict(new)
             ui.layout["split"] = cfg["layout"] == "split"
+            ui.publish(**hello(), keep=False)      # the panel's model chip and lists follow
             if diff or restart:
                 ui.setting(f"{diff or 'settings reloaded'}{'  ·  brain restarting' if restart else ''}")
             if re_ear and ears["ws"]:
@@ -1853,17 +1909,7 @@ async def main():
     async def keys():
         typed = ""
         while chunk := await lines.get():
-            asking = pending["ready"] and (pending["future"] or pending["rule"])
-            pick = dict(re.findall(r"\*\*(\d)\*\* (\w+)", pending["options"])) if asking else {}
-            if not typed and chunk.strip() in pick:     # 1, 2 or 3: that answer, at once
-                said = pick[chunk.strip()].lower()
-                ui.you(said)
-                if pending["future"]:
-                    if not pending["future"].done():
-                        pending["future"].set_result(said)
-                elif note := answer(said):
-                    ui.note(note)
-                    cut(None)
+            if not typed and picked(chunk):
                 continue
             for ch in chunk:
                 if ch in "\r\n":
@@ -1878,8 +1924,26 @@ async def main():
             status["typed"] = typed           # keys unechoed: shown on the state line
             refresh()
 
+    def picked(text):
+        """1, 2 or 3 while claudio asks: that answer, at once; a key here, a line from the panel."""
+        asking = pending["ready"] and (pending["future"] or pending["rule"])
+        pick = dict(re.findall(r"\*\*(\d)\*\* (\w+)", pending["options"])) if asking else {}
+        if text.strip() not in pick:
+            return False
+        said = pick[text.strip()].lower()
+        ui.you(said)
+        if pending["future"]:
+            if not pending["future"].done():
+                pending["future"].set_result(said)
+        elif note := answer(said):
+            ui.note(note)
+            cut(None)
+        return True
+
     def on_line(typed):
-        if typed.startswith("/") and slash("slash " + typed[1:].lower()):
+        if picked(typed):
+            pass
+        elif typed.startswith("/") and slash("slash " + typed[1:].lower()):
             pass
         elif typed and pending["future"]:   # typed, it answers the question at once
             ui.you(typed)
@@ -1918,7 +1982,11 @@ async def main():
             return ""
 
     def orchestrator_state():
-        """What the orchestrator's pane shows: working, waiting on you, or idle."""
+        """What the orchestrator's pane shows (in bb: its thread's state): working, waiting on you, or idle."""
+        if cfg.get("backend") == "bb":
+            t = next((t for t in bb_threads.values() if t.get("title") == cfg["orchestrator"]), None)
+            return "" if not t else "waiting on you" if t.get("hasPendingInteraction") else (
+                "idle" if t.get("status") == "idle" else "working")
         sid = next((full for w, _, _, full in surfaces.values() if w == cfg["orchestrator"]), None)
         if not sid:
             return ""
@@ -1962,6 +2030,45 @@ async def main():
                 start(f"[event] {m.get('sender_name') or 'A session'} replied to your message:\n{m.get('body', '')}",
                       committed=True, event=True)
 
+    bb_threads = {}                        # bb: the threads as last listed, for the orchestrator's glance
+    asked_bb = set()                       # bb interactions already read out, pushed or polled
+
+    def bb_interaction(tid, title, it):
+        """A bb thread's pending interaction, pushed by the plugin or found by bb_watch: its question read out, or its
+        permission prompt read out and asked about (bb answers it by id, not by keys). Once each."""
+        if (cfg.get("backend") != "bb" or not isinstance(it, dict) or it.get("id") in asked_bb or it.get("resolution")
+                or it.get("status") == "resolving"):
+            return
+        asked_bb.add(it["id"])
+        if status["muted"] or cfg["narrate"] == "none":
+            return                             # as for cmux's: muted, nothing spoken
+        ws, p = title or tid, it.get("payload") or {}
+        if p.get("questions"):
+            ui.event(ws, "AskUserQuestion")
+            start(f"[event] {ws} (thread {tid}, interaction {it['id']}) asks you to choose:\n{json.dumps(p['questions'])}",
+                  committed=True, event=True)
+        elif subject := p.get("subject"):
+            yes = ["grant", it["id"]] if subject.get("kind") == "permission_grant" else ["approve", it["id"]]
+            keys = {"yes": yes, "no": ["deny", it["id"]],
+                    **({"always": ["grant", it["id"], "--scope", "session"]}
+                       if any("session" in str(d) for d in p.get("availableDecisions") or []) else {})}
+            shown = "\n".join(f"{k}: {v}" for k, v in subject.items()   # what it asks, not bb's own ids
+                               if isinstance(v, (str, int)) and k != "kind" and not k.lower().endswith("id"))
+            permission(ws, tid, p.get("reason") or subject.get("kind", "a request"), shown, keys)
+
+    async def bb_watch():
+        """bb: the threads' states, for orchestrator_state, every 3 s; and their pending interactions, unless the plugin
+        pushes them (status["bb_push"]): then they come at once through the view socket instead."""
+        while cfg.get("backend") == "bb":
+            await asyncio.sleep(3)
+            threads = await loop.run_in_executor(None, config.bb_json, "thread", "list")
+            bb_threads.clear()
+            bb_threads.update({t["id"]: t for t in threads if isinstance(t, dict) and t.get("id")})
+            for t in [] if status.get("bb_push") else bb_threads.values():
+                if t.get("hasPendingInteraction"):
+                    for it in await loop.run_in_executor(None, config.bb_json, "thread", "interactions", "list", t["id"]):
+                        bb_interaction(t["id"], t.get("title"), it)
+
     async def orchestrator_watch():        # every 5 s, a glance at the orchestrator's pane; a nudge when it waits
         waiting_since, nudged = None, False
         while True:
@@ -1978,6 +2085,37 @@ async def main():
     if os.path.exists(config.SOCK):
         os.unlink(config.SOCK)
     server = await asyncio.start_unix_server(on_event, config.SOCK)
+
+    async def on_view(reader, writer):
+        """A front end beside the terminal (the bb panel): every entry as a JSON line, what came before first, then the
+        state; a {"say": …} line from it is typed, as at the keyboard."""
+        send = lambda ev: writer.write((json.dumps(ev) + "\n").encode())
+        send(hello())
+        pushing = False                        # this front end pushes bb's interactions: no polling for them meanwhile
+        for ev in ui.feed:
+            send(ev)
+        send({"kind": "state", "text": state_text()})
+        ui.listeners.add(send)
+        try:
+            while line := await reader.readline():
+                with contextlib.suppress(ValueError, AttributeError):
+                    if "say" in (msg := json.loads(line)):
+                        on_line(str(msg["say"]).strip())   # an empty line too: it cuts, or opens a push-to-talk mic
+                    if msg.get("push"):
+                        pushing = status["bb_push"] = True
+                    if it := msg.get("interaction"):
+                        bb_interaction(it.get("threadId"), it.get("title"), it)
+        except (ConnectionError, OSError):
+            pass                               # the panel went while a line was on its way: it just left
+        finally:
+            ui.listeners.discard(send)
+            if pushing:
+                status["bb_push"] = False          # gone: bb_watch polls again
+            writer.close()
+
+    if os.path.exists(config.VIEW):
+        os.unlink(config.VIEW)
+    view = await asyncio.start_unix_server(on_view, config.VIEW)
     refresh()                                  # warming up becomes listening, on the same line
     async def greet():
         """So you hear it's up, and the voice works; once the mic is: opening it switches Bluetooth headphones
@@ -1988,7 +2126,7 @@ async def main():
               committed=True, fixed=True)
     if not typed:
         asyncio.create_task(greet())
-    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch()]
+    tasks = [send_mic(), listen_forever(), keys(), watch_config(), brain_watch(), tick(), orchestrator_watch(), inbox_watch(), bb_watch()]
     if not aec:
         tasks.append(shower())
     work = {"task": None}
@@ -2062,6 +2200,7 @@ async def main():
         console.print(end="")                  # settle any fading line before the live area goes
         status["live"].stop()
         server.close()
+        view.close()
         for st in fallback_streams["streams"] or ():
             with contextlib.suppress(Exception):
                 st.stop(); st.close()          # or the mic callback fires after the loop is gone

@@ -122,13 +122,13 @@ flowchart LR
 
 ## 🎛️ Settings
 
-`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it holds your additions to the persona; write freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` commands, asking you before each send to a session; for anything more, answer when claudio asks (yes, always or no; the command waits), or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `settings.json`, such as `{"permissions": {"allow": ["Bash(gh:*)"]}}`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it. To drop every check for one run, start `claudio --dangerously-skip-permissions`, or say "slash permissions skip" and then yes.
+`~/.config/claudio/config.json`, written by setup and by voice; the keys live apart in `secrets.json` (mode 600), which the brain is not allowed to read. `prompt.md` beside it holds your additions to the persona; write freely. The brain reads files, `git`, `gh` issues and pull requests, and runs a few `cmux` (or `bb`) commands, asking you before each send to a session; for anything more, answer when claudio asks (yes, always or no; the command waits), or add [permission rules](https://code.claude.com/docs/en/settings#permission-settings) to `settings.json`, such as `{"permissions": {"allow": ["Bash(gh:*)"]}}`. It gets none of your Claude Code MCP servers; list any it should have in `mcp.json`. Saving either file restarts the brain with it. To drop every check for one run, start `claudio --dangerously-skip-permissions`, or say "slash permissions skip" and then yes.
 
 The persona carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words, "is" not "serves as", no forced triads, no inflated significance, at most one hedge, no chatbot wrapper, stop on the last fact. The `style` setting, plain, brief or caveman, switchable mid-session by voice, follows [claudish-to-english](https://github.com/gvzdv/claudish-to-english)'s idea of presets you can flip without touching the prompt.
 
 | key | default | |
 |---|---|---|
-| `orchestrator` | | cmux workspace that gets tasks by default |
+| `orchestrator` | | cmux workspace (or bb thread title) that gets tasks by default |
 | `model` · `effort` | `default` · `low` | `default`, `sonnet`, `opus`, `haiku` · `low`, `medium`, `high`, through your Claude Code login |
 | `voice` | `aura-2-orion-en` | any Deepgram Aura-2 voice; by voice, a name or what it sounds like |
 | `style` | `plain` | `plain`, `brief` (one sentence), `caveman` |
@@ -142,6 +142,7 @@ The persona carries rules that keep the voice human, adapted for speech from [hu
 | `code_colors` | `true` | highlight code blocks in colour; off shows them as plain text |
 | `name` | `claudio` | what it answers to and calls itself, one to three words; the ears listen for it |
 | `layout` | `inline` | or `split`: your turns on the right, claudio's on the left; plain lines under 50 columns |
+| `backend` | `cmux` | where the sessions are: `cmux`, or `bb` (its threads); the [bb plugin](bb-plugin-claudio) runs claudio with `bb` |
 | `mouth` | `deepgram` | or `elevenlabs`: put the key in `secrets.json` as `elevenlabs_api_key` or export `ELEVENLABS_API_KEY`; `elevenlabs_voice` is a voice id; or `local`, Kokoro on this Mac with no key: `brew install espeak-ng`, install `claudio[local]`, pick `local_voice`, `local_speed`, and `local_model` (`compressed`, the default and about twice as fast, or `full`) |
 
 `claudio doctor` checks everything and runs one typed turn · `claudio forget` resets memory · `claudio learn <rule>` keeps a correction for good (the brain runs it when you correct it, once you say yes) · `claudio unlearn <words>` drops the one learned rule with those words · `claudio set <key> <value>` changes one setting · `CLAUDIO_<KEY>=…` overrides one run
