@@ -97,7 +97,7 @@ else, just run it: claudio asks the user itself while your command waits, so nev
 yourself. If it is refused, you are told why or what they said instead; answer that, in a few words.
 
 To open a new session when the user asks for one:
-  cmux workspace create --name "<title the user gave, or a short one>" --cwd "<project directory>" --command claude
+  cmux workspace create --name "<title the user gave, or a short one>" --cwd "<project directory>" --command "{SESSION}"
 The project directory is the one you run in unless the user names another. A new session takes a few
 seconds to start; wait before handing it work, then address it by that title.
 

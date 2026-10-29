@@ -229,6 +229,7 @@ def refresh():
 
 
 parse_surfaces, sessions = config.parse_surfaces, config.surfaces
+SESSION = f"claude --append-system-prompt-file {os.path.join(os.path.dirname(__file__), 'session.md')}"   # sessions it opens take its marker as the user's words
 
 
 def system_prompt():
@@ -237,6 +238,7 @@ def system_prompt():
     settings = ", ".join(f"{k}={cfg[k]}" for k in keys)
     persona = (config.persona()
                .replace("{TRANSCRIPTS}", ui.TRANSCRIPTS)
+               .replace("{SESSION}", SESSION)
                .replace("{FROM}", "Voice" if cfg["name"].lower() == "claudio" else cfg["name"])   # who relayed it, in the session's inbox
                .replace("{KEYS}", ", ".join(f"{k} ({'|'.join(config.CHOICES[k])})" if k in config.CHOICES else k
                                             for k in keys)))
@@ -343,7 +345,8 @@ class Brain:
                 "Bash(gh issue view:*)", "Bash(gh issue list:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",   # GitHub, read only
                 "Bash(gh pr diff:*)", "Bash(gh pr checks:*)", "Bash(gh repo view:*)", "Bash(gh repo list:*)", "Bash(gh search:*)",
                 "Bash(cmux surface list:*)", "Bash(cmux tree:*)", "Bash(cmux read-screen:*)",
-                *(f"Bash(cmux {c} * --command claude)" for c in ("workspace create", "new-workspace", "new-split", "new-surface")),   # any other: asked
+                *(f"Bash(cmux {c} * --command {cmd})" for c in ("workspace create", "new-workspace", "new-split", "new-surface")
+                  for cmd in ("claude", f'"{SESSION}"')),   # any other: asked
                 # not cmux agent message: claudio asks the user before each send, a yes or no the brain can't give
                 "Bash(claudio choose:*)",          # to pick the option the user chose in a session's question
                 "Bash(claudio set:*)", "Bash(claudio unlearn:*)", "Bash(claudio restart)",   # not learn: a rule for every later run is asked
