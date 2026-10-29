@@ -1,33 +1,40 @@
 ---
-title: claudio in bb
-description: Run claudio as a panel in bb, with your bb threads as its sessions.
+title: bb
+description: Your sessions as bb threads, and claudio as a panel beside them or in a terminal.
 ---
 
-[bb](https://getbb.app) is an app for coding agents, where each session is a **thread**: one agent on one task, in a project. The claudio plugin for bb starts claudio in the background and shows it as a **claudio** tab in every thread's right panel. It's the same claudio as in a cmux pane, with the same ears, brain, voice, rules and settings. Only its sessions change: they're your bb threads.
+[bb](https://getbb.app) is an app for coding agents, where each session is a **thread**: one agent on one task, in a project. bb plays two roles for claudio, and you can use either one alone:
+
+- **bb threads are a sessions backend.** With `backend` set to `bb`, your threads are claudio's sessions, whichever front end you use
+- **The bb panel is a front end.** The claudio plugin for bb starts claudio in the background and shows it as a **claudio** tab in every thread's right panel, instead of a terminal
+
+Either way it's the same claudio, with the same ears, brain, voice, rules and settings. See [Platforms](/docs/platforms) for how the choices combine.
 
 ## Install it
 
 <Steps>
 <Step>
 
-### Set up claudio first
+### Make bb threads your sessions
 
 [Install claudio](/docs/guide/getting-started) and run `claudio setup` once in a terminal, for your Deepgram key, a voice and the hooks. The hooks matter here too: a thread reports a finished task through them.
 
-To have setup check for bb instead of cmux and list bb's threads, run `claudio set backend bb` before it; setup then asks which thread is the orchestrator. To change it later, by its thread title:
+Run `claudio set backend bb`, then `claudio setup`, so it checks for bb and lists bb's threads (setting it counts as a first run: `claudio` alone would skip setup); setup then asks which thread is the orchestrator. To change it later, by its thread title:
 
 ```bash
 claudio set orchestrator "Release prep"
 ```
 
-That saves `backend` for every claudio you start. To use claudio in cmux again, run `claudio set backend cmux`.
+That saves `backend` for every claudio you start. To use [cmux](/docs/platforms/cmux) sessions again, run `claudio set backend cmux`.
+
+This step is all a claudio in a terminal needs to work your bb threads. The next two add the bb panel.
 
 </Step>
 <Step>
 
 ### Install the plugin
 
-With bb installed, from the claudio repository:
+For the panel, with bb installed, from the claudio repository:
 
 ```bash
 cd bb-plugin-claudio
@@ -35,7 +42,7 @@ npm install
 bb plugin install .
 ```
 
-The plugin starts claudio with `backend` set to `bb`, whatever your saved setting.
+The plugin starts claudio with `backend` set to `bb`, whatever your saved setting. How the plugin works, and how to work on it: [`bb-plugin-claudio`](https://github.com/ActurialCapital/claudio/tree/main/bb-plugin-claudio).
 
 </Step>
 <Step>
@@ -56,11 +63,13 @@ bb plugin reload claudio
 Run one claudio at a time. One started by the plugin and one in a terminal would fight over the microphone and claudio's sockets.
 </Callout>
 
-## Find the panel
+## The bb panel
+
+### Find the panel
 
 Open any thread and look in its right panel, the one <kbd>⌘</kbd>+<kbd>J</kbd> opens, beside bb's own tabs. The **claudio** tab is the same chat whichever thread is open.
 
-## Read the panel
+### Read the panel
 
 The panel shows what claudio's terminal shows, as a chat:
 
@@ -71,13 +80,13 @@ The panel shows what claudio's terminal shows, as a chat:
 
 The header shows claudio's sun, its name and what it's doing. The dot on the sun is green while it listens, blue while it speaks, amber otherwise (thinking, muted, warming up), and red when it isn't running.
 
-## Start, restart and stop it
+### Start, restart and stop it
 
 Click the sun to start claudio, or to restart it when it's running (unless the plugin's `command` is empty: then start claudio yourself).
 
 claudio never restarts on its own. After `/exit`, "slash exit" or a crash it stays off until you click the sun. To turn the plugin off altogether, run `bb plugin disable claudio`.
 
-## Type to it
+### Type to it
 
 Talking works as in a terminal. The composer at the bottom is for typing, and a line typed there is a line typed at claudio's keyboard:
 
@@ -93,13 +102,13 @@ A message that couldn't be sent stays in the composer, with a red note saying wh
 
 ## Work with threads
 
-The plugin's claudio runs in your home folder, not in a project: name the project or repo when you ask it about files or GitHub.
+The plugin's claudio runs in your home folder, not in a project: name the project or repo when you ask it about files or GitHub. A claudio you start in a terminal runs in the directory you start it from, as usual.
 
-Everything on [Sessions and handoff](/docs/guide/sessions) holds, with threads for panes:
+Everything on [Sessions and handoff](/docs/guide/sessions) holds, with threads as the sessions:
 
 - **The orchestrator** is a thread, named by its title
 - **Hand over**: the brain sends your words to the thread with `bb thread tell`, starting with the same marker. claudio asks “May I send … to Release prep?” every time, and there's no “always”
-- **Open**: "start a thread for the export screen" opens one with `bb thread spawn`, with your task as its first message. It's asked about too, like a send. It goes in the project you name, otherwise in the orchestrator thread's project; with neither, claudio asks which
+- **Open**: "start a thread for the export screen" opens one with `bb thread spawn`, with your task as its first message, running Claude Code unless you ask for another agent bb offers, such as Codex or Cursor. It's asked about too, like a send. It goes in the project you name, otherwise in the orchestrator thread's project; with neither, claudio asks which
 - **Check on one**: "what's Release prep doing?" reads its last answer or what it has been doing, without asking you
 - **Finished work**: a thread you handed work to, or opened, is narrated when it finishes
 

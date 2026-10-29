@@ -1,0 +1,44 @@
+---
+title: Platforms
+description: Where your sessions live, and where you see and type to claudio.
+---
+
+claudio's core is the same everywhere: the ears, the brain, the mouth, its rules, and its safety, asking before every send and reading out permission prompts for you to answer by voice. Around that core you make two choices, and each has interchangeable platforms.
+
+## Where your sessions live
+
+The `backend` setting says where the sessions claudio hands work to are:
+
+| `backend` | A session is | The orchestrator is |
+|---|---|---|
+| [`bb`](/docs/platforms/bb) | a bb thread: one agent (Claude Code, Codex, Cursor…) on one task, in a project | a thread's title |
+| [`cmux`](/docs/platforms/cmux), the default | a Claude Code session in a cmux pane | a workspace's title |
+
+Change it with `claudio set backend bb` or `claudio set backend cmux`, or for one run with `CLAUDIO_BACKEND=bb`. Setup and the doctor check the platform `backend` names.
+
+## Where you see and type to claudio
+
+The front end is claudio's screen: the transcript, the state line, and a place to type.
+
+| Front end | What it is |
+|---|---|
+| A terminal | claudio's own screen, in any terminal you start `claudio` from |
+| [The bb panel](/docs/platforms/bb#the-bb-panel) | a **claudio** tab in every bb thread's right panel, from the claudio plugin for bb |
+
+The two choices are independent, except that the bb panel always runs claudio with `backend` set to `bb`. Today's combinations:
+
+| Front end | Sessions | Start with |
+|---|---|---|
+| a terminal | cmux panes | [cmux](/docs/platforms/cmux) |
+| a terminal | bb threads | [bb](/docs/platforms/bb), first step only |
+| the bb panel | bb threads | [bb](/docs/platforms/bb) |
+
+## Pick one
+
+- If your sessions already run in one of these apps, use that one as the backend
+- If you want claudio beside your sessions rather than in a terminal of its own, use bb and its panel
+- Run one claudio at a time, whichever front end: two would fight over the microphone and claudio's sockets
+
+## Build a new front end
+
+Nothing in claudio is tied to one front end. A front end beside the terminal, such as an editor extension, connects to `~/.config/claudio/view.sock`: claudio publishes every transcript entry and its state there, and a line sent back is typed input. The bb panel is built this way. [Front ends](/docs/reference/front-ends) has the protocol.

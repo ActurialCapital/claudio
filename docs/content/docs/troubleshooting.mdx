@@ -21,7 +21,7 @@ If `claudio` stops at start with `ModuleNotFoundError` after an update, a newer 
 
 Look at the state line under the transcript:
 
-- **The level bar stays flat**: macOS has not given your terminal the microphone. Open System Settings, then Privacy & Security, then Microphone, and turn it on for cmux or the terminal you run claudio in. Restart claudio.
+- **The level bar stays flat**: macOS has not given claudio the microphone. Open System Settings, then Privacy & Security, then Microphone, and turn it on for the app claudio runs in: your terminal app, or bb when its panel starts claudio. Restart claudio.
 - **It reads `muted · say /unmute`**: say “slash unmute”, or type `/unmute`.
 - **It reads `push to talk · Enter opens the mic`**: press <kbd>Enter</kbd> before you talk, or turn push to talk off with `claudio set push_to_talk false`.
 - **Your words show dim**: `address_me` is on, so only turns that start with its name count (“claudio”, or the `name` you gave it). Say the name and “slash address me off”, or run `claudio set address_me false`.
@@ -156,9 +156,10 @@ Check, in order:
 
 1. **The hooks are not installed.** `claudio doctor` shows it. Run `claudio install`.
 2. **The session started before the hooks.** A session loads its hooks when it starts. Restart it.
-3. **It is not in cmux.** claudio only hears from sessions in a cmux workspace, or from bb threads when `backend` is `bb`.
-4. **You did not hand it the work.** With `narrate` set to `handed-off`, the default, only finishes of work the brain handed over in the last 30 minutes are narrated. `claudio set narrate all` narrates every finish.
-5. **You are muted, or `narrate` is `none`.** Say “slash unmute”, or run `claudio set narrate handed-off`.
+3. **It is not on your sessions platform.** claudio only hears from sessions on the platform `backend` names: cmux panes, or bb threads.
+4. **It isn't a Claude Code session.** Finished turns come from Claude Code hooks, so a session running another agent doesn't report them.
+5. **You did not hand it the work.** With `narrate` set to `handed-off`, the default, only finishes of work the brain handed over in the last 30 minutes are narrated. `claudio set narrate all` narrates every finish.
+6. **You are muted, or `narrate` is `none`.** Say “slash unmute”, or run `claudio set narrate handed-off`.
 
 </Accordion>
 <Accordion title="It sends work to the wrong session" id="wrong-session">
@@ -172,9 +173,23 @@ claudio set orchestrator Core
 A change from the shell reaches the brain at its next restart, so tell it, or restart claudio. A `.claudio.json` in the project may also be setting `orchestrator`, and it wins over `claudio set`.
 
 </Accordion>
+<Accordion title="A session's prompt or question wasn't read out" id="prompt-not-read">
+
+Check, in order:
+
+1. **You are muted, or `narrate` is `none`.** Say “slash unmute”, or run `claudio set narrate handed-off`.
+2. **claudio was already asking you something.** Each prompt is read out once. When claudio is already asking you something, it reads the new one out but leaves you to answer it in the session.
+3. **`backend` names the other platform.** claudio reads out sessions only on the platform `backend` names. To switch, run `claudio set backend bb` (or `cmux`) and restart claudio; the bb plugin sets `bb` for the claudio it starts.
+
+Then, on your platform:
+
+- **cmux**: prompts and questions come from the Claude Code hooks, so check them as for [a session that never reports back](#no-reports).
+- **bb**: `CLAUDIO_BACKEND=bb claudio doctor` checks that bb is reachable. Without the plugin, claudio checks bb every 3 seconds, so a prompt can take that long.
+
+</Accordion>
 </Accordions>
 
-## bb
+## The bb panel
 
 <Accordions type="multiple">
 <Accordion title="The claudio panel doesn't show, or says not running" id="bb-panel">
@@ -186,19 +201,7 @@ Check, in order:
 3. **claudio exits at start.** Read `~/.config/claudio/bb.log`, where the claudio the plugin started writes its screen, and follow the plugin's own log with `bb plugin logs claudio -f`.
 4. **Another claudio is running.** Run one claudio at a time: one in a terminal and the plugin's would fight over the mic and the sockets. Quit the terminal one, then click the sun.
 
-[claudio in bb](/docs/guide/bb) covers the plugin and its `command` setting.
-
-</Accordion>
-<Accordion title="A bb thread's prompt or question wasn't read out" id="bb-prompt-not-read">
-
-Check, in order:
-
-1. **`backend` isn't `bb`.** claudio reads out bb threads only with `backend` set to `bb`. The plugin sets it for the claudio it starts; for one in a terminal, run `claudio set backend bb` and restart claudio.
-2. **You are muted, or `narrate` is `none`.** Say “slash unmute”, or run `claudio set narrate handed-off`.
-3. **bb isn't reachable.** `CLAUDIO_BACKEND=bb claudio doctor` checks it.
-4. **Without the plugin**, claudio checks bb every 3 seconds, so a prompt can take that long.
-
-Each prompt is read out once. When claudio is already asking you something, it reads the new one out but leaves you to answer it in bb.
+[bb](/docs/platforms/bb) covers the plugin and its `command` setting.
 
 </Accordion>
 </Accordions>

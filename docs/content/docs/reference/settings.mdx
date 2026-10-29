@@ -11,6 +11,8 @@ Set any of these with `claudio set <key> <value>`, in a project's `.claudio.json
 
 <Settings />
 
+`backend` picks where your sessions live, and with it what `orchestrator` names: a cmux workspace's title or a bb thread's title. [Platforms](/docs/platforms) compares them.
+
 ## API keys
 
 The keys live in `secrets.json`, readable only by you. A key put in `config.json` is moved to `secrets.json`, and one in a project's `.claudio.json` is ignored. The brain may not read `secrets.json`, and the settings it is shown leave the keys out.

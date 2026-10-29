@@ -79,4 +79,9 @@ Work the brain hands to a session starts with this marker, so the session knows 
 [spoken by the user, transcribed by claudio]
 ```
 
-The message goes through `cmux agent message` with `--from Voice`, or `--from` its [name](/docs/configure/listening#rooms-with-other-people) when you gave it one, so the session's inbox shows who relayed it. With `backend` set to `bb`, it goes through `bb thread tell` to the thread, or starts a new thread's first message through `bb thread spawn`.
+How the message travels depends on where your sessions live:
+
+| `backend` | The message goes through |
+|---|---|
+| `bb` | `bb thread tell` to the thread, or `bb thread spawn` as a new thread's first message |
+| `cmux` | `cmux agent message` with `--from Voice`, or `--from` its [name](/docs/configure/listening#rooms-with-other-people) when you gave it one, so the session's inbox shows who relayed it |

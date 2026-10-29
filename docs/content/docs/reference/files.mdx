@@ -19,8 +19,8 @@ claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio`
 | `brain.log` | the brain's error output, appended across runs |
 | `helper.log` | the echo canceller's error output, rewritten each run |
 | `bin/claudio-audio` | the echo canceller, built once from `audio.swift`, and rebuilt when that file is newer |
-| `bb.log` | with the [bb plugin](/docs/guide/bb): the screen of the claudio it started, rewritten each start |
-| `attachments/` | with the bb plugin: files you attached in its panel, which claudio can read |
+| `bb.log` | bb's panel only: the screen of the claudio the [bb plugin](/docs/platforms/bb) started, rewritten each start |
+| `attachments/` | bb's panel only: files you attached in it, which claudio can read |
 
 The `session` file is used only when `memory` is on and it is less than a week old. `claudio forget` and “slash clear” delete it. A key left in `config.json` by an older version is moved to `secrets.json` the next time the settings are read.
 
@@ -32,7 +32,7 @@ claudio also uses these paths:
 | `~/.claude/settings.json` | where `claudio install` adds the hooks |
 | `settings.json.bak-claudio` | the copy taken before each install or uninstall, next to the real `settings.json` behind any symlink |
 | `hook.sock` | the socket the hooks report to, present only while claudio runs; the folder is yours only (mode 700) |
-| `view.sock` | the socket a front end beside the terminal, such as the bb panel, reads: every transcript entry and claudio's state; a line it sends back is typed, as at the keyboard. Made each time claudio starts |
+| `view.sock` | the socket a [front end](/docs/reference/front-ends) beside the terminal, such as bb's panel, reads: every transcript entry and claudio's state; a line it sends back is typed, as at the keyboard. Made each time claudio starts |
 
 ## What the brain may do
 
@@ -41,16 +41,22 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **Read**, **Grep** and **Glob**, on any file except `secrets.json`
 - **git**: `status`, `log`, `diff` and `branch` (listing only: `-a`, `-r`, `-v`, `-vv`, `--show-current`, `--list`; deleting or renaming a branch is asked about); `log` and `diff` never with `--no-index`, `--output` or `--ext-diff`, which would reach any file
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
-- **cmux**: `surface list`, `tree` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`, or claude with claudio's session prompt); a shell or any other program there is asked about, and `--layout` or `--env` is refused
-- Not **cmux agent message**: claudio asks you before each send, every time, and “always” isn't offered
-- **bb**, for bb threads: `thread list`, `thread show`, `thread output`, `thread log`, `project list` and `provider list`, to read; `thread interactions answer`, to answer a thread's multiple-choice question with the option you picked (as `claudio choose` does in cmux); anything else under `bb thread` (`tell`, `spawn`, `queue`, `fork`, other `interactions`…) sends to a thread or answers for it, so claudio asks you each time, and “always” isn't offered; the question names the words and the thread. A thread's permission prompt is read out and claudio asks you yes or no, then answers it through bb, as it presses the keys in a cmux pane
 - **claudio set**, to change a setting when you ask, and **claudio restart**, to start claudio over when you ask
 - **claudio unlearn**, to drop a rule from `learned.md`; **claudio learn**, to keep a correction, is asked about each time, with the command on screen, since a rule lasts for every later run
-- **claudio choose**, to answer a session's multiple-choice question with the option you picked; with `--other`, words typed into the pane, it is asked about
 - **notes**: create and edit `.md` and `.txt` files directly in `~/Desktop` and `~/Documents`, not in folders below them (a repo's `CLAUDE.md` would be one), and check that a file exists with `test`
 - **`claudio open`** and **`claudio close`**: a web link in your browser, or a `.md` or `.txt` note from those folders in TextEdit, never an app, a script or anything else; closing a note saves it and quits TextEdit when it was the last window. The first close asks macOS for permission to control TextEdit
 - **the web**: WebSearch and WebFetch
 - **MCP servers** listed in `mcp.json`, every tool of each one; with no `mcp.json`, none
+
+For [bb](/docs/platforms/bb) sessions:
+
+- **bb**: `thread list`, `thread show`, `thread output`, `thread log`, `project list` and `provider list`, to read; `thread interactions answer`, to answer a thread's multiple-choice question with the option you picked; anything else under `bb thread` (`tell`, `spawn`, `queue`, `fork`, other `interactions`…) sends to a thread or answers for it, so claudio asks you each time, and “always” isn't offered; the question names the words and the thread. A thread's permission prompt is read out and claudio asks you yes or no, then answers it through bb itself, as it presses the keys in a cmux pane
+
+For [cmux](/docs/platforms/cmux) sessions:
+
+- **cmux**: `surface list`, `tree` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`, or claude with claudio's session prompt); a shell or any other program there is asked about, and `--layout` or `--env` is refused
+- Not **cmux agent message**: claudio asks you before each send, every time, and “always” isn't offered
+- **claudio choose**, to answer a session's multiple-choice question in its pane with the option you picked; with `--other`, words typed into the pane, it is asked about
 
 It gets none of your Claude Code skills or slash commands, which it would otherwise offer as claudio's; its prompt lists claudio's own. It never gets the MCP servers of your own Claude Code setup either: a desktop tool that disconnects would otherwise confuse it into thinking it can't check a session. To give it a server, list it in `mcp.json`; saving the file restarts the brain with it:
 

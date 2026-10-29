@@ -1,0 +1,108 @@
+---
+title: cmux
+description: Your sessions as cmux panes, with claudio in a terminal beside them.
+---
+
+[cmux](https://cmux.dev) is a Mac terminal app for coding agents. With `backend` set to `cmux`, the default, your sessions are Claude Code sessions in cmux panes, and claudio works them with the `cmux` command. Everything on [Sessions and handoff](/docs/guide/sessions) holds; this page says how it looks in cmux.
+
+claudio's own screen is a terminal. Run it in a cmux pane of its own: replies a session sends back land in that pane's inbox, and claudio only reads them there.
+
+## Set it up
+
+cmux is the default, so [Getting started](/docs/guide/getting-started) needs no extra step. If you switched to bb before, switch back:
+
+```bash
+claudio set backend cmux
+```
+
+Setup checks that cmux is installed, then asks which workspace is the orchestrator, picked by number from the workspaces cmux has open. If cmux isn't running, you type its title.
+
+The doctor checks two things for cmux:
+
+| Check | If it fails |
+|---|---|
+| `cmux reachable` | is cmux running? |
+| `orchestrator '…' is a live workspace` | `claudio set orchestrator <title>` |
+
+claudio uses the `cmux` binary in `CMUX_BUNDLED_CLI_PATH` if it's set, then the one on your `PATH`, then `/Applications/cmux.app/Contents/Resources/bin/cmux`.
+
+## What a session is
+
+A session is a Claude Code session in a cmux pane. cmux's layout, from big to small:
+
+- A **window** holds workspaces, one entry each in the sidebar. A workspace can sit in a **workspace group**, a folder there
+- A **workspace** is split into **panes**
+- A pane holds **tabs**, which cmux calls surfaces: a terminal, a browser or a markdown view
+
+The brain knows these words, and yours: "tab" or "terminal" is a surface, "split" or "pane" a pane, "workspace" or "project" a workspace, "group" or "folder" a workspace group. Name a session by its tab name, as cmux shows it, or by the title of the Claude session in it; the brain knows both.
+
+The brain gets the layout when it starts. Whenever you name or ask about a tab, pane, workspace or group, it runs `cmux tree --all` again, so a tab opened or renamed since is found.
+
+## The orchestrator
+
+The orchestrator is a workspace, named by its title:
+
+```bash
+claudio set orchestrator Sequencer
+```
+
+The [state line](/docs/guide/on-screen#read-the-state-line) glances at the orchestrator's pane every 5 seconds, reading its last 14 lines:
+
+| State | What its screen shows |
+|---|---|
+| `working` | "esc to interrupt": the session is running |
+| `waiting on you` | a permission prompt ("Do you want…") or a numbered choice |
+| `idle` | neither |
+
+If it stays `waiting on you` for 2 minutes, claudio tells you once.
+
+## Hand over
+
+The brain sends your words through cmux's agent inbox, to the session's own surface id rather than its workspace title:
+
+```bash
+cmux agent message <surface id> --from "Voice" "[spoken by the user, transcribed by claudio] rebase 44 on main and run the tests"
+```
+
+Addressing the surface means a handoff never lands in claudio's pane when claudio runs in the orchestrator's workspace. `--from` is `Voice`, or the [name](/docs/configure/listening#rooms-with-other-people) you gave claudio, so the session's inbox shows who relayed it. claudio asks before every send, and there's no "always" for it.
+
+A session can answer back with `cmux agent message --reply-to`. The reply lands in claudio's own pane's inbox; claudio checks it every 3 seconds and reads it to you with a `▸ <session>  replied` line, unless it's muted or `narrate` is `none`.
+
+## Look
+
+- `cmux surface list` shows what sessions exist
+- "what's Sequencer doing?" runs `cmux read-screen --surface <surface id> --lines 60` and sums up the last 60 lines
+
+The brain runs these without asking you.
+
+## Open
+
+Ask for a session and the brain opens it with cmux:
+
+- "open a session called Core" runs `cmux workspace create --name "Core" --cwd <project directory> --command <claude with claudio's session prompt>`, in the directory claudio runs in unless you name another
+- "open a terminal beside Sequencer" runs `cmux new-split right` on a surface in that workspace and starts a shell. Directions are left, right, up and down
+- "open a Claude session in a new tab of Core" runs `cmux new-surface --workspace "Core" --command claude`
+
+A new session takes a few seconds to start, so the brain waits before handing it work. Opening a workspace, split or tab that runs `claude` needs no question; a shell or any other program there is asked about, and `--layout` or `--env` is refused.
+
+### The session prompt
+
+A workspace claudio opens starts its session as `claude --append-system-prompt-file <claudio's session.md>`. That prompt tells the session that a message starting with `[spoken by the user, transcribed by claudio]` is your own words, already approved, so it acts on it without asking you to confirm again. It still asks, and waits, before anything that can't be undone: deleting data, branches or files, force-pushing, or changing production. A message without the marker is from another agent, and the session weighs it as such.
+
+A Claude session claudio opens in a new split or tab runs plain `claude`, without this prompt, as does a session you started yourself. It still gets the marker, and may ask you to confirm in its pane.
+
+## Hooks
+
+The three Claude Code hooks report each event with `CMUX_SURFACE_ID`, the id cmux sets in every session, so claudio knows which session spoke. Sessions outside cmux are ignored, since claudio can't tell which workspace they belong to. A session reports back only if it started after the hooks were installed.
+
+## Answer a session
+
+**Permission prompts**: claudio shows the prompt as the session's pane has it, word for word, and asks yes, always or no. claudio itself, not the brain, types your answer into that pane: yes picks the prompt's plain Yes, always picks the option that keeps allowing it (offered only when the prompt has one), and no presses <kbd>Esc</kbd>. It never picks an option that switches the session's mode. Before typing, it checks the same prompt is still on screen; if you answered it in the pane meanwhile, nothing is pressed.
+
+**Questions**: claudio reads the question and its options, then answers in the pane with [`claudio choose`](/docs/reference/cli#claudio-choose-surface-n) `<surface id> <option number>`. For a question that takes several, the numbers with commas, such as `1,3`; for an answer in your own words, `--other "<your words>"`. `claudio choose` checks a question is on screen, never a permission prompt, and that the option exists.
+
+You can always answer in the pane yourself instead.
+
+## Stop a session
+
+Press <kbd>Esc</kbd> in its pane. claudio can't stop it for you.

@@ -1,4 +1,4 @@
-claudio, the voice in front of your coding sessions: talk, and your bb threads work.
+claudio, the voice in front of your coding-agent sessions: talk, and your bb threads work.
 
 ## What you get
 

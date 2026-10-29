@@ -27,9 +27,9 @@ Opens a web link (`http` or `https`), or a `.md` or `.txt` note in `~/Desktop` o
 
 Runs the first-run wizard again. Each question offers your current value, so <kbd>Enter</kbd> keeps it. In order, it:
 
-1. shows whether `claude` and cmux are installed, or bb instead of cmux when `backend` is `bb`
+1. shows whether `claude` and the sessions platform `backend` names, cmux or bb, are installed
 2. asks for the Deepgram key and tests it against Deepgram, three tries at most; a stored key is kept on <kbd>Enter</kbd>
-3. asks which cmux workspace is the orchestrator, from a numbered list, or by title when cmux is not running
+3. asks which session is the orchestrator, from a numbered list of the platform's sessions (bb threads, or cmux workspaces), or by title when it finds none
 4. asks for one of six [Aura voices](/docs/configure/voice), the brain's model and effort, and whether talking over a reply interrupts it
 5. saves `config.json` and `secrets.json`, then offers to install the hooks
 
@@ -44,10 +44,7 @@ Checks every part in order, then runs one typed turn through the brain and the m
 | Check | If it fails |
 |---|---|
 | `claude on PATH`, then `claude version …` | install Claude Code |
-| `cmux reachable` | is cmux running? |
-| `orchestrator '…' is a live workspace` | `claudio set orchestrator <title>` |
-| with `backend` set to `bb`, instead of the two above: `bb reachable` | is bb running? (`bb-app start`, or open bb) |
-| `orchestrator '…' is a bb thread`, passed when no orchestrator is set | `claudio set orchestrator <thread title>` |
+| two checks of the sessions platform `backend` names | see below |
 | `Deepgram key set` | `claudio setup` |
 | `Deepgram key accepted` | get a working key at console.deepgram.com |
 | `the three Claude Code hooks installed` | `claudio install` |
@@ -56,11 +53,20 @@ Checks every part in order, then runs one typed turn through the brain and the m
 | `microphone: …` | the error from the audio system |
 | `persona additions file present` | it is made on first run |
 
+The two platform checks depend on `backend`:
+
+| `backend` | Check | If it fails |
+|---|---|---|
+| `bb` | `bb reachable` | is bb running? (`bb-app start`, or open bb) |
+| `bb` | `orchestrator '…' is a bb thread`, passed when no orchestrator is set | `claudio set orchestrator <thread title>` |
+| `cmux` | `cmux reachable` | is cmux running? |
+| `cmux` | `orchestrator '…' is a live workspace` | `claudio set orchestrator <title>` |
+
 The typed turn asks the brain to say “the doctor is in.” The last line is `all good`, or `fix the ✗ lines above`.
 
 ## `claudio install` and `claudio uninstall`
 
-`claudio install` adds three hooks to `~/.claude/settings.json`, each calling `claudio hook`:
+`claudio install` adds three hooks to `~/.claude/settings.json`, each calling `claudio hook`. They report from every Claude Code session, and claudio listens to those on the platform `backend` names:
 
 <Hooks />
 
@@ -108,7 +114,7 @@ You can also edit or empty `~/.config/claudio/learned.md` yourself.
 
 ## `claudio choose <surface> <n>`
 
-Answers the multiple-choice question a session's pane shows, and prints `chose: <option>`. The brain runs it once you have said your choice. It reads the pane first and refuses with an error when no question shows, when it is a permission prompt, or when a number isn't one of the options, listing them. Options count from 1. A question that takes several gets them with commas: each is ticked, then Submit is pressed. `--other` types your own words into "Type something". After the last of several questions it submits the review screen.
+cmux only: answers the multiple-choice question a session's pane shows, and prints `chose: <option>`. In bb, the brain answers a thread's question with `bb thread interactions answer` instead. The brain runs it once you have said your choice. It reads the pane first and refuses with an error when no question shows, when it is a permission prompt, or when a number isn't one of the options, listing them. Options count from 1. A question that takes several gets them with commas: each is ticked, then Submit is pressed. `--other` types your own words into "Type something". After the last of several questions it submits the review screen.
 
 ```bash
 claudio choose 6913B2BC-A641-4DAA-9E9A-60536E06F5D5 2
@@ -145,6 +151,6 @@ What the Claude Code hooks call; you do not run it yourself. When claudio is not
 | `ELEVENLABS_API_KEY` | the ElevenLabs key, over `secrets.json` |
 | `XDG_CONFIG_HOME` | moves `~/.config/claudio` to `$XDG_CONFIG_HOME/claudio` |
 | `CLAUDIO_TEXT` | with `claudio`, runs one typed turn with this text and exits, without the mic; `claudio doctor` uses it |
-| `CMUX_BUNDLED_CLI_PATH` | the `cmux` binary to use, before the one on your `PATH`; the fallback is `/Applications/cmux.app/Contents/Resources/bin/cmux` |
-| `CMUX_SURFACE_ID` | set by cmux in each session; `claudio hook` reports it so claudio knows which session spoke |
-| `BB_THREAD_ID` | the bb thread a session runs in; `claudio hook` reports it when there is no `CMUX_SURFACE_ID`, and with `backend` set to `bb` claudio leaves its own thread out of the sessions |
+| `CMUX_BUNDLED_CLI_PATH` | cmux: the `cmux` binary to use, before the one on your `PATH`; the fallback is `/Applications/cmux.app/Contents/Resources/bin/cmux` |
+| `CMUX_SURFACE_ID` | cmux: set in each session; `claudio hook` reports it so claudio knows which session spoke |
+| `BB_THREAD_ID` | bb: the thread a session runs in; `claudio hook` reports it when there is no `CMUX_SURFACE_ID`, and with `backend` set to `bb` claudio leaves its own thread out of the sessions |

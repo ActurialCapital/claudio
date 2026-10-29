@@ -1,0 +1,176 @@
+---
+title: Front ends
+description: "The view.sock protocol: what claudio sends a front end, what it takes back, and how to start it, with the bb panel as a worked example."
+---
+
+A front end is where you see claudio and type to it. claudio's own terminal is one, and the [bb panel](/docs/platforms/bb) is another. Any other one, such as an editor extension, connects to the same socket and speaks the same JSON lines. Nothing in claudio is tied to one front end.
+
+## What a front end does
+
+claudio keeps everything that makes it claudio: the ears, the brain, the mouth, the rules, asking before every send, and the permission prompts it reads out. It listens on the machine's microphone and speaks on its speakers whatever front end is open. A front end does two things:
+
+- **It shows** the transcript and the state line, as claudio sends them.
+- **It types**: a line sent to claudio is handled exactly as a line typed at its keyboard.
+
+A front end doesn't record audio, call the brain, or decide anything. Commands such as `/model` or `/mute` are lines it types, and claudio runs them.
+
+## Connecting
+
+claudio listens on a Unix socket at `~/.config/claudio/view.sock`, or `$XDG_CONFIG_HOME/claudio/view.sock` when `XDG_CONFIG_HOME` is set. It removes and makes the socket again each time it starts. Any number of front ends can connect at once. Each gets every message.
+
+Both directions carry JSON lines: one JSON object, then `\n`. Read until a newline, parse, repeat. A chunk can end mid-line, so keep what is left for the next chunk.
+
+On connect claudio sends, in this order:
+
+1. a `hello`
+2. the history: the entries it has kept, oldest first, up to the last 500
+3. a `state` with the state line as it is now
+
+After that, each new entry and each state change arrives as it happens.
+
+A Unix socket path is limited to about 104 bytes on macOS, so a long `XDG_CONFIG_HOME` leaves claudio unable to make the socket.
+
+## Messages from claudio
+
+Each transcript entry has `kind`, `text` and `at`, which is the time in Unix seconds. Some kinds add fields.
+
+| `kind` | Extra fields | What it is | In claudio's terminal |
+|---|---|---|---|
+| `you` | | your turn: what you said or typed, or the answer you picked with 1, 2 or 3 | `› …` |
+| `me` | `first` | one sentence of claudio's reply, as the brain wrote it. `first: true` starts a new message; `false` continues the one before it. A sentence ending in `\n` ends its line, as in a list | `◆ …` |
+| `block` | | a Markdown table, a fenced code block, or a question's answers (`- **1** Yes`). Shown, never spoken | the block, in place |
+| `event` | `what`, `asked` | a session report. `text` is the session's name. `what` is `done`, `needs permission`, `asks you to choose`, `replied`, or another event's name in lower case. `asked` is the request it was handed, on `done` only; otherwise `""` | `▸ Sequencer  done  ·  for "…"` |
+| `tool` | | what the brain is doing: `reading notes.md`, `searching TODO`, a command it runs, or a tool's name | `  → …` |
+| `note` | | a remark: a command that ran (`/mute`), `mic open`, or a setting change, which starts with `⚙ ` | `· …` or `⚙ …` |
+| `warn` | | a warning | `! …` |
+| `rule` | | a divider: `started · brain opus/medium · …` at start, `fresh start` after `/clear`, or the time (`14:05`) after more than five minutes of quiet | a horizontal rule |
+
+Two more kinds are not entries:
+
+| `kind` | Fields | What it is |
+|---|---|---|
+| `hello` | `commands`, `models`, `efforts`, `model`, `effort` | what claudio offers: its commands without the slash, the brain's models and efforts, and the model and effort in use. `text` is `""`. Sent on connect, and again after any change to `config.json` |
+| `state` | `text` | the state line, sent when it changes: `listening`, `thinking`, `speaking`, `paused`, `muted · say /unmute`, `ears lost · reconnecting`, `warming up the brain…`, `push to talk · Enter opens the mic`, or `› …▏` while something is typed at claudio's keyboard. A part can follow after `  ·  `: the time to the first word, and the orchestrator's state |
+
+Entries go into the history, so a front end that connects late still gets them. `hello` and `state` are never kept. Every message carries `at`, the state sent on connect too. A line that isn't a JSON object is ignored; the connection stays up.
+
+Examples, one per line as they arrive:
+
+```json
+{"kind": "hello", "text": "", "commands": ["address", "clear", "colors", "colours", "effort", "exit", "help", "layout", "model", "mute", "name", "permissions", "quit", "restart", "status", "stop", "style", "unmute", "voice"], "models": ["default", "sonnet", "opus", "haiku"], "efforts": ["low", "medium", "high"], "model": "opus", "effort": "medium"}
+{"kind": "rule", "text": "started · brain opus/medium · voice thalia · style plain", "at": 1793213673.41}
+{"kind": "you", "text": "is the sequencer done", "at": 1793213680.02}
+{"kind": "tool", "text": "cmux read-screen --surface 7F3A…", "at": 1793213681.5}
+{"kind": "me", "text": "Not yet.", "at": 1793213683.1, "first": true}
+{"kind": "me", "text": "It is still running the tests.", "at": 1793213683.9, "first": false}
+{"kind": "block", "text": "| Session | State |\n|---|---|\n| Sequencer | working |", "at": 1793213684.2}
+{"kind": "event", "text": "Sequencer", "at": 1793213790.7, "what": "done", "asked": "rebase onto main"}
+{"kind": "note", "text": "⚙ model → sonnet", "at": 1793213801.3}
+{"kind": "warn", "text": "ears lost", "at": 1793213802.0}
+{"kind": "state", "text": "listening", "at": 1793213802.1}
+```
+
+## Messages to claudio
+
+Send one JSON object per line. claudio ignores a line that isn't valid JSON, without an answer.
+
+| Message | What claudio does |
+|---|---|
+| `{"say": "…"}` | takes the text as a line typed at its keyboard, trimmed. See below |
+| `{"push": true}` | stops polling bb for its threads' pending interactions while this front end stays connected, because the front end sends them itself. It polls again once the front end disconnects |
+| `{"interaction": {…}}` | a bb thread's pending interaction: bb's interaction object with `threadId` and `title` added. claudio reads its question out, or reads its permission prompt out and asks you about it. Each interaction is handled once. Ignored unless `backend` is `bb`, and when it is resolved or resolving |
+
+A `say` goes through the same steps as a typed line:
+
+- **While claudio asks with numbered answers**, `1`, `2` or `3` picks that answer at once. It shows as a `you` entry with the answer's word, such as `yes`.
+- **A line starting with `/`** is a command, as in [Spoken and typed commands](/docs/reference/spoken): `/model sonnet`, `/effort high`, `/mute`. It is read in lower case. claudio sends a `note` with the command, then whatever the command does.
+- **Any other text** is a turn, as if you had said it. While a question waits, it answers the question.
+- **An empty `say`** is a bare <kbd>Enter</kbd>: it cuts the reply, or with push to talk opens the mic when it is closed.
+
+claudio sets no length limit on a `say`. The bb panel stops at 4,000 characters.
+
+Use `push` and `interaction` only on a platform that can tell you the moment a session asks for something, as bb's `interaction.pending` event does. Without them, claudio finds those prompts itself.
+
+## Starting and stopping claudio
+
+A front end can show a claudio you started yourself, or start its own.
+
+- **Give it a terminal.** claudio expects one. Run it under a pseudo-terminal: `script -q /dev/null sh -c "claudio"` on macOS, or a pty library. Keep its input open and silent; typing goes through the socket, not the terminal. Send its screen to a log file, so a failed start can be read.
+- **Set the environment.** Any `CLAUDIO_<KEY>` variable sets that [setting](/docs/reference/settings) for the run: `CLAUDIO_BACKEND=bb` or `CLAUDIO_BACKEND=cmux` picks where the sessions are. Put `claude` on `PATH`, and `bb` or `cmux` for the backend. Set `TERM`, and `COLUMNS` and `LINES` when the pty has no size.
+- **Choose the directory.** The directory claudio starts in is the project the brain reads, and where it looks for a `.claudio.json`.
+- **Run one claudio at a time.** A new claudio takes over the socket path. Front ends still connected to the old one stay with it, and new ones reach the new one.
+- **Stop it with SIGINT**, as <kbd>Ctrl</kbd>+<kbd>C</kbd> would, to its whole process group.
+- **Expect restarts.** `/restart`, and a change to claudio's own code, restart it in the same process. `/quit` and `/exit` end it. Either way the socket closes. On a restart it opens again with an empty history.
+
+## Example client
+
+This Node client, `client.mjs`, connects, prints every message, and sends one line. It runs as is, and is the core of an editor extension:
+
+```js
+import { connect } from "node:net";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const dir = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "claudio");
+const socket = connect(join(dir, "view.sock"));
+let buffer = "";
+socket.on("data", (chunk) => {
+  buffer += chunk;
+  let nl;
+  while ((nl = buffer.indexOf("\n")) >= 0) {
+    const msg = JSON.parse(buffer.slice(0, nl));
+    buffer = buffer.slice(nl + 1);
+    if (msg.kind === "hello") console.log("commands:", msg.commands.join(" "), "· model:", msg.model);
+    else if (msg.kind === "state") console.log(`[${msg.text}]`);
+    else console.log(msg.kind.padEnd(5), msg.text, msg.what ?? "");
+  }
+});
+socket.on("connect", () => socket.write(JSON.stringify({ say: "what are my sessions doing" }) + "\n"));
+socket.on("close", () => console.log("claudio went away"));
+```
+
+With claudio running, `node client.mjs` prints the hello, the history and the state, then your line as a `you` entry and the reply as it comes:
+
+```
+commands: address clear colors … · model: opus
+rule  started · brain opus/medium · voice thalia · style plain
+you   is the sequencer done
+me    Not yet.
+[listening]
+you   what are my sessions doing
+[thinking]
+```
+
+A real front end reconnects when the socket closes, as below.
+
+## Worked example: the bb panel
+
+The bb plugin in `bb-plugin-claudio/` is a complete front end in two files.
+
+`server.ts` runs in bb's server:
+
+- It starts claudio under `script`, with `CLAUDIO_BACKEND=bb`, a `PATH` that has `claude` and `bb`, and the home directory as its working directory. Its screen goes to `~/.config/claudio/bb.log`.
+- It never restarts claudio on its own. Clicking the avatar stops it with SIGINT to its process group and starts it again.
+- It tries the socket every second. On connect it sends `{"push": true}`, empties its copy of the entries, and tells the panel to reset, because claudio sends its history again. When a connection that was up closes, it shows `not running`.
+- It keeps the last 500 entries and the latest `state` and `hello`, so a panel opened later gets them all.
+- It forwards bb's `interaction.pending` events as `{"interaction": …}`.
+- A file attached in the panel is saved to `~/.config/claudio/attachments`, and the message carries its path as `[attached file: /path]`. The brain reads the file from there. The protocol itself only carries text.
+
+`app.tsx` draws the chat:
+
+- It groups entries into chat bubbles. A `me` with `first: false` joins the bubble before it, a `block` joins claudio's bubble as Markdown, and `tool` entries ride in the bubble they belong to, as small code lines. `you` is your bubble, `event` a card with the session's name and `what`, `note` and `warn` small centred pills, and `rule` a divider.
+- It takes the model and effort lists from `hello`. A pick sends `/model …` or `/effort …`, and the mute button sends `/mute` or `/unmute`. Its command menu only offers commands that `hello` lists.
+- It reads the `state` text for its status dot (`listening`, `speaking`, `not running`, or busy) and for its mute button (`muted`).
+
+## Checklist for a new front end
+
+- Read the socket path from `XDG_CONFIG_HOME`, falling back to `~/.config`.
+- Split the stream on newlines, keeping a partial line for the next chunk.
+- Render each entry kind: `you`, `me` (joining `first: false` to the message before), `block` as Markdown, `event`, `tool`, `note`, `warn`, `rule`. Ignore a kind you don't know.
+- Show `state` as claudio's state line.
+- Use `hello` for the commands, models and efforts rather than a copy of your own. Take the new one each time it arrives.
+- On every connect, clear what you show: the history comes again.
+- Reconnect when the socket closes, and show that claudio isn't running meanwhile.
+- Send typing as `{"say": …}`, an empty one for a bare Enter, and commands as their `/` lines.
+- Send `push` and `interaction` only if your platform tells you about sessions' pending prompts as they happen.
+- If you start claudio, give it a pseudo-terminal, a log, the environment it needs, and run one at a time.

@@ -3,7 +3,7 @@ title: Getting started
 description: Install claudio, answer the setup questions, and check everything with the doctor.
 ---
 
-Install claudio, answer a few setup questions, and run the doctor to confirm every part works. Check [what you need](/docs#what-you-need) first. To use claudio in [bb](https://getbb.app) instead of cmux, follow these steps, then [install the bb plugin](/docs/guide/bb).
+Install claudio, answer a few setup questions, and run the doctor to confirm every part works. Check [what you need](/docs#what-you-need) first, and pick where your sessions live: the `backend` setting, `cmux` by default or `bb`. Anything specific to your platform is on its page: [bb](/docs/platforms/bb) or [cmux](/docs/platforms/cmux).
 
 <Steps>
 <Step>
@@ -15,6 +15,20 @@ uv tool install git+https://github.com/ActurialCapital/claudio
 ```
 
 This puts a `claudio` command on your path.
+
+</Step>
+<Step>
+
+### Choose where your sessions live
+
+For bb threads, set the backend, then run setup yourself (setting it counts as a first run, so `claudio` alone would skip setup):
+
+```bash
+claudio set backend bb
+claudio setup
+```
+
+For cmux panes, skip this: `cmux` is the default. [Platforms](/docs/platforms) compares the two.
 
 </Step>
 <Step>
@@ -33,10 +47,10 @@ The brain runs in the directory you start claudio from and reads files there whe
 
 ### Answer the setup questions
 
-The first run starts a short setup. It checks that `claude` and cmux are installed (bb instead, with `backend` set to `bb`), marking each with ✓ or ✗, then asks for:
+The first run starts a short setup. It checks that `claude` is installed, and the sessions' platform that `backend` names, marking each with ✓ or ✗, then asks for:
 
 1. **Your Deepgram key**: tested against Deepgram before it's saved. You get three tries
-2. **The orchestrator**: the cmux workspace that gets your tasks by default, picked by number from the workspaces cmux has open (with `backend` set to `bb`, from bb's threads). If none is listed, you type its title
+2. **The orchestrator**: the session that gets your tasks by default, picked by number from the ones the platform has open: cmux's workspaces or bb's threads. If none is listed, you type its title
 3. **A voice**: one of six Aura-2 voices. Any other Aura-2 voice works later with `claudio set voice`
 4. **The brain's model and effort**: press <kbd>Enter</kbd> to keep `default` and `low`
 5. **The transcript layout**: `inline`, or `split` with your turns on the right
@@ -68,7 +82,7 @@ A Claude Code session loads its hooks when it starts. Restart any session that w
 claudio doctor
 ```
 
-The doctor checks each part in this order:
+The doctor checks each part in this order. The two lines after the version are for the platform `backend` names; these are cmux's, and with `bb` they read `bb reachable` and `orchestrator '…' is a bb thread`:
 
 ```transcript
   ✓ claude on PATH
@@ -106,7 +120,6 @@ Ask a question about the project, then ask for some work and watch the orchestra
 ◆ May I send "do the retry logic for uploads" to Sequencer?
 › yes
 ◆ Sending that to Sequencer.
-  → cmux agent message
 ```
 
-Press <kbd>Enter</kbd> to cut a reply and <kbd>Ctrl</kbd>+<kbd>C</kbd> to quit. Next, learn [how to talk to it](/docs/guide/talking).
+Press <kbd>Enter</kbd> to cut a reply and <kbd>Ctrl</kbd>+<kbd>C</kbd> to quit. To see and type to claudio in bb's panel instead of a terminal, [install the bb plugin](/docs/platforms/bb#install-the-plugin). Next, learn [how to talk to it](/docs/guide/talking).

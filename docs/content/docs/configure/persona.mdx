@@ -27,7 +27,7 @@ These are claudio's own rules, from the package. Know them before you add to the
 - **Stay quiet when it isn't meant for it**: a turn plainly for someone else in the room, or cut off mid-thought, gets `[skip]`, and claudio says nothing
 - **Keep your corrections** with `claudio learn`, only from your own words; what it [learned](/docs/guide/talking#what-it-learns) is added after the persona and your additions
 - **Read the transcripts** for “what did we do today”, rather than trust its memory of past days
-- **Use the sessions' app**, cmux or bb, as `backend` says: in cmux, hand over through the agent inbox with the marker, list sessions, read a session's screen, open workspaces, splits and tabs; in bb, tell a thread with the marker, list and read threads, open a thread
+- **Work the sessions** on the platform `backend` names: hand over with the marker, list sessions, look at what one is doing, open new ones. How it does each comes from the platform's part of the prompt, below
 - **Narrate events**: finishes in plain words, permission prompts read out but never answered by the brain (claudio asks you yes or no itself), multiple-choice questions read out numbered
 - **Change settings** with `claudio set`, and say first that a model, effort or style change restarts it
 
@@ -41,16 +41,16 @@ These placeholders in the file are replaced each time the brain starts:
 
 | Placeholder | Becomes |
 |---|---|
-| `{SESSIONS}` | how to work the sessions' app, from `sessions_cmux.md` or `sessions_bb.md` in the package, as `backend` says: its layout, and how to hand over, look, open, stop and answer a question |
-| `{SESSION}` | the command a session claudio opens in cmux starts with: `claude` with claudio's session prompt |
-| `{FROM}` | the name a cmux handover is sent `--from`: `Voice`, or the [name](/docs/configure/listening#rooms-with-other-people) you gave it |
+| `{SESSIONS}` | how to work the sessions on the platform `backend` names, from `sessions_bb.md` or `sessions_cmux.md` in the package: its layout, and how to hand over, look, open, stop and answer a question |
+| `{SESSION}` | cmux only: the command a session claudio opens starts with, `claude` with claudio's session prompt |
+| `{FROM}` | cmux only: the name a handover is sent `--from`, `Voice` or the [name](/docs/configure/listening#rooms-with-other-people) you gave it |
 | `{TRANSCRIPTS}` | the transcripts directory, `~/.config/claudio/transcripts` |
 | `{KEYS}` | the names of the settings, each with its choices where it has a fixed set, without the API keys |
 
 claudio also adds text you do not need to write:
 
 - **Before the persona**: the style's instructions, when `style` is not `plain`
-- **After the persona**: claudio's slash commands, the orchestrator, the current settings, this directory's GitHub repo, the open sessions with their surface ids and directories as they were when the brain started (not claudio's own pane), or in bb the threads with their ids and projects, and the rules that matter most, repeated last so they hold: `[skip]`, the brain's own jobs, never claiming a setting changed unless `claudio set` succeeded, never sending work after a no, and, when permission checks are off, asking before anything that deletes, overwrites or pushes
+- **After the persona**: claudio's slash commands, the orchestrator, the current settings, this directory's GitHub repo, the open sessions as they were when the brain started, never claudio's own (in cmux, each with its surface id and directory; in bb, each thread with its id and project), and the rules that matter most, repeated last so they hold: `[skip]`, the brain's own jobs, never claiming a setting changed unless `claudio set` succeeded, never sending work after a no, and, when permission checks are off, asking before anything that deletes, overwrites or pushes
 
 The brain also reads `CLAUDE.md` files, the project's and your own, like any Claude Code session.
 

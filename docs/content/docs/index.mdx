@@ -1,16 +1,15 @@
 ---
 title: Introduction
-description: Talk to your Claude Code sessions instead of typing to them.
+description: A voice in front of your coding-agent sessions.
 ---
 
-With claudio you talk to your Claude Code sessions instead of typing to them. Ask a question and it answers in a few short sentences. Ask for work and it hands the task to one of your sessions, then tells you when that session is done, needs a permission, or asks you to choose.
+claudio is a voice in front of your coding-agent sessions: you talk to them instead of typing. Ask a question and it answers in a few short sentences. Ask for work and it hands the task to one of your sessions, then tells you when that session is done, needs a permission, or asks you to choose.
 
-It doesn't read your terminal aloud. A separate brain listens to you, decides whether you're discussing or asking for work, and narrates what your sessions report back in plain words.
+It doesn't read your sessions' screens aloud. A separate brain listens to you, decides whether you're discussing or asking for work, and narrates what your sessions report back in plain words.
 
 ```transcript
 › rebase 44 on main and run the tests
 ◆ Sending that to Sequencer.
-  → cmux agent message
 
 ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
 ◆ Rebased, tests pass, nothing to fix.
@@ -20,28 +19,32 @@ It doesn't read your terminal aloud. A separate brain listens to you, decides wh
 
 ## How the parts fit together
 
-claudio has three parts of its own, and it works with the Claude Code sessions you already run:
+claudio has three parts of its own, and it works with the sessions you already run:
 
 - **Ears**: Deepgram Flux turns your speech into text as you talk and decides when your turn has ended
 - **Brain**: one long-lived `claude` process, driven through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), with a short [persona](/docs/configure/persona). It answers questions itself and hands work to a session, never doing the work itself
 - **Mouth**: Deepgram Aura or ElevenLabs speaks the brain's reply one sentence at a time
-- **Your sessions**: ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox, and they report back through three Claude Code hooks. In [bb](/docs/guide/bb), they're bb threads instead, and claudio is a panel beside them
+- **Your sessions**: the coding-agent sessions claudio hands work to. They report back through three Claude Code hooks. Where they live, and where you see claudio, are the [platforms](/docs/platforms) you pick
 
 One session is the **orchestrator**: the one that gets your tasks unless you name another. Passing a task to a session is a **handoff**.
 
 ## What you need
 
-- macOS, since the echo canceller is Apple's voice-processing unit and cmux is a Mac app
-- [cmux](https://cmux.dev), with the workspace you want to send work to, or [bb](https://getbb.app) with the [claudio plugin](/docs/guide/bb)
-- [Claude Code](https://claude.com/claude-code), signed in: the brain runs through your Claude Code login
 - A [Deepgram](https://console.deepgram.com) API key, for the ears and the default mouth
+- [Claude Code](https://claude.com/claude-code), signed in: the brain runs through your Claude Code login
+- macOS, since the echo canceller is Apple's voice-processing unit
 - Python 3.11 or later and [uv](https://docs.astral.sh/uv/)
 - Optional: the Xcode command line tools, so you can talk over claudio on speakers instead of headphones
+
+And one of these, for your sessions:
+
+- [bb](https://getbb.app), whose threads are the sessions; its claudio panel is optional. See [bb](/docs/platforms/bb)
+- [cmux](https://cmux.dev), whose panes are the sessions. See [cmux](/docs/platforms/cmux)
 
 <Cards>
   <Card title="Getting started" href="/docs/guide/getting-started" description="Install, answer the setup questions, check everything with the doctor." />
   <Card title="Talking to claudio" href="/docs/guide/talking" description="How a turn ends, interrupting, spoken commands, memory." />
   <Card title="Sessions and handoff" href="/docs/guide/sessions" description="Send work to a session and hear what comes back." />
-  <Card title="claudio in bb" href="/docs/guide/bb" description="A claudio panel beside your bb threads." />
+  <Card title="Platforms" href="/docs/platforms" description="Where your sessions live, and where you see and type to claudio." />
   <Card title="Troubleshooting" href="/docs/troubleshooting" description="Find the fix by what you notice." />
 </Cards>

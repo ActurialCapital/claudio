@@ -6,7 +6,7 @@
       "default": "",
       "choices": [],
       "range": null,
-      "help": "cmux workspace (or bb thread title) that gets tasks by default",
+      "help": "the session that gets tasks by default, by title (a cmux workspace or a bb thread)",
       "secret": false,
       "env": "CLAUDIO_ORCHESTRATOR",
       "may_be_empty": true

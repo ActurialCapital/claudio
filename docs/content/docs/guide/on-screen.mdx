@@ -3,9 +3,9 @@ title: On screen
 description: Read the banner, the transcript and the state line, and find past conversations.
 ---
 
-claudio is meant to be heard, but the terminal keeps a written record in step with the voice. This page explains how to read the banner, the transcript and the live state line, and where past conversations are saved.
+claudio is meant to be heard, but its screen keeps a written record in step with the voice. This page covers claudio's own screen, in a terminal: how to read the banner, the transcript and the live state line, and where past conversations are saved.
 
-In bb, the [claudio panel](/docs/guide/bb#read-the-panel) shows the same transcript as a chat, and its header shows what claudio is doing.
+Another front end shows the same record its own way: [bb's panel](/docs/platforms/bb#read-the-panel) shows the transcript as a chat, and its header shows what claudio is doing. The saved transcripts are the same whichever you use. [Platforms](/docs/platforms) lists the front ends.
 
 ## Read the banner
 
@@ -55,20 +55,20 @@ Each line starts with a glyph that says who it's from:
 | `·` | a note: cut, replaced, muted, reconnecting |
 | `!` | a warning |
 
-Here you say "mm-hm" mid-reply, so the reply carries on, then a spoken command changes the voice. The `voice = …` line is `claudio set` confirming the change:
+Here you say "mm-hm" mid-reply, so the reply carries on, then a spoken command changes the voice. The `⚙ voice → thalia` line is the setting changing:
 
 ```transcript
-› what's Sequencer doing?
-◆ Checking its screen.
-  → cmux read-screen --surface
-◆ Sequencer is halfway through the migration tests.
+› what changed on this branch?
+◆ Checking the log.
+  → git log --oneline main..
+◆ Three commits: the migration, its tests and a fix.
 
 › mm-hm
-  Twelve pass, two are still running.
+  The fix is for the date column.
 
 › slash voice thalia
 · /voice thalia
-⚙ settings reloaded
+⚙ voice → thalia
 ◆ Thalia from now on.
 ```
 
@@ -76,7 +76,7 @@ Backchannels show dim, as do turns that don't start with its name when `address_
 
 - **Sentences appear as they're spoken**: each sentence starts when its audio starts playing, and its words fade in from dim over the length of its audio. A long reply keeps its last few lines live; the lines above are already in the transcript
 - **Tables and code appear whole**, where the voice reaches them, and are never read aloud
-- **Lines wrap at 90 columns**, however wide the pane
+- **Lines wrap at 90 columns**, however wide the terminal
 - **A dim rule with the time** marks a gap of more than 5 minutes between your turns
 
 With `layout` set to `split` (`/layout split`, or `claudio setup`), your turns sit on the right in italics, ending with `‹`, instead of starting with `›`, and claudio's stay on the left. Under 50 columns they fall back to `›` lines. The saved transcript is the same either way.
@@ -88,7 +88,7 @@ With `layout` set to `split` (`/layout split`, or `claudio setup`), your turns s
 
 ## Read the state line
 
-The last line of the terminal, under a dim rule, updates four times a second. It starts at the bottom of the pane and stays there as the transcript scrolls up above it. From left to right, it shows:
+The last line of the terminal, under a dim rule, updates four times a second. It starts at the bottom of the terminal and stays there as the transcript scrolls up above it. From left to right, it shows:
 
 1. **A spinner**, or a still `■` while muted
 1. **The mic level**, from blank to `▇`
@@ -124,5 +124,7 @@ Each line has the time to the second and the same glyphs as the screen: your tur
 14:05:40  ▸ Sequencer  done  ·  for "rebase 44 on main and run the tests"
 14:05:42  ◆ Rebased, tests pass, nothing to fix.
 ```
+
+That send went to a cmux session. To a bb thread, the same line reads `→ bb thread tell thr_… "[spoken by the user, transcribed by claudio] …"`.
 
 Ask "what did we do today?" or "what did I ask yesterday?" and the brain reads that day's file and answers from it, in order.
