@@ -19,6 +19,8 @@ claudio keeps its files in `~/.config/claudio`, or in `$XDG_CONFIG_HOME/claudio`
 | `brain.log` | the brain's error output, appended across runs |
 | `helper.log` | the echo canceller's error output, rewritten each run |
 | `bin/claudio-audio` | the echo canceller, built once from `audio.swift`, and rebuilt when that file is newer |
+| `bb.log` | with the [bb plugin](/docs/guide/bb): the screen of the claudio it started, rewritten each start |
+| `attachments/` | with the bb plugin: files you attached in its panel, which claudio can read |
 
 The `session` file is used only when `memory` is on and it is less than a week old. `claudio forget` and “slash clear” delete it. A key left in `config.json` by an older version is moved to `secrets.json` the next time the settings are read.
 
@@ -30,6 +32,7 @@ claudio also uses these paths:
 | `~/.claude/settings.json` | where `claudio install` adds the hooks |
 | `settings.json.bak-claudio` | the copy taken before each install or uninstall, next to the real `settings.json` behind any symlink |
 | `hook.sock` | the socket the hooks report to, present only while claudio runs; the folder is yours only (mode 700) |
+| `view.sock` | the socket a front end beside the terminal, such as the bb panel, reads: every transcript entry and claudio's state; a line it sends back is typed, as at the keyboard. Made each time claudio starts |
 
 ## What the brain may do
 
@@ -40,8 +43,8 @@ The brain is one `claude` process, run through the Claude Agent SDK and started 
 - **gh**, to read GitHub: `issue view`, `issue list`, `pr view`, `pr list`, `pr diff`, `pr checks`, `repo view`, `repo list` and `search`, with your `gh` login
 - **cmux**: `surface list`, `tree` and `read-screen`, and `workspace create` (or the older `new-workspace`), `new-split` and `new-surface` only to start `claude` (`--command claude`, or claude with claudio's session prompt); a shell or any other program there is asked about, and `--layout` or `--env` is refused
 - Not **cmux agent message**: claudio asks you before each send, every time, and “always” isn't offered
-- **bb** (with `backend` set to `bb`): `thread list`, `thread show`, `thread output`, `thread log`, `project list` and `provider list`, to read; `thread interactions answer`, to answer a thread's multiple-choice question with the option you picked (as `claudio choose` does in cmux); anything else under `bb thread` (`tell`, `spawn`, `queue`, `fork`, other `interactions`…) sends to a thread or answers for it, so claudio asks you each time, and “always” isn't offered. A thread's permission prompt is read out and claudio asks you yes or no, then answers it through bb, as it presses the keys in a cmux pane
-- **claudio set**, to change a setting when you ask
+- **bb**, for bb threads: `thread list`, `thread show`, `thread output`, `thread log`, `project list` and `provider list`, to read; `thread interactions answer`, to answer a thread's multiple-choice question with the option you picked (as `claudio choose` does in cmux); anything else under `bb thread` (`tell`, `spawn`, `queue`, `fork`, other `interactions`…) sends to a thread or answers for it, so claudio asks you each time, and “always” isn't offered; the question names the words and the thread. A thread's permission prompt is read out and claudio asks you yes or no, then answers it through bb, as it presses the keys in a cmux pane
+- **claudio set**, to change a setting when you ask, and **claudio restart**, to start claudio over when you ask
 - **claudio unlearn**, to drop a rule from `learned.md`; **claudio learn**, to keep a correction, is asked about each time, with the command on screen, since a rule lasts for every later run
 - **claudio choose**, to answer a session's multiple-choice question with the option you picked; with `--other`, words typed into the pane, it is asked about
 - **notes**: create and edit `.md` and `.txt` files directly in `~/Desktop` and `~/Documents`, not in folders below them (a repo's `CLAUDE.md` would be one), and check that a file exists with `test`
@@ -61,7 +64,7 @@ It can't read `secrets.json` with Read, nor with a command that names it, and it
 
 ### When it needs more
 
-Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is; the whole command shows on screen just before, and the answers under it:
+Your Claude Code permission settings don't apply to it. When the brain wants something its rules don't cover, the command waits and claudio itself asks, in the same reply. It says only what the command is; the whole command shows on screen just before, and the answers under it. A send to a session says its words and where they go, “May I send "run the tests" to Sequencer?”; past 25 words it says the first 12 and how many more, and “read it all” hears the rest:
 
 > May I run `gh pr create`?
 > - **1** Yes, this once
@@ -78,7 +81,7 @@ Press 1, 2 or 3 to answer at once, no Enter needed. Or answer by voice or by typ
 
 Talking while it asks doesn't pause it, and a reply you cut off answers no. When it's a folder outside the one you started in, claudio asks about the folder instead, the whole repo when it's in one: “May I go into the claudio folder?”
 
-The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a rule of one word (`curl`, or `git -C x push` and `find . -exec`, whose second word is a flag), `claudio learn`, a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
+The rule covers the command's first plain words, up to three, so “always” to `gh pr create` doesn't allow all of `gh`. When a rule would allow far more than the request, claudio offers yes and no but not always: a rule of one word (`curl`, or `git -C x push` and `find . -exec`, whose second word is a flag), `claudio learn`, a command run through `env`, `sh -c`, `python -c`, `xargs` or a variable such as `GH_PAGER=cat`, a cmux command that starts a program, a send to a session (`cmux agent message`, or a `bb thread` command other than reading), writing a file (a bare `Write` rule would allow any file), or claudio's own folder. Add a narrow rule to `settings.json` yourself for those. Events from your sessions, which nobody is there to answer, are never asked about: the command is refused. A yes counts only once the question is on screen, so an "okay" to the reply before it allows nothing. claudio asks, not the brain, so nothing the brain reads can approve itself.
 
 To drop every check instead, for this run only, start `claudio --dangerously-skip-permissions` or say “slash permissions skip” and then yes. The brain can then run anything without asking; it is still told to hand work to sessions and to get your yes before deleting, overwriting or pushing.
 
@@ -98,6 +101,6 @@ To drop every check instead, for this run only, start `claudio --dangerously-ski
 
 An `allow` file from an earlier version, one rule or folder per line, is moved into `settings.json` once, and kept as `allow.bak`. If `settings.json` can't be read when “always” adds to it, the old one is kept as `settings.json.bak`.
 
-Saving the file yourself, or `mcp.json`, restarts the brain with it, keeping the conversation; “always” doesn't need to. Anything you allow, the brain can run without asking, so allow only what you'd let it do unwatched. It presses keys in a session's pane only to select the option you chose in that session's question, never for a permission prompt. Work goes to your sessions.
+Saving the file yourself, or `mcp.json`, restarts the brain with it, keeping the conversation; “always” doesn't need to. Anything you allow, the brain can run without asking, so allow only what you'd let it do unwatched. It answers a session's question only with the option you chose (a key in a cmux pane, `bb thread interactions answer` in bb), and never a permission prompt: claudio answers that itself, after your yes. Work goes to your sessions.
 
 Its model and effort come from the `model` and `effort` settings. With `model` set to `default`, it uses your Claude Code default.

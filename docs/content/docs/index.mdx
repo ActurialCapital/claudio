@@ -25,14 +25,14 @@ claudio has three parts of its own, and it works with the Claude Code sessions y
 - **Ears**: Deepgram Flux turns your speech into text as you talk and decides when your turn has ended
 - **Brain**: one long-lived `claude` process, driven through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), with a short [persona](/docs/configure/persona). It answers questions itself and hands work to a session, never doing the work itself
 - **Mouth**: Deepgram Aura or ElevenLabs speaks the brain's reply one sentence at a time
-- **Your sessions**: ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox, and they report back through three Claude Code hooks
+- **Your sessions**: ordinary Claude Code sessions in cmux workspaces. Work reaches them through cmux's agent inbox, and they report back through three Claude Code hooks. In [bb](/docs/guide/bb), they're bb threads instead, and claudio is a panel beside them
 
 One session is the **orchestrator**: the one that gets your tasks unless you name another. Passing a task to a session is a **handoff**.
 
 ## What you need
 
 - macOS, since the echo canceller is Apple's voice-processing unit and cmux is a Mac app
-- [cmux](https://cmux.dev), with the workspace you want to send work to
+- [cmux](https://cmux.dev), with the workspace you want to send work to, or [bb](https://getbb.app) with the [claudio plugin](/docs/guide/bb)
 - [Claude Code](https://claude.com/claude-code), signed in: the brain runs through your Claude Code login
 - A [Deepgram](https://console.deepgram.com) API key, for the ears and the default mouth
 - Python 3.11 or later and [uv](https://docs.astral.sh/uv/)
@@ -42,5 +42,6 @@ One session is the **orchestrator**: the one that gets your tasks unless you nam
   <Card title="Getting started" href="/docs/guide/getting-started" description="Install, answer the setup questions, check everything with the doctor." />
   <Card title="Talking to claudio" href="/docs/guide/talking" description="How a turn ends, interrupting, spoken commands, memory." />
   <Card title="Sessions and handoff" href="/docs/guide/sessions" description="Send work to a session and hear what comes back." />
+  <Card title="claudio in bb" href="/docs/guide/bb" description="A claudio panel beside your bb threads." />
   <Card title="Troubleshooting" href="/docs/troubleshooting" description="Find the fix by what you notice." />
 </Cards>

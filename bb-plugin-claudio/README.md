@@ -6,7 +6,9 @@ brain, voice and rules are the Python program in this repo; this plugin only sta
 - `server.ts`: starts claudio with `backend=bb` (its sessions are bb's threads) under `script`, so it has the
   terminal it expects, with no window of its own; its screen goes to `~/.config/claudio/bb.log`. It reads claudio's
   `view.sock` (every transcript entry and its state) and passes it to the panel on the realtime channel `claudio`.
-  RPCs: `feed` (the last 500 entries, the state, the brain's model and effort), `say` (a line typed in the panel,
+  It pushes a thread's permission prompt or question to claudio the moment bb records it (`interaction.pending`), so
+  claudio stops polling bb for them while the plugin is connected.
+  RPCs: `feed` (the last 500 entries, the state, and claudio's hello: its commands, models, efforts and current model), `say` (a line typed in the panel,
   as if typed at claudio's keyboard), `start` (start claudio, or restart it), `attach` (a file, saved under
   `~/.config/claudio/attachments` for claudio to read).
 - `app.tsx`: a **claudio** tab in every thread's right panel: the conversation, drawn with bb's Markdown, and a
@@ -15,8 +17,9 @@ brain, voice and rules are the Python program in this repo; this plugin only sta
 
 ## Setting
 
-`command`: how to start claudio, arguments too (default `~/.local/bin/claudio`). Empty: show a claudio you start
-yourself, in a terminal; the panel attaches to it.
+`command`: how to start claudio, arguments too, such as `uv run claudio` (default `~/.local/bin/claudio`); it runs
+with `CLAUDIO_BACKEND=bb`. Empty: show a claudio you start yourself, in a terminal with `backend` set to `bb`; the
+panel attaches to it. claudio must be set up once in a terminal first: the plugin can't answer setup's questions.
 
 ## Develop
 
@@ -27,4 +30,6 @@ bb plugin dev        # rebuild and reload on save; reload bb's window (⌘R) to 
 bb plugin logs claudio -f
 ```
 
-Run one claudio at a time: one started here and one in cmux would fight over the mic and its sockets.
+Run one claudio at a time: one started here and one in cmux would fight over the mic and its sockets. To stop it:
+`/exit` (off until the avatar is clicked), or `bb plugin disable claudio`. The plugin's own log is
+`bb plugin logs claudio`; claudio's screen is in `~/.config/claudio/bb.log`.

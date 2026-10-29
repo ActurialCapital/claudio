@@ -27,33 +27,36 @@ These are claudio's own rules, from the package. Know them before you add to the
 - **Stay quiet when it isn't meant for it**: a turn plainly for someone else in the room, or cut off mid-thought, gets `[skip]`, and claudio says nothing
 - **Keep your corrections** with `claudio learn`, only from your own words; what it [learned](/docs/guide/talking#what-it-learns) is added after the persona and your additions
 - **Read the transcripts** for “what did we do today”, rather than trust its memory of past days
-- **Use cmux**: hand over through the agent inbox with the marker, list sessions, read a session's screen, open workspaces, splits and tabs
-- **Narrate events**: finishes in plain words, permission prompts read out but never answered, multiple-choice questions read out numbered
+- **Use the sessions' app**, cmux or bb, as `backend` says: in cmux, hand over through the agent inbox with the marker, list sessions, read a session's screen, open workspaces, splits and tabs; in bb, tell a thread with the marker, list and read threads, open a thread
+- **Narrate events**: finishes in plain words, permission prompts read out but never answered by the brain (claudio asks you yes or no itself), multiple-choice questions read out numbered
 - **Change settings** with `claudio set`, and say first that a model, effort or style change restarts it
 
 It also carries rules that keep the voice human, adapted for speech from [humanizer](https://github.com/blader/humanizer)'s list of AI-writing tells: plain words (“is”, not “serves as”), no forced groups of three, no inflated significance, at most one hedge, no chatbot wrapper such as “Great question”, and stop on the last fact.
 
-The handover marker matters most: sessions rely on `[spoken by the user, transcribed by claudio]` to know the words are yours. Keep it if you rewrite the cmux lines.
+The handover marker matters most: sessions rely on `[spoken by the user, transcribed by claudio]` to know the words are yours. Keep it if you rewrite the handover lines.
 
 ## Fill in the placeholders
 
-Two placeholders in the file are replaced each time the brain starts:
+These placeholders in the file are replaced each time the brain starts:
 
 | Placeholder | Becomes |
 |---|---|
+| `{SESSIONS}` | how to work the sessions' app, from `sessions_cmux.md` or `sessions_bb.md` in the package, as `backend` says: its layout, and how to hand over, look, open, stop and answer a question |
+| `{SESSION}` | the command a session claudio opens in cmux starts with: `claude` with claudio's session prompt |
+| `{FROM}` | the name a cmux handover is sent `--from`: `Voice`, or the [name](/docs/configure/listening#rooms-with-other-people) you gave it |
 | `{TRANSCRIPTS}` | the transcripts directory, `~/.config/claudio/transcripts` |
 | `{KEYS}` | the names of the settings, each with its choices where it has a fixed set, without the API keys |
 
 claudio also adds text you do not need to write:
 
 - **Before the persona**: the style's instructions, when `style` is not `plain`
-- **After the persona**: claudio's slash commands, the orchestrator, the current settings, this directory's GitHub repo, the open sessions with their surface ids and directories as they were when the brain started (not claudio's own pane), and the rules that matter most, repeated last so they hold: `[skip]`, the brain's own jobs, never claiming a setting changed unless `claudio set` succeeded, never sending work after a no, and, when permission checks are off, asking before anything that deletes, overwrites or pushes
+- **After the persona**: claudio's slash commands, the orchestrator, the current settings, this directory's GitHub repo, the open sessions with their surface ids and directories as they were when the brain started (not claudio's own pane), or in bb the threads with their ids and projects, and the rules that matter most, repeated last so they hold: `[skip]`, the brain's own jobs, never claiming a setting changed unless `claudio set` succeeded, never sending work after a no, and, when permission checks are off, asking before anything that deletes, overwrites or pushes
 
 The brain also reads `CLAUDE.md` files, the project's and your own, like any Claude Code session.
 
 ## Replace the whole persona
 
-To write the persona from scratch instead, put a complete one in `prompt.md`, starting with “You are the voice in front of”, as the package's does. claudio then uses yours instead of its own, and warns at start that its newer rules can't reach it. Keep the cmux handover lines and the marker if you rewrite it.
+To write the persona from scratch instead, put a complete one in `prompt.md`, starting with “You are the voice in front of”, as the package's does. claudio then uses yours instead of its own, and warns at start that its newer rules can't reach it. Keep the `{SESSIONS}` line, which brings in the handover commands, and the marker if you rewrite it.
 
 Older versions copied the whole persona into `prompt.md`. If you never edited that copy, claudio turns it into an empty additions file the next time it starts. If you did, it keeps using your copy, with the same warning: move your changes into an additions file to get claudio's updates again.
 

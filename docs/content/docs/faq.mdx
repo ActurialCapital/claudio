@@ -8,7 +8,12 @@ Short answers, each with a link to the page that covers it in full. For somethin
 <Accordions type="multiple">
 <Accordion title="Does it work on Linux or Windows?">
 
-No. The echo canceller is Apple's voice-processing unit, and your sessions live in cmux, which is a Mac app.
+No. The echo canceller is Apple's voice-processing unit, and your sessions live in cmux, which is a Mac app, or in bb.
+
+</Accordion>
+<Accordion title="Does claudio work with bb?">
+
+Yes. Set `backend` to `bb` and your bb threads are its sessions: it hands work to a thread, opens one, reads what it did, and reads out its permission prompts and questions. The bb plugin shows claudio as a tab in every thread's right panel and starts it for you. It's the same claudio, with the same settings. See [claudio in bb](/docs/guide/bb).
 
 </Accordion>
 <Accordion title="What does it cost?">
@@ -18,13 +23,13 @@ The brain runs through your Claude Code login, so it uses your Claude plan like 
 </Accordion>
 <Accordion title="Can it change my code?">
 
-Not unless you allow it. Out of the box the brain can read and search files, run `git status`, `git log`, `git diff` and `git branch` (to list), read GitHub with `gh` (issues, pull requests, search), use a few cmux commands to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. Anything more is up to you: say yes or always when it asks, or list it in `settings.json`. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
+Not unless you allow it. Out of the box the brain can read and search files, run `git status`, `git log`, `git diff` and `git branch` (to list), read GitHub with `gh` (issues, pull requests, search), use a few cmux commands, or bb commands with `backend` set to `bb`, to message, list, read and open sessions and to select the option you chose in a session's question, and run `claudio set`. Work goes to your sessions, which run with their own permissions. Anything more is up to you: say yes or always when it asks, or list it in `settings.json`. See [what the brain may do](/docs/reference/files#what-the-brain-may-do).
 
 </Accordion>
 <Accordion title="Can it answer a session's prompts for me?">
 
-- **Permission prompts**: only with your answer. It reads the prompt out, then asks you yes, always or no; claudio's own code, never the brain, types what you said into that session's pane, after checking the prompt is still there. Nothing a session prints can answer it.
-- **Multiple-choice questions**: yes. It reads the options aloud, you say which one, it confirms, then answers it in the session's pane with `claudio choose`, which refuses anything but a question and its own options.
+- **Permission prompts**: only with your answer. It reads the prompt out, then asks you yes, always or no; claudio's own code, never the brain, types what you said into that session's pane, after checking the prompt is still there, or answers it through bb for a bb thread. Nothing a session prints can answer it.
+- **Multiple-choice questions**: yes. It reads the options aloud, you say which one, it confirms, then answers it in the session's pane with `claudio choose`, which refuses anything but a question and its own options. In bb it answers with `bb thread interactions answer`.
 
 </Accordion>
 <Accordion title="Does the brain use my CLAUDE.md or my Claude Code settings?">

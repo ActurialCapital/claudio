@@ -1,0 +1,125 @@
+---
+title: claudio in bb
+description: Run claudio as a panel in bb, with your bb threads as its sessions.
+---
+
+[bb](https://getbb.app) is an app for coding agents, where each session is a **thread**: one agent on one task, in a project. The claudio plugin for bb starts claudio in the background and shows it as a **claudio** tab in every thread's right panel. It's the same claudio as in a cmux pane, with the same ears, brain, voice, rules and settings. Only its sessions change: they're your bb threads.
+
+## Install it
+
+<Steps>
+<Step>
+
+### Set up claudio first
+
+[Install claudio](/docs/guide/getting-started) and run `claudio setup` once in a terminal, for your Deepgram key, a voice and the hooks. The hooks matter here too: a thread reports a finished task through them.
+
+To have setup check for bb instead of cmux and list bb's threads, run `claudio set backend bb` before it; setup then asks which thread is the orchestrator. To change it later, by its thread title:
+
+```bash
+claudio set orchestrator "Release prep"
+```
+
+That saves `backend` for every claudio you start. To use claudio in cmux again, run `claudio set backend cmux`.
+
+</Step>
+<Step>
+
+### Install the plugin
+
+With bb installed, from the claudio repository:
+
+```bash
+cd bb-plugin-claudio
+npm install
+bb plugin install .
+```
+
+The plugin starts claudio with `backend` set to `bb`, whatever your saved setting.
+
+</Step>
+<Step>
+
+### Tell it how to start claudio
+
+The plugin's `command` setting is how it starts claudio, arguments too. It defaults to `~/.local/bin/claudio`, where `uv tool install` puts it. Leave it empty and the plugin starts nothing: the panel attaches to a claudio you started yourself, in a terminal, and clicking the sun starts nothing. Change it, then reload the plugin:
+
+```bash
+bb plugin config claudio set command "uv run claudio"
+bb plugin reload claudio
+```
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+Run one claudio at a time. One started by the plugin and one in a terminal would fight over the microphone and claudio's sockets.
+</Callout>
+
+## Find the panel
+
+Open any thread and look in its right panel, the one <kbd>⌘</kbd>+<kbd>J</kbd> opens, beside bb's own tabs. The **claudio** tab is the same chat whichever thread is open.
+
+## Read the panel
+
+The panel shows what claudio's terminal shows, as a chat:
+
+- **Your turns**, spoken or typed, as green bubbles on the right, with the time
+- **claudio's replies** as grey bubbles on the left. Tables, lists and code are drawn with bb's own Markdown, as in a thread. Commands claudio ran sit inside its bubble
+- **Session reports** as cards: a header with `done`, `needs permission`, `asks you to choose` or `replied` and the time, then the thread's name
+- **Notes and settings** as small pills in the middle, and dividers for a start, a gap of more than 5 minutes, or a fresh start after `/clear`
+
+The header shows claudio's sun, its name and what it's doing. The dot on the sun is green while it listens, blue while it speaks, amber otherwise (thinking, muted, warming up), and red when it isn't running.
+
+## Start, restart and stop it
+
+Click the sun to start claudio, or to restart it when it's running (unless the plugin's `command` is empty: then start claudio yourself).
+
+claudio never restarts on its own. After `/exit`, "slash exit" or a crash it stays off until you click the sun. To turn the plugin off altogether, run `bb plugin disable claudio`.
+
+## Type to it
+
+Talking works as in a terminal. The composer at the bottom is for typing, and a line typed there is a line typed at claudio's keyboard:
+
+- **<kbd>Enter</kbd>** sends; **<kbd>Shift</kbd>+<kbd>Enter</kbd>** starts a new line. A message can be 4000 characters
+- **<kbd>Enter</kbd> on an empty composer** cuts the current reply, or opens the mic for one turn when `push_to_talk` is on
+- **1, 2 or 3** answers claudio's numbered question, as the keys do in the terminal
+- **+** attaches files, up to 10 MB each. They're saved in `~/.config/claudio/attachments` and their paths go into your message, so claudio can read them, images too
+- **/** opens a menu of claudio's commands: status, help, clear, stop, voice, style, name and restart
+- **The model chip** shows the brain's model and effort. Pick another and the panel sends `/model` or `/effort`
+- **The mic button** mutes and unmutes claudio. Muted, it shows a red crossed-out mic
+
+A message that couldn't be sent stays in the composer, with a red note saying why.
+
+## Work with threads
+
+The plugin's claudio runs in your home folder, not in a project: name the project or repo when you ask it about files or GitHub.
+
+Everything on [Sessions and handoff](/docs/guide/sessions) holds, with threads for panes:
+
+- **The orchestrator** is a thread, named by its title
+- **Hand over**: the brain sends your words to the thread with `bb thread tell`, starting with the same marker. claudio asks “May I send … to Release prep?” every time, and there's no “always”
+- **Open**: "start a thread for the export screen" opens one with `bb thread spawn`, with your task as its first message. It's asked about too, like a send. It goes in the project you name, otherwise in the orchestrator thread's project; with neither, claudio asks which
+- **Check on one**: "what's Release prep doing?" reads its last answer or what it has been doing, without asking you
+- **Finished work**: a thread you handed work to, or opened, is narrated when it finishes
+
+The state line's `working`, `waiting on you` or `idle`, and the nudge after 2 minutes of `waiting on you`, come from the orchestrator thread's status.
+
+### Answer a thread by voice
+
+When a thread stops at a permission prompt, claudio reads it out and asks yes, always or no, then answers it in bb. “Always” is offered only when bb offers it for the session. When a thread asks a multiple-choice question, claudio reads the question and its options, and answers with the one you pick.
+
+The plugin passes each prompt and question to claudio the moment bb records it. A claudio run with `backend` set to `bb` in a terminal, without the plugin, checks bb every 3 seconds instead.
+
+### Stop a thread
+
+Press Stop on the thread in bb. claudio can't stop it for you.
+
+## When something's wrong
+
+- **The panel says `not running`**: click the sun. If it stays red, read `~/.config/claudio/bb.log`, where the claudio the plugin started writes its screen
+- **The plugin itself**: follow its log with `bb plugin logs claudio -f`
+- **The panel looks stale after an update**: reload bb's window with <kbd>⌘</kbd>+<kbd>R</kbd>
+- **The orchestrator isn't found**: run `CLAUDIO_BACKEND=bb claudio doctor`. It checks that bb is reachable and that the orchestrator is a thread's title
+
+[Troubleshooting](/docs/troubleshooting) covers the rest.

@@ -82,10 +82,11 @@ Each group links to the page that explains it:
 | The voice, see [voices and mouths](/docs/configure/voice) | `claudio set voice aura-2-thalia-en` |
 | When your turn ends, see [listening and turns](/docs/configure/listening) | `claudio set eot 0.8` |
 | Who gets your tasks | `claudio set orchestrator Core` |
+| Where your sessions are, see [claudio in bb](/docs/guide/bb) | `claudio set backend bb` |
 | Which session reports you hear | `claudio set narrate all` |
 | Whether it resumes the last conversation | `claudio set memory false` |
 
-`model` takes `default`, `sonnet`, `opus` or `haiku`, through your Claude Code login. `effort` takes `low`, `medium` or `high`. `narrate` takes `handed-off` (finishes of work it handed over in the last 30 minutes), `all` or `none`. The [settings reference](/docs/reference/settings) lists every setting with its default.
+`model` takes `default`, `sonnet`, `opus` or `haiku`, through your Claude Code login. `effort` takes `low`, `medium` or `high`. `backend` takes `cmux`, the default, or `bb`, whose threads are then the sessions and whose orchestrator is a thread's title. `narrate` takes `handed-off` (finishes of work it handed over in the last 30 minutes), `all` or `none`. The [settings reference](/docs/reference/settings) lists every setting with its default.
 
 ## When a change takes effect
 
@@ -103,6 +104,7 @@ claudio watches `config.json` and reloads it about once a second. The line `⚙ 
 | `barge_in`, `address_me`, `narrate`, `memory` | at once |
 | `code_colors` | from the next code block |
 | `layout` | from your next turn |
+| `backend` | restart claudio |
 
 Edits to `.claudio.json`, to `secrets.json` on its own, or to environment variables need a restart of claudio. Editing the [persona](/docs/configure/persona) restarts the brain by itself.
 

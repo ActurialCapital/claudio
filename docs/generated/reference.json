@@ -6,7 +6,7 @@
       "default": "",
       "choices": [],
       "range": null,
-      "help": "cmux workspace that gets tasks by default",
+      "help": "cmux workspace (or bb thread title) that gets tasks by default",
       "secret": false,
       "env": "CLAUDIO_ORCHESTRATOR",
       "may_be_empty": true
@@ -279,6 +279,20 @@
       "help": "what it answers to, and calls itself: one to three words",
       "secret": false,
       "env": "CLAUDIO_NAME",
+      "may_be_empty": false
+    },
+    {
+      "key": "backend",
+      "type": "text",
+      "default": "cmux",
+      "choices": [
+        "cmux",
+        "bb"
+      ],
+      "range": null,
+      "help": "where the sessions are: cmux, or bb (its threads)",
+      "secret": false,
+      "env": "CLAUDIO_BACKEND",
       "may_be_empty": false
     },
     {

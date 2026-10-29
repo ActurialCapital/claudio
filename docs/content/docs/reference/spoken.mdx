@@ -56,6 +56,7 @@ While muted, typed lines still work as turns.
 |---|---|
 | <kbd>Enter</kbd> on an empty line | cuts the reply; with push to talk, opens the mic when it is closed |
 | a typed line, then <kbd>Enter</kbd> | a turn, as if you had said it; while you type, the line shows on the state line as `› …▏` |
+| <kbd>1</kbd>, <kbd>2</kbd> or <kbd>3</kbd> on an empty line, while claudio asks | that answer at once, no <kbd>Enter</kbd> needed |
 | <kbd>Backspace</kbd> · <kbd>Ctrl</kbd>+<kbd>U</kbd> | deletes a character · the whole typed line |
 | `/` and a command, then <kbd>Enter</kbd> | a slash command |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd>, or `/quit` | quits |
@@ -78,4 +79,4 @@ Work the brain hands to a session starts with this marker, so the session knows 
 [spoken by the user, transcribed by claudio]
 ```
 
-The message goes through `cmux agent message` with `--from Voice`, or `--from` its [name](/docs/configure/listening#rooms-with-other-people) when you gave it one, so the session's inbox shows who relayed it.
+The message goes through `cmux agent message` with `--from Voice`, or `--from` its [name](/docs/configure/listening#rooms-with-other-people) when you gave it one, so the session's inbox shows who relayed it. With `backend` set to `bb`, it goes through `bb thread tell` to the thread, or starts a new thread's first message through `bb thread spawn`.

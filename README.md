@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://claudio-vert.vercel.app/docs"><img alt="docs" src="https://img.shields.io/badge/docs-claudio--vert.vercel.app-dd7627"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-dd7627"></a>
-  <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux-dd7627">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-cmux%20%C2%B7%20bb-dd7627">
   <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-dd7627">
   <img alt="ears & mouth" src="https://img.shields.io/badge/ears%20%26%20mouth-Deepgram-dd7627">
   <img alt="brain" src="https://img.shields.io/badge/brain-Claude%20Code-dd7627">
@@ -28,7 +28,7 @@ uv tool install git+https://github.com/ActurialCapital/claudio
 cd ~/code/myproject && claudio
 ```
 
-The first run is a short setup: your [Deepgram](https://console.deepgram.com) key, the cmux workspace that is your orchestrator, a voice, the brain's model and effort. It installs the Claude Code hooks for you. `claudio doctor` checks everything afterwards.
+The first run is a short setup: your [Deepgram](https://console.deepgram.com) key, the cmux workspace (or bb thread) that is your orchestrator, a voice, the brain's model and effort. It installs the Claude Code hooks for you. `claudio doctor` checks everything afterwards.
 
 **Full documentation: [claudio-vert.vercel.app/docs](https://claudio-vert.vercel.app/docs)**, from setup to every setting and what to do when something goes wrong.
 
@@ -44,8 +44,24 @@ flowchart LR
 ```
 
 - 💬 **Discussing?** The brain answers itself, reading the project when it needs facts.
-- 🛠️ **Work?** It sends the task to your orchestrator through cmux's agent inbox and says so. With permission checks on, claudio asks “May I send … to Sequencer?” first, every time; a question such as “should I merge?” gets an answer, never a send.
-- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words, with the request it was for, and reads out questions and permission prompts with the actual command. Answer by voice (yes, always, no, or the option you want) or with 1, 2, 3; claudio types it into that session's pane.
+- 🛠️ **Work?** It sends the task to your orchestrator through cmux's agent inbox (in bb, `bb thread tell`) and says so. With permission checks on, claudio asks “May I send … to Sequencer?” first, every time; a question such as “should I merge?” gets an answer, never a send.
+- 📣 **Sessions report back** through Claude Code hooks. Claudio narrates in plain words, with the request it was for, and reads out questions and permission prompts with the actual command. Answer by voice (yes, always, no, or the option you want) or with 1, 2, 3; claudio types it into that session's pane, or answers it in bb.
+
+## 🧩 In bb
+
+[bb](https://getbb.app) is an app for coding agents; its sessions are threads. The plugin in [`bb-plugin-claudio/`](bb-plugin-claudio) runs the same claudio in the background, with `backend` set to `bb`, and shows it as a **claudio** tab in every thread's right panel (⌘J), beside bb's own tabs. Same ears, brain, voice, rules and settings.
+
+```bash
+cd bb-plugin-claudio && npm install && bb plugin install .
+```
+
+Install and set up claudio first, in a terminal, as above; then reload bb's window (⌘R). The full guide: [claudio in bb](https://claudio-vert.vercel.app/docs/guide/bb). How the plugin starts claudio (its `command` setting) and how to work on it: [bb-plugin-claudio](bb-plugin-claudio). What changes:
+
+- 💬 The panel is the screen: your turns and claudio's as a chat, tables and code drawn as in a thread, and a box to type in, attach files, run claudio's commands, pick its model and reasoning, or mute it.
+- 🟠 Click claudio's avatar to start it, or to restart it. It never restarts alone: after `/exit` or a crash it stays off until you click.
+- ✅ Permission prompts and questions from bb threads are read out the moment bb records them; answer by voice (yes, always, no, or the option) and claudio answers them in bb.
+- ⏹️ To stop a thread, press Stop on it in bb.
+- 🎙️ Run one claudio at a time: one in a terminal and the plugin's would fight over the mic.
 
 ## 🎙️ Say
 
@@ -53,7 +69,7 @@ flowchart LR
 |---|---|
 | "what's the sequencer doing?" | reads that pane, sums it up |
 | "rebase 44 and run the tests" | asks, then hands it to the orchestrator |
-| "open a session called Core" | new cmux workspace running `claude` |
+| "open a session called Core" | new cmux workspace running `claude`; in bb, a new thread |
 | "use Sonnet" · "the orchestrator is Core now" | changes a setting, kept for next time |
 | "slash clear" · "slash status" · "slash help" | the slash commands, spoken |
 | "slash quit" · "slash exit" | says bye and quits |
@@ -70,7 +86,7 @@ flowchart LR
 | "search what Aura-2 costs" | searches the web, says the answer, shows the links |
 | "open issue 727 in the browser" | opens it, or a Google search, and says only "Opening it." |
 | "yes", "always" or "no" (or press 1, 2, 3), when it asks to allow a command | yes runs it once; always also adds it to `settings.json`; the reply goes on |
-| "yes", "always" or "no" (or 1, 2, 3), when a session asks for permission | picks that option in the session's pane; no presses Escape; it never picks a mode switch |
+| "yes", "always" or "no" (or 1, 2, 3), when a session asks for permission | picks that option in the session's pane; no presses Escape; it never picks a mode switch; in bb, it answers the prompt there |
 | "forget the rule about seven" | drops that learned rule |
 | talk over it | pauses; a real turn cuts it, an "mm-hm" lets it go on |
 | type a line | a turn, for when you can't talk; what you type shows on the state line |
@@ -111,10 +127,10 @@ flowchart LR
     cp --> aura["Deepgram Aura<br/><sub>streaming TTS · per sentence</sub>"]
     aura --> aec
     hooks["🪝 Stop · Notification · AskUserQuestion"] -->|unix socket| cp
-    cp -->|cmux agent message| sessions["💻 sessions"]
+    cp -->|"cmux agent message · bb thread tell"| sessions["💻 sessions"]
 ```
 
-- 🍎 macOS · 🖥️ [cmux](https://cmux.dev) · 🎧 [Deepgram](https://deepgram.com), or [ElevenLabs](https://elevenlabs.io) for the mouth · 🧠 your Claude plan
+- 🍎 macOS · 🖥️ [cmux](https://cmux.dev) or [bb](https://getbb.app) · 🎧 [Deepgram](https://deepgram.com), or [ElevenLabs](https://elevenlabs.io) for the mouth · 🧠 your Claude plan
 - The brain starts on Flux's eager end of turn; its audio is held until the final transcript agrees.
 - Ears reconnect, the brain restarts if it dies and says so, a mouth that drops mid-reply is reopened, and if the echo canceller stops the plain mic takes over with the reason shown. Errors land in `~/.config/claudio/brain.log` and `helper.log`.
 - Every setting is checked for type, choice and range wherever it comes from; a bad value is skipped with a warning and `claudio set` says why.

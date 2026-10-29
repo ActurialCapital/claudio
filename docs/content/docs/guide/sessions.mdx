@@ -7,6 +7,8 @@ claudio talks and your sessions work. Use this page to send a task to a session,
 
 A session is an ordinary Claude Code session running in a cmux workspace. claudio knows each one by its workspace title.
 
+With `backend` set to `bb`, as the [bb plugin](/docs/guide/bb) runs it, the sessions are bb threads instead, known by their titles. The rest of this page holds for both; where bb differs, it says so.
+
 ## Choose the orchestrator
 
 The orchestrator is the session that gets your tasks unless you name another. You pick it during setup. To change it, say "the orchestrator is Core now", or run:
@@ -33,6 +35,8 @@ When you ask for work, the brain sends it to the orchestrator through cmux's age
   → cmux agent message
 ```
 
+A message of more than 25 words is read by its start: its first 12 words, then how many more there are. Say “read it all” and the brain reads you the whole message; a yes in the next two minutes sends it.
+
 A question is never an order: “should I merge?” gets the brain's view, not a send. With [permission checks off](/docs/reference/cli#claudio---dangerously-skip-permissions), it sends without that question.
 
 The message starts with a marker, so the session knows the words are yours and not the brain's:
@@ -47,6 +51,8 @@ To send work elsewhere, name the session: "ask Core to update the changelog". Th
 
 Name a session by its tab name, as cmux shows it, or by its Claude session title; the brain knows both. It knows cmux's words too: a window holds workspaces (which can sit in a workspace group in the sidebar), a workspace is split into panes, and a pane holds tabs, terminals or browsers. It gets the layout at start, and runs `cmux tree` again whenever you name or ask about a tab, pane, workspace or group, so a tab opened or renamed since is found.
 
+In bb, the brain sends to the thread with `bb thread tell` and its id, with the same marker. claudio asks every time there too.
+
 A session can answer back with `cmux agent message --reply-to`. The reply lands in claudio's own cmux inbox; claudio checks it every few seconds and reads it to you, with a `▸ <session>  replied` line, unless it's muted or `narrate` is `none`.
 
 ## Open a new session
@@ -59,9 +65,11 @@ Ask for one and the brain opens it with cmux:
 
 A new session takes a few seconds to start, so the brain waits before handing it work.
 
+In bb, the brain opens a new thread with `bb thread spawn`, your task as its first message. claudio asks first, as for a send, and narrates the thread when it finishes.
+
 ## Check on a session
 
-Ask "what's Sequencer doing?" and the brain reads the last 60 lines of that session's screen and sums them up in a sentence or two.
+Ask "what's Sequencer doing?" and the brain reads the last 60 lines of that session's screen and sums them up in a sentence or two. In bb, it reads the thread's last answer or its log instead.
 
 The [state line](/docs/guide/on-screen#read-the-state-line) also shows the orchestrator's state, checked every 5 seconds:
 
@@ -71,9 +79,11 @@ The [state line](/docs/guide/on-screen#read-the-state-line) also shows the orche
 | `waiting on you` | a permission prompt or a numbered choice |
 | `idle` | neither |
 
+In bb, the state comes from the orchestrator thread's status and whether it has a prompt or question pending.
+
 If the orchestrator stays `waiting on you` for 2 minutes, claudio tells you once, unless you're muted or it's already speaking.
 
-To stop a running session, press <kbd>Esc</kbd> in its pane. claudio can't stop it for you.
+To stop a running session, press <kbd>Esc</kbd> in its pane, or Stop on its thread in bb. claudio can't stop it for you.
 
 ## Hear what sessions report back
 
@@ -107,9 +117,11 @@ When a session stops at a permission prompt, claudio shows the prompt as the ses
 
 Say yes, always or no, or press 1, 2 or 3. claudio itself, not the brain, reads your answer and types it into that session's pane: yes picks the prompt's plain Yes, always picks the option that keeps allowing it (offered only when the prompt has one), and no presses Escape. It never picks an option that switches the session's mode. Before typing, it checks the same prompt is still on screen; if you answered it in the pane meanwhile, nothing is pressed. Ask a question back ("what does that do?") and the brain answers; a yes in the next two minutes still counts. Say anything else and the prompt waits for you in its pane.
 
+In bb, claudio reads the thread's prompt the same way and asks yes, always or no, then answers it in bb instead of pressing keys; “always” is offered only when bb offers it. The bb plugin passes each prompt to claudio the moment bb records it. Without the plugin, claudio checks bb every 3 seconds.
+
 ### A session asks you to choose
 
-When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then answers in the session's pane with [`claudio choose`](/docs/reference/cli#claudio-choose-surface-n). The brain decides which option you meant; `claudio choose` checks a question is on screen (never a permission prompt) and that the option exists, then types its number. For a question that takes several, name them all and it ticks each and submits. For an answer in your own words, it types them into "Type something". With several questions it answers each in turn and submits the review. You can always pick it in the pane yourself instead.
+When a session asks a multiple-choice question, claudio reads the question and its options aloud, numbered, and waits. Tell it your choice and it confirms what it understood, then answers in the session's pane with [`claudio choose`](/docs/reference/cli#claudio-choose-surface-n). The brain decides which option you meant; `claudio choose` checks a question is on screen (never a permission prompt) and that the option exists, then types its number. For a question that takes several, name them all and it ticks each and submits. For an answer in your own words, it types them into "Type something". With several questions it answers each in turn and submits the review. You can always pick it in the pane yourself instead. In bb, the brain answers the thread's question in bb with the option you picked.
 
 ```transcript
 ▸ Sequencer  asks you to choose
@@ -130,7 +142,7 @@ The `narrate` setting decides what you hear from sessions:
 Change it with `claudio set narrate all`. claudio also ignores:
 
 - Its own brain's session
-- Sessions outside cmux, since it can't tell which workspace they belong to
+- Sessions outside cmux (or outside bb, when it's the backend), since it can't tell which workspace they belong to
 - Everything, while you're muted
 
 <Callout type="warn">
