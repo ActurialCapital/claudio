@@ -1035,7 +1035,7 @@ def intent(said):
         if any(x in NO for x in w):
             return "no"
         last = lambda words: max((i for i, x in enumerate(w) if x in words), default=-1)
-        hedge, yes = last(("but", "wait", "hold", "hang", "later", "what", "why", "how", "first")), last(YES + ("always",))
+        hedge, yes = last(("but", "wait", "hold", "hang", "later", "what", "why", "how", "first", "read")), last(YES + ("always",))
         if hedge > yes or (part is parts[-1] and part.rstrip().endswith("?")):   # "but just that one, yes": a yes
             return "question"
         if "always" in w:
@@ -1064,8 +1064,10 @@ def described(tool, tool_input, rule, what):
         to = m[1] or m[2]
         to = next((w for sid, (w, _, _, full) in surfaces.items() if to.upper() in (sid, full.upper())), "a session")
         said = re.findall(r'"((?:[^"\\]|\\.)*)"', cmd)
-        words = re.sub(r"^\[spoken by the user, transcribed by claudio\]\s*", "", said[-1] if said else "")
-        return f'send "{words}" to {to}' if words else f"send a message to {to}"
+        words = re.sub(r"^\[spoken by the user, transcribed by claudio\]\s*", "", said[-1] if said else "").split()
+        if len(words) > 25:                    # too long to hear: its start, the rest is on screen ("read it all" asks)
+            return f'send "{" ".join(words[:12])}…" and {len(words) - 12} more words to {to}'
+        return f'send "{" ".join(words)}" to {to}' if words else f"send a message to {to}"
     if rule:
         return what.removeprefix("to ")
     if tool == "Bash":
@@ -1275,7 +1277,8 @@ async def main():
             ui.note(f"allowed once: {rule or action}")
             return PermissionResultAllow()
         recent.update(key=key, at=time.time())
-        return PermissionResultDeny(message=f"Not run yet: asked, the user said \"{said}\". Answer that in a few words; "
+        return PermissionResultDeny(message=f"Not run yet: asked, the user said \"{said}\". Answer that in a few words, or in full if "
+                                            "they asked to hear it all; "
                                             "if they then say yes, run the same command again.")
 
     async def asked(question, ready):

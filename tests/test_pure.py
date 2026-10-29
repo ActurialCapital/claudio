@@ -755,3 +755,7 @@ def test_a_send_is_asked_each_time_by_what_and_to_whom(monkeypatch):
     rule, what = config.rule_for("Bash", {"command": cmd})
     assert rule is None                                      # no "always": every send is asked
     assert agent.described("Bash", {"command": cmd}, rule, what) == 'send "Merge and continue." to Sequencer'
+    long = cmd.replace("Merge and continue.", " ".join(f"w{i}" for i in range(30)))   # too long to hear: its start
+    assert agent.described("Bash", {"command": long}, rule, what) == \
+        'send "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11…" and 18 more words to Sequencer'
+    assert agent.intent("read it all") == "question" and agent.intent("read it, yes") == "yes"   # it all: the brain reads it
